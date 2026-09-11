@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+web/node_modules/
+web/dist/
+*.tsbuildinfo
+ai-service/.venv/
+ai-service/.pytest_cache/
+**/__pycache__/
+mobile/.dart_tool/
+mobile/build/
+.env
+*.user

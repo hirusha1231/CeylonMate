@@ -1,0 +1,6 @@
+@CeylonMate.Api_HostAddress = http://localhost:5084
+
+GET {{CeylonMate.Api_HostAddress}}/health
+Accept: application/json
+
+###
