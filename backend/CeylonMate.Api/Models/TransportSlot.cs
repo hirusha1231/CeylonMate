@@ -23,6 +23,8 @@ public class TransportSlot
     public decimal PricePerSeat { get; set; }
     public string Currency { get; set; } = "LKR";
 
+    public DateTimeOffset? HeldUntilUtc { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 

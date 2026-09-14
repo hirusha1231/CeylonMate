@@ -103,6 +103,9 @@ class GuideAvailabilityService {
 
       throw Exception('Failed to save slot. Server status: ${response.statusCode}');
     } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        throw Exception('Slot is no longer available or was booked by another user. Please choose a different slot.');
+      }
       String msg = e.message ?? 'Network error occurred';
       final errData = e.response?.data;
       if (errData is Map<String, dynamic>) {

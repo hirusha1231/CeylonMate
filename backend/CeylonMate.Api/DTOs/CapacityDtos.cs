@@ -23,7 +23,8 @@ public record GuideAvailabilityDto(
     decimal PriceAmount,
     string Currency,
     string? Notes,
-    byte[] RowVersion
+    byte[] RowVersion,
+    DateTimeOffset? HeldUntilUtc = null
 );
 
 public record TransportSlotDto(
@@ -40,7 +41,8 @@ public record TransportSlotDto(
     int AvailableSeats,
     decimal PricePerSeat,
     string Currency,
-    byte[] RowVersion
+    byte[] RowVersion,
+    DateTimeOffset? HeldUntilUtc = null
 );
 
 public record AttractionSlotDto(
@@ -54,7 +56,8 @@ public record AttractionSlotDto(
     decimal PriceAmount,
     string Currency,
     string? Notes,
-    byte[] RowVersion
+    byte[] RowVersion,
+    DateTimeOffset? HeldUntilUtc = null
 );
 
 public record CapacitySearchResponseDto(
@@ -71,7 +74,8 @@ public record ReservationRequestDto(
     int PartySize = 1,
     byte[]? GuideSlotRowVersion = null,
     byte[]? TransportSlotRowVersion = null,
-    byte[]? AttractionSlotRowVersion = null
+    byte[]? AttractionSlotRowVersion = null,
+    int? HoldDurationMinutes = null
 );
 
 public record ReservationResultDto(
@@ -99,6 +103,26 @@ public record CreateGuideAvailabilityRequestDto(
     DateTimeOffset EndTimeUtc,
     SlotType SlotType = SlotType.FULL_DAY,
     int MaxCapacity = 1,
+    decimal PriceAmount = 0,
+    string Currency = "LKR",
+    string? Notes = null
+);
+
+public record CreateTransportSlotRequestDto(
+    DateTimeOffset StartTimeUtc,
+    DateTimeOffset EndTimeUtc,
+    VehicleType VehicleType = VehicleType.SEDAN,
+    int TotalSeats = 4,
+    decimal PricePerSeat = 0,
+    string Currency = "LKR",
+    Guid? OriginDestinationId = null,
+    Guid? DestinationId = null
+);
+
+public record CreateAttractionSlotRequestDto(
+    DateTimeOffset StartTimeUtc,
+    DateTimeOffset EndTimeUtc,
+    int MaxCapacity = 50,
     decimal PriceAmount = 0,
     string Currency = "LKR",
     string? Notes = null
