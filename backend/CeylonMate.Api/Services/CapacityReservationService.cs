@@ -1,3 +1,4 @@
+using CeylonMate.Api.Auth;
 using CeylonMate.Api.Data;
 using CeylonMate.Api.DTOs;
 using CeylonMate.Api.Models;
@@ -151,6 +152,7 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
                     {
                         guideSlot.Status = AvailabilityStatus.BOOKED;
                     }
+                    guideSlot.RowVersion = Guid.NewGuid().ToByteArray();
                     guideSlot.UpdatedAtUtc = DateTimeOffset.UtcNow;
                 }
 
@@ -176,6 +178,7 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
                     {
                         transportSlot.Status = SlotStatus.BOOKED;
                     }
+                    transportSlot.RowVersion = Guid.NewGuid().ToByteArray();
                     transportSlot.UpdatedAtUtc = DateTimeOffset.UtcNow;
                 }
 
@@ -201,6 +204,7 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
                     {
                         attractionSlot.Status = SlotStatus.BOOKED;
                     }
+                    attractionSlot.RowVersion = Guid.NewGuid().ToByteArray();
                     attractionSlot.UpdatedAtUtc = DateTimeOffset.UtcNow;
                 }
 
@@ -269,11 +273,29 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
             throw new ArgumentException("EndTimeUtc must be greater than StartTimeUtc.", nameof(request));
         }
 
-        var profile = await db.GuideProfiles.SingleOrDefaultAsync(x => x.UserId == guideUserId, ct);
+        // Ensure User record exists to satisfy foreign key FK_guide_availabilities_users_LocalGuideUserId
+        var user = await db.Users.SingleOrDefaultAsync(x => x.Id == guideUserId, ct);
+        if (user is null)
+        {
+            user = new User
+            {
+                Id = guideUserId,
+                Email = $"guide.{guideUserId.ToString()[..8]}@local.ceylonmate",
+                NormalizedEmail = $"GUIDE.{guideUserId.ToString()[..8]}@LOCAL.CEYLONMATE",
+                PasswordHash = "hashed_demo_password",
+                Role = UserRole.LOCAL_GUIDE,
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            };
+            db.Users.Add(user);
+            await db.SaveChangesAsync(ct);
+        }
+
+        var profile = await db.GuideProfiles.SingleOrDefaultAsync(x => x.UserId == user.Id, ct);
 
         var availability = new GuideAvailability
         {
-            LocalGuideUserId = guideUserId,
+            Id = Guid.NewGuid(),
+            LocalGuideUserId = user.Id,
             GuideProfileId = profile?.Id,
             StartTimeUtc = request.StartTimeUtc,
             EndTimeUtc = request.EndTimeUtc,
@@ -283,7 +305,10 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
             BookedCapacity = 0,
             PriceAmount = request.PriceAmount,
             Currency = string.IsNullOrWhiteSpace(request.Currency) ? "LKR" : request.Currency,
-            Notes = request.Notes
+            Notes = request.Notes,
+            RowVersion = Guid.NewGuid().ToByteArray(),
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
         };
 
         db.GuideAvailabilities.Add(availability);

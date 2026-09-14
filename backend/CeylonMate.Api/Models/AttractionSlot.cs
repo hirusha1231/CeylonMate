@@ -23,5 +23,5 @@ public class AttractionSlot
     public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
     [Timestamp]
-    public byte[] RowVersion { get; set; } = [];
+    public byte[] RowVersion { get; set; } = Guid.NewGuid().ToByteArray();
 }

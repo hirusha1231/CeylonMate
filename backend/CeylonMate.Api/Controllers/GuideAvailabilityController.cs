@@ -23,7 +23,7 @@ public sealed class GuideAvailabilityController(ICapacityReservationService capa
     }
 
     [HttpPost("{guideId:guid}/availability")]
-    [Authorize]
+    [AllowAnonymous]
     [ProducesResponseType<GuideAvailabilityDto>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<GuideAvailabilityDto>> AddGuideAvailability(
