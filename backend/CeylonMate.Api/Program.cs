@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using CeylonMate.Api.Auth;
 using CeylonMate.Api.Data;
+using CeylonMate.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -34,6 +35,7 @@ if (builder.Environment.IsDevelopment())
 
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<ICapacityReservationService, CapacityReservationService>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
