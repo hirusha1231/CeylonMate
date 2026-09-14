@@ -174,13 +174,13 @@ Host=ep-xyz.ap-southeast-1.aws.neon.tech;Database=ceylonmate;Username=ceylon_adm
     - [x] Traveler card renders resource badges cleanly.
     - [x] Clean build with zero `flutter analyze` errors or warnings.
 
-- [ ] **3.4 Git Commit, Push & Pull Request**
+- [x] **3.4 Git Commit, Push & Pull Request**
   ```bash
   git add .
   git commit -m "feat(mobile): add local guide availability screens and traveler feasibility summary"
   git push -u origin m3/flutter-availability
   ```
-  - [ ] Create PR on GitHub from `m3/flutter-availability` into `main` and merge.
+  - [x] Create PR on GitHub from `m3/flutter-availability` into `main` and merge.
 
 ---
 
