@@ -25,9 +25,11 @@ public class GuideAvailability
     public string Currency { get; set; } = "LKR";
     public string? Notes { get; set; }
 
+    public DateTimeOffset? HeldUntilUtc { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
     [Timestamp]
-    public byte[] RowVersion { get; set; } = [];
+    public byte[] RowVersion { get; set; } = Guid.NewGuid().ToByteArray();
 }

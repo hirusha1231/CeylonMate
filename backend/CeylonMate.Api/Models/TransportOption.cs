@@ -22,7 +22,7 @@ public class TransportOption
     public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
     [Timestamp]
-    public byte[] RowVersion { get; set; } = [];
+    public byte[] RowVersion { get; set; } = Guid.NewGuid().ToByteArray();
 
     public ICollection<TransportSlot> TransportSlots { get; set; } = new List<TransportSlot>();
 }
