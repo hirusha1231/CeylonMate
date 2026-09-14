@@ -264,6 +264,11 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
 
     public async Task<GuideAvailabilityDto> AddGuideAvailabilityAsync(Guid guideUserId, CreateGuideAvailabilityRequestDto request, CancellationToken ct = default)
     {
+        if (request.EndTimeUtc <= request.StartTimeUtc)
+        {
+            throw new ArgumentException("EndTimeUtc must be greater than StartTimeUtc.", nameof(request));
+        }
+
         var profile = await db.GuideProfiles.SingleOrDefaultAsync(x => x.UserId == guideUserId, ct);
 
         var availability = new GuideAvailability

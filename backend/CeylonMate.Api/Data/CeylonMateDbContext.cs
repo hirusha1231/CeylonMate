@@ -36,7 +36,7 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
         guideProfile.Property(x => x.LanguagesSpoken).HasMaxLength(256);
         guideProfile.Property(x => x.LicenseNumber).HasMaxLength(64);
         guideProfile.Property(x => x.DailyRate).HasPrecision(18, 2);
-        guideProfile.Property(x => x.RowVersion).IsRowVersion();
+        guideProfile.Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
         guideProfile.HasOne(x => x.User)
                     .WithMany()
                     .HasForeignKey(x => x.UserId)
@@ -52,7 +52,7 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
         guideAvailability.Property(x => x.PriceAmount).HasPrecision(18, 2);
         guideAvailability.Property(x => x.Currency).HasMaxLength(3).IsRequired();
         guideAvailability.Property(x => x.Notes).HasMaxLength(500);
-        guideAvailability.Property(x => x.RowVersion).IsRowVersion();
+        guideAvailability.Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
         guideAvailability.HasOne(x => x.LocalGuideUser)
                          .WithMany()
                          .HasForeignKey(x => x.LocalGuideUserId)
@@ -70,7 +70,7 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
         transportOption.Property(x => x.VehicleType).HasConversion<string>().HasMaxLength(32).IsRequired();
         transportOption.Property(x => x.VehicleModel).HasMaxLength(100);
         transportOption.Property(x => x.LicensePlate).HasMaxLength(32);
-        transportOption.Property(x => x.RowVersion).IsRowVersion();
+        transportOption.Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
         transportOption.HasOne(x => x.ProviderUser)
                        .WithMany()
                        .HasForeignKey(x => x.ProviderUserId)
@@ -85,7 +85,7 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
         transportSlot.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
         transportSlot.Property(x => x.PricePerSeat).HasPrecision(18, 2);
         transportSlot.Property(x => x.Currency).HasMaxLength(3).IsRequired();
-        transportSlot.Property(x => x.RowVersion).IsRowVersion();
+        transportSlot.Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
         transportSlot.HasOne(x => x.TransportOption)
                      .WithMany(x => x.TransportSlots)
                      .HasForeignKey(x => x.TransportOptionId)
@@ -100,6 +100,6 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
         attractionSlot.Property(x => x.PriceAmount).HasPrecision(18, 2);
         attractionSlot.Property(x => x.Currency).HasMaxLength(3).IsRequired();
         attractionSlot.Property(x => x.Notes).HasMaxLength(500);
-        attractionSlot.Property(x => x.RowVersion).IsRowVersion();
+        attractionSlot.Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
     }
 }
