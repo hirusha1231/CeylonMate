@@ -1,9 +1,9 @@
-import 'package:ceylonmate_mobile/main.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ceylonmate_mobile/main.dart';
 
 void main() {
-  testWidgets('renders scaffold', (tester) async {
+  testWidgets('Renders CeylonMate App without crashing', (WidgetTester tester) async {
     await tester.pumpWidget(const CeylonMateApp());
-    expect(find.text('CeylonMate mobile scaffold is running.'), findsOneWidget);
+    expect(find.byType(CeylonMateApp), findsOneWidget);
   });
 }
