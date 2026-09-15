@@ -40,3 +40,12 @@
 
 ### 4. Architecture Specification
 - Created comprehensive architecture manual at [`docs/Capacity_Subsystem_Architecture.md`](file:///e:/Year%203%20Sem%201/SEF/Projects/CEYLON%20MART/CeylonMate/CeylonMate/docs/Capacity_Subsystem_Architecture.md).
+
+## Phase 6: AI Agent, Resilient Routing & Automated Testing Evidence (Sep 15, 2026)
+- **React Management Pages**: Verified production build clean (	sc -b && vite build) for Guide Availability, Transport/Attraction capacity management, and Search panel.
+- **Resource Feasibility Agent**: LangGraph/FastAPI endpoint /agent/feasibility/check equipped with 4 read-only capacity tools and strict non-mutation safety guardrails.
+- **Resilient Routing Adapter**: Built RoutingAdapter with Haversine distance calculations and defensive cancellation/timeout fallback.
+- **Automated Test Results**:
+  - Concurrency & Optimistic Locking tests (7/7 passed)
+  - Routing Adapter distance calculation & safe-fallback resiliency tests (2/2 passed)
+  - Total: **9/9 tests passed (0 failures)**.
