@@ -1,0 +1,7 @@
+namespace CeylonMate.Api.Trips;
+
+public enum TripStatus
+{
+    DRAFT, SUBMITTED, PLANNING, PROPOSED, PENDING_APPROVAL, APPROVED,
+    REVISION_REQUIRED, BOOKED, CANCELLED, FAILED
+}

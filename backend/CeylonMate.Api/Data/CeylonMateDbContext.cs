@@ -1,4 +1,5 @@
 using CeylonMate.Api.Auth;
+using CeylonMate.Api.Trips;
 using CeylonMate.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,10 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.ApplyConfiguration(new TravelerProfileConfiguration());
+        modelBuilder.ApplyConfiguration(new TripRequestConfiguration());
+        modelBuilder.ApplyConfiguration(new TripRequestStatusHistoryConfiguration());
+        modelBuilder.ApplyConfiguration(new WorkflowExecutionConfiguration());
         base.OnModelCreating(modelBuilder);
 
         var user = modelBuilder.Entity<User>();
