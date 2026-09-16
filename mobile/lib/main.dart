@@ -5,6 +5,12 @@ import 'core/auth/auth_user.dart';
 import 'core/auth/token_store.dart';
 import 'core/network/api_client.dart';
 import 'features/guide/services/guide_availability_service.dart';
+import 'features/traveler/widgets/resource_feasibility_view.dart';
+import 'core/network/api_client.dart';
+import 'features/trips/screens/my_trips_screen.dart';
+import 'features/trips/screens/trip_details_screen.dart';
+import 'features/trips/screens/trip_form_screen.dart';
+import 'features/trips/services/trip_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +22,7 @@ class CeylonMateApp extends StatefulWidget {
   final ApiClient? apiClient;
   final AuthGateway? authGateway;
   final GuideAvailabilityService? guideService;
+  final ApiClient? apiClient;
 
   const CeylonMateApp({super.key, this.apiClient, this.authGateway, this.guideService});
 
@@ -39,6 +46,30 @@ class _CeylonMateAppState extends State<CeylonMateApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _auth.initialize();
     });
+  const CeylonMateApp({super.key, this.guideService, this.apiClient});
+
+  @override
+  Widget build(BuildContext context) {
+    final trips = TripService(apiClient ?? ApiClient());
+    return MaterialApp(
+      title: 'CeylonMate Mobile',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.teal,
+      ),
+      home: Member3HomeShell(guideService: guideService, apiClient: apiClient),
+      onGenerateRoute: (settings) {
+        if (settings.name == '/trips/new') {
+          return MaterialPageRoute(builder: (_) => TripFormScreen(service: trips));
+        }
+        if (settings.name == '/trips/details' && settings.arguments is String) {
+          return MaterialPageRoute(builder: (_) => TripDetailsScreen(
+            service: trips, tripId: settings.arguments! as String));
+        }
+        return null;
+      },
+    );
   }
 
   void _onAuthChanged() {
@@ -105,6 +136,11 @@ class LoginScreen extends StatefulWidget {
   final AuthController auth;
 
   const LoginScreen({super.key, required this.auth});
+class Member3HomeShell extends StatefulWidget {
+  final GuideAvailabilityService? guideService;
+  final ApiClient? apiClient;
+
+  const Member3HomeShell({super.key, this.guideService, this.apiClient});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -180,6 +216,32 @@ class _LoginScreenState extends State<LoginScreen> {
                 : const Text('Sign in'),
           ),
         ]),
+          if (_selectedIndex == 2)
+            MyTripsScreen(service: TripService(widget.apiClient ?? ApiClient())),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) {
+          setState(() => _selectedIndex = index);
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.event_available),
+            selectedIcon: Icon(Icons.event_available, color: Colors.teal),
+            label: 'Local Guide',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore, color: Colors.teal),
+            label: 'Traveler View',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.luggage_outlined),
+            selectedIcon: Icon(Icons.luggage, color: Colors.teal),
+            label: 'My Trips',
+          ),
+        ],
       ),
     )),
   );
