@@ -2,16 +2,23 @@ import 'package:flutter/material.dart';
 import 'features/guide/screens/my_availability_screen.dart';
 import 'features/guide/services/guide_availability_service.dart';
 import 'features/traveler/widgets/resource_feasibility_view.dart';
+import 'core/network/api_client.dart';
+import 'features/trips/screens/my_trips_screen.dart';
+import 'features/trips/screens/trip_details_screen.dart';
+import 'features/trips/screens/trip_form_screen.dart';
+import 'features/trips/services/trip_service.dart';
 
 void main() => runApp(const CeylonMateApp());
 
 class CeylonMateApp extends StatelessWidget {
   final GuideAvailabilityService? guideService;
+  final ApiClient? apiClient;
 
-  const CeylonMateApp({super.key, this.guideService});
+  const CeylonMateApp({super.key, this.guideService, this.apiClient});
 
   @override
   Widget build(BuildContext context) {
+    final trips = TripService(apiClient ?? ApiClient());
     return MaterialApp(
       title: 'CeylonMate Mobile',
       debugShowCheckedModeBanner: false,
@@ -19,15 +26,26 @@ class CeylonMateApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: Colors.teal,
       ),
-      home: Member3HomeShell(guideService: guideService),
+      home: Member3HomeShell(guideService: guideService, apiClient: apiClient),
+      onGenerateRoute: (settings) {
+        if (settings.name == '/trips/new') {
+          return MaterialPageRoute(builder: (_) => TripFormScreen(service: trips));
+        }
+        if (settings.name == '/trips/details' && settings.arguments is String) {
+          return MaterialPageRoute(builder: (_) => TripDetailsScreen(
+            service: trips, tripId: settings.arguments! as String));
+        }
+        return null;
+      },
     );
   }
 }
 
 class Member3HomeShell extends StatefulWidget {
   final GuideAvailabilityService? guideService;
+  final ApiClient? apiClient;
 
-  const Member3HomeShell({super.key, this.guideService});
+  const Member3HomeShell({super.key, this.guideService, this.apiClient});
 
   @override
   State<Member3HomeShell> createState() => _Member3HomeShellState();
@@ -117,6 +135,8 @@ class _Member3HomeShellState extends State<Member3HomeShell> {
               ),
             ),
           ),
+          if (_selectedIndex == 2)
+            MyTripsScreen(service: TripService(widget.apiClient ?? ApiClient())),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -134,6 +154,11 @@ class _Member3HomeShellState extends State<Member3HomeShell> {
             icon: Icon(Icons.explore_outlined),
             selectedIcon: Icon(Icons.explore, color: Colors.teal),
             label: 'Traveler View',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.luggage_outlined),
+            selectedIcon: Icon(Icons.luggage, color: Colors.teal),
+            label: 'My Trips',
           ),
         ],
       ),
