@@ -3,6 +3,7 @@ using System;
 using CeylonMate.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CeylonMate.Api.Data.Migrations
 {
     [DbContext(typeof(CeylonMateDbContext))]
-    partial class CeylonMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260914054750_AddCapacityAndAvailabilityModels")]
+    partial class AddCapacityAndAvailabilityModels
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -59,39 +62,12 @@ namespace CeylonMate.Api.Data.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("CeylonMate.Api.Trips.TravelerProfile", b =>
             modelBuilder.Entity("CeylonMate.Api.Models.AttractionSlot", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Preferences")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("VisitorCategory")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
-                    b.ToTable("traveler_profiles", (string)null);
-                });
-
-            modelBuilder.Entity("CeylonMate.Api.Trips.TripRequest", b =>
                     b.Property<Guid>("AttractionId")
                         .HasColumnType("uuid");
 
@@ -150,13 +126,6 @@ namespace CeylonMate.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("AccessibilityNeeds")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<decimal>("Budget")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
                     b.Property<int>("BookedCapacity")
                         .HasColumnType("integer");
 
@@ -168,29 +137,6 @@ namespace CeylonMate.Api.Data.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("character varying(3)");
 
-                    b.Property<DateOnly>("EndDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Objective")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<int>("PartySize")
-                        .HasColumnType("integer");
-
-                    b.Property<DateOnly>("StartDate")
-                        .HasColumnType("date");
-
-                    b.Property<decimal?>("StartingLatitude")
-                        .HasPrecision(9, 6)
-                        .HasColumnType("numeric(9,6)");
-
-                    b.Property<decimal?>("StartingLongitude")
-                        .HasPrecision(9, 6)
-                        .HasColumnType("numeric(9,6)");
-
-                    b.Property<string>("Status")
                     b.Property<DateTimeOffset>("EndTimeUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -222,11 +168,6 @@ namespace CeylonMate.Api.Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<Guid>("TravelerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TravelerProfileId")
-                        .HasColumnType("uuid");
                     b.Property<DateTimeOffset>("StartTimeUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -240,19 +181,6 @@ namespace CeylonMate.Api.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TravelerProfileId");
-
-                    b.HasIndex("Status", "StartDate");
-
-                    b.HasIndex("TravelerId", "CreatedAtUtc");
-
-                    b.ToTable("trip_requests", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_trip_requests_budget_party", "\"Budget\" > 0 AND \"PartySize\" > 0 AND \"EndDate\" >= \"StartDate\"");
-                        });
-                });
-
-            modelBuilder.Entity("CeylonMate.Api.Trips.TripRequestStatusHistory", b =>
                     b.HasIndex("GuideProfileId");
 
                     b.HasIndex("LocalGuideUserId", "StartTimeUtc", "EndTimeUtc");
@@ -266,21 +194,6 @@ namespace CeylonMate.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<DateTimeOffset>("ChangedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ChangedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("FromStatus")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("Reason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("ToStatus")
                     b.Property<string>("Bio")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
@@ -371,19 +284,6 @@ namespace CeylonMate.Api.Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<Guid>("TripRequestId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChangedByUserId");
-
-                    b.HasIndex("TripRequestId", "ChangedAtUtc");
-
-                    b.ToTable("trip_request_status_histories", (string)null);
-                });
-
-            modelBuilder.Entity("CeylonMate.Api.Trips.WorkflowExecution", b =>
                     b.HasKey("Id");
 
                     b.HasIndex("ProviderUserId");
@@ -395,12 +295,6 @@ namespace CeylonMate.Api.Data.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("RequestedByUserId")
                         .HasColumnType("uuid");
 
                     b.Property<int>("AvailableSeats")
@@ -441,7 +335,6 @@ namespace CeylonMate.Api.Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<Guid>("TripRequestId")
                     b.Property<int>("TotalSeats")
                         .HasColumnType("integer");
 
@@ -451,66 +344,6 @@ namespace CeylonMate.Api.Data.Migrations
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.HasKey("Id");
-
-                    b.HasIndex("RequestedByUserId");
-
-                    b.HasIndex("TripRequestId", "CreatedAtUtc");
-
-                    b.ToTable("workflow_executions", (string)null);
-                });
-
-            modelBuilder.Entity("CeylonMate.Api.Trips.TravelerProfile", b =>
-                {
-                    b.HasOne("CeylonMate.Api.Auth.User", null)
-                        .WithOne()
-                        .HasForeignKey("CeylonMate.Api.Trips.TravelerProfile", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("CeylonMate.Api.Trips.TripRequest", b =>
-                {
-                    b.HasOne("CeylonMate.Api.Auth.User", null)
-                        .WithMany()
-                        .HasForeignKey("TravelerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeylonMate.Api.Trips.TravelerProfile", null)
-                        .WithMany()
-                        .HasForeignKey("TravelerProfileId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("CeylonMate.Api.Trips.TripRequestStatusHistory", b =>
-                {
-                    b.HasOne("CeylonMate.Api.Auth.User", null)
-                        .WithMany()
-                        .HasForeignKey("ChangedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("CeylonMate.Api.Trips.TripRequest", null)
-                        .WithMany()
-                        .HasForeignKey("TripRequestId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("CeylonMate.Api.Trips.WorkflowExecution", b =>
-                {
-                    b.HasOne("CeylonMate.Api.Auth.User", null)
-                        .WithMany()
-                        .HasForeignKey("RequestedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeylonMate.Api.Trips.TripRequest", null)
-                        .WithMany()
-                        .HasForeignKey("TripRequestId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                     b.Property<string>("VehicleType")
                         .IsRequired()
                         .HasMaxLength(32)
