@@ -19,16 +19,7 @@ class ApiClient {
       ),
     );
 
-    dio.interceptors.add(
-      LogInterceptor(
-        request: true,
-        requestHeader: true,
-        requestBody: true,
-        responseHeader: false,
-        responseBody: true,
-        error: true,
-      ),
-    );
+    // Never log Authorization headers, passwords, or token-bearing responses.
   }
 
   void updateAuthToken(String token) {

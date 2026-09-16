@@ -1,24 +1,71 @@
 import 'package:flutter/material.dart';
-import 'features/guide/screens/my_availability_screen.dart';
-import 'features/guide/services/guide_availability_service.dart';
-import 'features/traveler/widgets/resource_feasibility_view.dart';
+import 'core/auth/auth_controller.dart';
+import 'core/auth/auth_repository.dart';
+import 'core/auth/auth_user.dart';
+import 'core/auth/token_store.dart';
 import 'core/network/api_client.dart';
-import 'features/trips/screens/my_trips_screen.dart';
+import 'features/guide/services/guide_availability_service.dart';
 import 'features/trips/screens/trip_details_screen.dart';
 import 'features/trips/screens/trip_form_screen.dart';
 import 'features/trips/services/trip_service.dart';
 
-void main() => runApp(const CeylonMateApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const CeylonMateApp());
+}
 
-class CeylonMateApp extends StatelessWidget {
-  final GuideAvailabilityService? guideService;
+class CeylonMateApp extends StatefulWidget {
   final ApiClient? apiClient;
+  final AuthGateway? authGateway;
+  final GuideAvailabilityService? guideService;
 
-  const CeylonMateApp({super.key, this.guideService, this.apiClient});
+  const CeylonMateApp({
+    super.key,
+    this.apiClient,
+    this.authGateway,
+    this.guideService,
+  });
+
+  @override
+  State<CeylonMateApp> createState() => _CeylonMateAppState();
+}
+
+class _CeylonMateAppState extends State<CeylonMateApp> {
+  late final ApiClient _client;
+  late final AuthController _auth;
+
+  @override
+  void initState() {
+    super.initState();
+    _client = widget.apiClient ?? ApiClient();
+    _auth = AuthController(
+      widget.authGateway ??
+          AuthRepository(
+            client: _client,
+            tokens: SecureTokenStore(),
+          ),
+    );
+    _auth.addListener(_onAuthChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _auth.initialize();
+    });
+  }
+
+  void _onAuthChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _auth.removeListener(_onAuthChanged);
+    _auth.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final trips = TripService(apiClient ?? ApiClient());
+    final trips = TripService(_client);
+
     return MaterialApp(
       title: 'CeylonMate Mobile',
       debugShowCheckedModeBanner: false,
@@ -26,141 +73,265 @@ class CeylonMateApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: Colors.teal,
       ),
-      home: Member3HomeShell(guideService: guideService, apiClient: apiClient),
+      key: ValueKey('${_auth.phase}:${_auth.user?.id ?? ''}'),
       onGenerateRoute: (settings) {
         if (settings.name == '/trips/new') {
-          return MaterialPageRoute(builder: (_) => TripFormScreen(service: trips));
+          return MaterialPageRoute(
+            builder: (_) => TripFormScreen(service: trips),
+          );
         }
         if (settings.name == '/trips/details' && settings.arguments is String) {
-          return MaterialPageRoute(builder: (_) => TripDetailsScreen(
-            service: trips, tripId: settings.arguments! as String));
+          return MaterialPageRoute(
+            builder: (_) => TripDetailsScreen(
+              service: trips,
+              tripId: settings.arguments! as String,
+            ),
+          );
         }
-        return null;
+
+        final requiredRole = switch (settings.name) {
+          '/traveler' => 'TRAVELER',
+          '/guide' => 'LOCAL_GUIDE',
+          _ => null,
+        };
+
+        if (requiredRole == null) return null;
+
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) {
+            if (_auth.phase != AuthPhase.signedIn || _auth.user == null) {
+              return LoginScreen(auth: _auth);
+            }
+            if (_auth.user!.role != requiredRole) {
+              return Scaffold(
+                appBar: AppBar(title: const Text('Access denied')),
+                body: const Center(
+                  child: Text('This route is not available for your role.'),
+                ),
+              );
+            }
+            return RoleHomeScreen(auth: _auth, user: _auth.user!);
+          },
+        );
+      },
+      home: switch (_auth.phase) {
+        AuthPhase.checking => const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          ),
+        AuthPhase.error => Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off, size: 48),
+                    const SizedBox(height: 12),
+                    Text(
+                      _auth.error ?? 'Unable to verify your session.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _auth.initialize,
+                      child: const Text('Retry'),
+                    ),
+                    TextButton(
+                      onPressed: _auth.logout,
+                      child: const Text('Sign out'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        AuthPhase.signedOut => LoginScreen(auth: _auth),
+        AuthPhase.signedIn => RoleHomeScreen(auth: _auth, user: _auth.user!),
       },
     );
   }
 }
 
-class Member3HomeShell extends StatefulWidget {
-  final GuideAvailabilityService? guideService;
-  final ApiClient? apiClient;
+class LoginScreen extends StatefulWidget {
+  final AuthController auth;
 
-  const Member3HomeShell({super.key, this.guideService, this.apiClient});
+  const LoginScreen({super.key, required this.auth});
 
   @override
-  State<Member3HomeShell> createState() => _Member3HomeShellState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _Member3HomeShellState extends State<Member3HomeShell> {
-  int _selectedIndex = 0;
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  bool _obscurePassword = true;
 
-  static const String demoGuideId = '00000000-0000-0000-0000-000000000001';
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    await widget.auth.login(_email.text, _password.text);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: [
-          // 1. Local Guide Availability Management Screen
-          MyAvailabilityScreen(
-            guideId: demoGuideId,
-            service: widget.guideService,
-          ),
-
-          // 2. Traveler Feasibility Summary View
-          Scaffold(
-            appBar: AppBar(
-              title: const Text('Traveler Feasibility View'),
-            ),
-            body: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+      appBar: AppBar(title: const Text('CeylonMate')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(24),
+              children: [
+                const Icon(Icons.travel_explore, size: 56),
+                const SizedBox(height: 16),
+                Text(
+                  'Sign in',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                TextFormField(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
+                  decoration: const InputDecoration(labelText: 'Email'),
+                  validator: (value) => RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+                          .hasMatch(value?.trim() ?? '')
+                      ? null
+                      : 'Enter a valid email',
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _password,
+                  obscureText: _obscurePassword,
+                  autofillHints: const [AutofillHints.password],
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    suffixIcon: IconButton(
+                      tooltip:
+                          _obscurePassword ? 'Show password' : 'Hide password',
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword),
+                    ),
+                  ),
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Enter your password'
+                      : null,
+                  onFieldSubmitted: (_) => _submit(),
+                ),
+                if (widget.auth.error != null) ...[
+                  const SizedBox(height: 12),
                   Text(
-                    'Active Trip Itinerary Feasibility',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Real-time availability status checked by AI Resource Feasibility Node.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
-                  ),
-                  const SizedBox(height: 16),
-                  ResourceFeasibilityView(
-                    itineraryTitle: 'Sigiriya & Dambulla Day Tour',
-                    date: DateTime.now(),
-                    guideName: 'Kamal Perera (Licensed Local Guide)',
-                    guideStatus: FeasibilityStatus.confirmed,
-                    vehicleName: 'Toyota KDH Super GL (AC Van)',
-                    vehicleStatus: FeasibilityStatus.confirmed,
-                    attractionName: 'Sigiriya Rock Fortress Entry Pass',
-                    attractionStatus: FeasibilityStatus.confirmed,
-                    onRefreshCheck: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('AI Feasibility Node re-verified availability: All resources OK.'),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  ResourceFeasibilityView(
-                    itineraryTitle: 'Ella Scenic Train & Little Adam\'s Peak',
-                    date: DateTime.now().add(const Duration(days: 2)),
-                    guideName: 'Sunil Rathnayake',
-                    guideStatus: FeasibilityStatus.confirmed,
-                    vehicleName: 'Luxury Sedan (Air-conditioned)',
-                    vehicleStatus: FeasibilityStatus.pending,
-                    attractionName: 'Nine Arches Bridge Guided Trek',
-                    attractionStatus: FeasibilityStatus.pending,
-                  ),
-                  const SizedBox(height: 16),
-                  ResourceFeasibilityView(
-                    itineraryTitle: 'Yala National Park Safari Expedition',
-                    date: DateTime.now().add(const Duration(days: 4)),
-                    guideName: 'Nimal Bandara (Wildlife Specialist)',
-                    guideStatus: FeasibilityStatus.unavailable,
-                    vehicleName: '4x4 Safari Jeep',
-                    vehicleStatus: FeasibilityStatus.confirmed,
-                    attractionName: 'Yala Block 1 Game Drive Permit',
-                    attractionStatus: FeasibilityStatus.confirmed,
+                    widget.auth.error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
-              ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: widget.auth.busy ? null : _submit,
+                  child: widget.auth.busy
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Sign in'),
+                ),
+              ],
             ),
           ),
-          if (_selectedIndex == 2)
-            MyTripsScreen(service: TripService(widget.apiClient ?? ApiClient())),
+        ),
+      ),
+    );
+  }
+}
+
+class RoleHomeScreen extends StatelessWidget {
+  final AuthController auth;
+  final AuthUser user;
+
+  const RoleHomeScreen({super.key, required this.auth, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final roleLabel = switch (user.role) {
+      'TRAVELER' => 'Traveler',
+      'LOCAL_GUIDE' => 'Local Guide',
+      _ => 'Unsupported role',
+    };
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('$roleLabel Home'),
+        actions: [
+          IconButton(
+            tooltip: 'Logout',
+            onPressed: auth.busy ? null : auth.logout,
+            icon: const Icon(Icons.logout),
+          ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() => _selectedIndex = index);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.event_available),
-            selectedIcon: Icon(Icons.event_available, color: Colors.teal),
-            label: 'Local Guide',
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                user.role == 'LOCAL_GUIDE' ? Icons.hiking : Icons.explore,
+                size: 56,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Welcome, ${user.email}',
+                style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                user.role == 'TRAVELER'
+                    ? 'Your traveler workspace is ready.'
+                    : user.role == 'LOCAL_GUIDE'
+                        ? 'Your local guide workspace is ready.'
+                        : 'This mobile shell does not support ${user.role} yet.',
+                textAlign: TextAlign.center,
+              ),
+              if (auth.error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  auth.error!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ],
+              if (auth.busy)
+                const Padding(
+                  padding: EdgeInsets.only(top: 16),
+                  child: CircularProgressIndicator(),
+                ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore, color: Colors.teal),
-            label: 'Traveler View',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.luggage_outlined),
-            selectedIcon: Icon(Icons.luggage, color: Colors.teal),
-            label: 'My Trips',
-          ),
-        ],
+        ),
       ),
     );
   }
