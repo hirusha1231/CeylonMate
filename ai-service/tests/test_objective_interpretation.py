@@ -39,6 +39,11 @@ def test_normal_objective() -> None:
     assert result.accessibilityConstraints == ["Wheelchair access"]
     assert result.missingCriticalFields == []
     assert "REQUEST_HUMAN_APPROVAL" in result.requiredSteps
+    assert result.delegatedAgentRoles == [
+        "DESTINATION_RESEARCH_AGENT", "ITINERARY_PLANNING_AGENT",
+        "RESOURCE_FEASIBILITY_AGENT", "QUOTATION_AGENT",
+    ]
+    assert "destinationId" not in response.json()
 
 
 def test_missing_dates_and_budget_are_flagged() -> None:
@@ -62,3 +67,4 @@ def test_prompt_injection_is_ignored() -> None:
     assert result.regionsOrThemes == ["wildlife"]
     assert not any("BOOK" in step or "SKIP" in step for step in result.requiredSteps)
     assert "REQUEST_HUMAN_APPROVAL" in result.requiredSteps
+    assert "skip approval" not in str(response.json()).lower()
