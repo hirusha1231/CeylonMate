@@ -32,12 +32,22 @@ public sealed class TripApiTests : IClassFixture<AuthApiFactory>
         Assert.Equal(TripStatus.DRAFT, trip.Status);
         Assert.Equal(traveler.User.Id, trip.TravelerId);
 
+        var staff = await CreateStaffAsync();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", staff);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await _client.PostAsync($"/api/trips/{trip.Id}/start-planning", null)).StatusCode);
+        using (var beforeScope = _factory.Services.CreateScope())
+        {
+            var beforeDb = beforeScope.ServiceProvider.GetRequiredService<CeylonMateDbContext>();
+            Assert.Empty(beforeDb.Set<WorkflowExecution>().Where(x => x.TripRequestId == trip.Id));
+        }
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", traveler.AccessToken);
         var submitted = await _client.PostAsync($"/api/trips/{trip.Id}/submit", null);
         Assert.Equal(HttpStatusCode.OK, submitted.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,
             (await _client.PostAsync($"/api/trips/{trip.Id}/start-planning", null)).StatusCode);
 
-        var staff = await CreateStaffAsync();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", staff);
         var planning = await _client.PostAsync($"/api/trips/{trip.Id}/start-planning", null);
         Assert.Equal(HttpStatusCode.Accepted, planning.StatusCode);
@@ -48,7 +58,10 @@ public sealed class TripApiTests : IClassFixture<AuthApiFactory>
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CeylonMateDbContext>();
         Assert.Single(db.Set<WorkflowExecution>().Where(x => x.TripRequestId == trip.Id));
+        Assert.Equal("QUEUED", db.Set<WorkflowExecution>().Single(x => x.TripRequestId == trip.Id).Status);
         Assert.Equal(3, db.Set<TripRequestStatusHistory>().Count(x => x.TripRequestId == trip.Id));
+        Assert.DoesNotContain(db.Model.GetEntityTypes(), entity =>
+            entity.ClrType.Name is "Booking" or "Reservation");
     }
 
     [Fact]
@@ -74,8 +87,26 @@ public sealed class TripApiTests : IClassFixture<AuthApiFactory>
         Assert.Equal(HttpStatusCode.NotFound,
             (await _client.GetAsync($"/api/trips/{trip.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound,
+            (await _client.PutAsJsonAsync($"/api/trips/{trip.Id}", ValidTrip())).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,
             (await _client.DeleteAsync($"/api/trips/{trip.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await _client.GetAsync("/api/trips")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("2026-12-10", "2026-12-01", 50000, 2)]
+    [InlineData("2026-12-01", "2026-12-10", 0, 2)]
+    [InlineData("2026-12-01", "2026-12-10", 50000, 0)]
+    public async Task InvalidTripFieldsReturnBadRequest(
+        string startDate, string endDate, decimal budget, int partySize)
+    {
+        var traveler = await RegisterTravelerAsync();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", traveler.AccessToken);
+        var response = await _client.PostAsJsonAsync("/api/trips", new
+        {
+            objective = "Wildlife", startDate, endDate, budget, currency = "LKR", partySize
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     private async Task<AuthResponse> RegisterTravelerAsync()
