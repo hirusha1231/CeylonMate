@@ -4,6 +4,8 @@ import { RequireAuth } from './auth/RequireAuth';
 import { AppLayout } from './components/AppLayout';
 import { LoginPage } from './pages/LoginPage';
 import { StaffPage } from './pages/StaffPage';
+import { TripRequestsPage } from './features/trips/TripRequestsPage';
+import { TripDetailsPage } from './features/trips/TripDetailsPage';
 
 export function App() {
   return <BrowserRouter>
@@ -18,6 +20,8 @@ export function App() {
             </Route>
             <Route element={<RequireAuth roles={['TRAVEL_AGENT', 'ADMIN']} />}>
               <Route path="agents" element={<StaffPage kind="agents" />} />
+              <Route path="trips" element={<TripRequestsPage />} />
+              <Route path="trips/:id" element={<TripDetailsPage />} />
             </Route>
             <Route element={<RequireAuth roles={['ADMIN']} />}>
               <Route path="admin" element={<StaffPage kind="admin" />} />
