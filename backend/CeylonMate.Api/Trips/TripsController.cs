@@ -75,7 +75,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
     }
 
     [HttpPost("{id:guid}/start-planning")]
-    [Authorize(Roles = StaffRoles)]
+    [Authorize(Roles = nameof(UserRole.TRAVELER))]
     public async Task<ActionResult<TripResponse>> StartPlanning(Guid id, CancellationToken ct)
     {
         try

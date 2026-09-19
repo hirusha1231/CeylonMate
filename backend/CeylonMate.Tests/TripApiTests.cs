@@ -22,7 +22,7 @@ public sealed class TripApiTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
-    public async Task TravelerCanCreateSubmitAndStaffCanStartPlanningOnce()
+    public async Task TravelerCanStartOnlyOwnSubmittedTripOnce()
     {
         var traveler = await RegisterTravelerAsync();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", traveler.AccessToken);
@@ -32,8 +32,6 @@ public sealed class TripApiTests : IClassFixture<AuthApiFactory>
         Assert.Equal(TripStatus.DRAFT, trip.Status);
         Assert.Equal(traveler.User.Id, trip.TravelerId);
 
-        var staff = await CreateStaffAsync();
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", staff);
         Assert.Equal(HttpStatusCode.Conflict,
             (await _client.PostAsync($"/api/trips/{trip.Id}/start-planning", null)).StatusCode);
         using (var beforeScope = _factory.Services.CreateScope())
@@ -42,13 +40,20 @@ public sealed class TripApiTests : IClassFixture<AuthApiFactory>
             Assert.Empty(beforeDb.Set<WorkflowExecution>().Where(x => x.TripRequestId == trip.Id));
         }
 
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", traveler.AccessToken);
         var submitted = await _client.PostAsync($"/api/trips/{trip.Id}/submit", null);
         Assert.Equal(HttpStatusCode.OK, submitted.StatusCode);
+
+        var other = await RegisterTravelerAsync();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", other.AccessToken);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await _client.PostAsync($"/api/trips/{trip.Id}/start-planning", null)).StatusCode);
+
+        var staff = await CreateStaffAsync();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", staff);
         Assert.Equal(HttpStatusCode.Forbidden,
             (await _client.PostAsync($"/api/trips/{trip.Id}/start-planning", null)).StatusCode);
 
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", staff);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", traveler.AccessToken);
         var planning = await _client.PostAsync($"/api/trips/{trip.Id}/start-planning", null);
         Assert.Equal(HttpStatusCode.Accepted, planning.StatusCode);
         Assert.Equal(TripStatus.PLANNING, (await ReadTrip(planning)).Status);
@@ -57,8 +62,9 @@ public sealed class TripApiTests : IClassFixture<AuthApiFactory>
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CeylonMateDbContext>();
-        Assert.Single(db.Set<WorkflowExecution>().Where(x => x.TripRequestId == trip.Id));
-        Assert.Equal("QUEUED", db.Set<WorkflowExecution>().Single(x => x.TripRequestId == trip.Id).Status);
+        var workflow = Assert.Single(db.Set<WorkflowExecution>().Where(x => x.TripRequestId == trip.Id));
+        Assert.Equal(traveler.User.Id, workflow.RequestedByUserId);
+        Assert.Equal("QUEUED", workflow.Status);
         Assert.Equal(3, db.Set<TripRequestStatusHistory>().Count(x => x.TripRequestId == trip.Id));
         Assert.DoesNotContain(db.Model.GetEntityTypes(), entity =>
             entity.ClrType.Name is "Booking" or "Reservation");
