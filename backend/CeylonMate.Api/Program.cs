@@ -12,10 +12,32 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var useInMemory = builder.Configuration.GetValue<bool>("UseInMemoryDatabase");
 builder.Services.AddDbContext<CeylonMateDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("CeylonMate")
-        ?? throw new InvalidOperationException(
-            "ConnectionStrings:CeylonMate is required. Set ConnectionStrings__CeylonMate in the environment.")));
+{
+    if (useInMemory)
+    {
+        options.UseInMemoryDatabase("CeylonMateDevDb")
+               .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
+    }
+    else
+    {
+        var connStr = builder.Configuration.GetConnectionString("CeylonMate")
+            ?? throw new InvalidOperationException("ConnectionStrings:CeylonMate is required.");
+        options.UseNpgsql(connStr);
+    }
+});
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
     .ValidateDataAnnotations()
@@ -34,10 +56,16 @@ if (builder.Environment.IsDevelopment())
     builder.Services.AddScoped<DevelopmentUserSeeder>();
 }
 
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<IRoutingAdapter, RoutingAdapter>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<TripService>();
 builder.Services.AddScoped<ICapacityReservationService, CapacityReservationService>();
+builder.Services.AddScoped<CeylonMate.Api.Destinations.DestinationService>();
+builder.Services.AddScoped<CeylonMate.Api.Itineraries.ItineraryService>();
+builder.Services.AddScoped<CeylonMate.Api.Itineraries.WorkflowApprovalService>();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -58,6 +86,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             RoleClaimType = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
         };
     });
+
 builder.Services.AddAuthorization(options =>
 {
     foreach (var role in Enum.GetValues<UserRole>())
@@ -65,8 +94,18 @@ builder.Services.AddAuthorization(options =>
         options.AddPolicy($"Require{role}", policy => policy.RequireRole(role.ToString()));
     }
 });
-builder.Services.AddControllers().AddJsonOptions(options =>
-    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+builder.Services.AddControllers(options =>
+{
+    var jsonSerializerOptions = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+    jsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.OutputFormatters.RemoveType<Microsoft.AspNetCore.Mvc.Formatters.SystemTextJsonOutputFormatter>();
+    options.OutputFormatters.Add(new StreamJsonOutputFormatter(jsonSerializerOptions));
+}).AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -91,6 +130,8 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
+app.UseCors();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -102,7 +143,14 @@ if (app.Environment.IsDevelopment())
     if (seedOptions.Enabled)
     {
         var db = scope.ServiceProvider.GetRequiredService<CeylonMateDbContext>();
-        await db.Database.MigrateAsync();
+        if (db.Database.IsRelational())
+        {
+            await db.Database.MigrateAsync();
+        }
+        else
+        {
+            await db.Database.EnsureCreatedAsync();
+        }
         await scope.ServiceProvider.GetRequiredService<DevelopmentUserSeeder>().SeedAsync();
     }
 }
@@ -115,3 +163,26 @@ app.MapHealthChecks("/health");
 app.Run();
 
 public partial class Program;
+
+public sealed class StreamJsonOutputFormatter : Microsoft.AspNetCore.Mvc.Formatters.TextOutputFormatter
+{
+    private readonly System.Text.Json.JsonSerializerOptions _jsonOptions;
+
+    public StreamJsonOutputFormatter(System.Text.Json.JsonSerializerOptions options)
+    {
+        _jsonOptions = options;
+        SupportedMediaTypes.Add(Microsoft.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json"));
+        SupportedMediaTypes.Add(Microsoft.Net.Http.Headers.MediaTypeHeaderValue.Parse("text/json"));
+        SupportedMediaTypes.Add(Microsoft.Net.Http.Headers.MediaTypeHeaderValue.Parse("*/*"));
+        SupportedEncodings.Add(Encoding.UTF8);
+    }
+
+    protected override bool CanWriteType(Type? type) => true;
+
+    public override async Task WriteResponseBodyAsync(Microsoft.AspNetCore.Mvc.Formatters.OutputFormatterWriteContext context, Encoding selectedEncoding)
+    {
+        var response = context.HttpContext.Response;
+        var type = context.ObjectType ?? context.Object?.GetType() ?? typeof(object);
+        await System.Text.Json.JsonSerializer.SerializeAsync(response.Body, context.Object, type, _jsonOptions, context.HttpContext.RequestAborted);
+    }
+}
