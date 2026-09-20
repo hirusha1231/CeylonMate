@@ -12,3 +12,5 @@ mobile/build/
 *.user
 
 .idea/
+
+*.egg-info/
