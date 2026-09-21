@@ -1,43 +1,39 @@
-import React, { useState } from 'react';
-import { GuideAvailabilityPage } from './pages/GuideAvailabilityPage';
-import { TransportAttractionCapacityPage } from './pages/TransportAttractionCapacityPage';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
+import { AuthProvider } from './auth/AuthProvider';
+import { RequireAuth } from './auth/RequireAuth';
+import { AppLayout } from './components/AppLayout';
+import { LoginPage } from './pages/LoginPage';
+import { StaffPage } from './pages/StaffPage';
+import { TripRequestsPage } from './features/trips/TripRequestsPage';
+import { TripDetailsPage } from './features/trips/TripDetailsPage';
 
-export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<'guides' | 'capacity'>('guides');
-
+export function App() {
   return (
-    <div className="app-shell">
-      <nav className="navbar">
-        <div className="nav-brand">
-          <span className="brand-logo">🌴</span>
-          <span className="brand-title">CeylonMate</span>
-          <span className="sub-badge">Member 3 Domain</span>
-        </div>
-        <div className="nav-links">
-          <button
-            className={`nav-btn ${currentTab === 'guides' ? 'active' : ''}`}
-            onClick={() => setCurrentTab('guides')}
-          >
-            👨‍✈️ Guide Availability
-          </button>
-          <button
-            className={`nav-btn ${currentTab === 'capacity' ? 'active' : ''}`}
-            onClick={() => setCurrentTab('capacity')}
-          >
-            🚘 Transport & Attractions
-          </button>
-        </div>
-      </nav>
-
-      <main className="main-content">
-        {currentTab === 'guides' ? <GuideAvailabilityPage /> : <TransportAttractionCapacityPage />}
-      </main>
-
-      <footer className="footer">
-        <p>CeylonMate © 2026 — Highly Concurrent Capacity & Availability Subsystem (Member 3)</p>
-      </footer>
-    </div>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route element={<RequireAuth roles={['CAPACITY_OFFICER', 'TRAVEL_AGENT', 'ADMIN']} />}>
+            <Route path="/staff" element={<AppLayout />}>
+              <Route index element={<StaffPage kind="overview" />} />
+              <Route element={<RequireAuth roles={['CAPACITY_OFFICER', 'ADMIN']} />}>
+                <Route path="capacity" element={<StaffPage kind="capacity" />} />
+              </Route>
+              <Route element={<RequireAuth roles={['TRAVEL_AGENT', 'ADMIN']} />}>
+                <Route path="agents" element={<StaffPage kind="agents" />} />
+                <Route path="trips" element={<TripRequestsPage />} />
+                <Route path="trips/:id" element={<TripDetailsPage />} />
+              </Route>
+              <Route element={<RequireAuth roles={['ADMIN']} />}>
+                <Route path="admin" element={<StaffPage kind="admin" />} />
+              </Route>
+            </Route>
+          </Route>
+          <Route path="*" element={<Navigate to="/staff" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
-};
+}
 
 export default App;
