@@ -1,9 +1,11 @@
-﻿using CeylonMate.Api.Services;
+using CeylonMate.Api.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CeylonMate.Api.Controllers;
 
+[Tags("Capacity")]
 [ApiController]
 [Route("api/capacity/routing")]
 [AllowAnonymous]
