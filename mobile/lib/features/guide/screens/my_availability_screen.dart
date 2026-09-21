@@ -312,6 +312,38 @@ class _MyAvailabilityScreenState extends State<MyAvailabilityScreen> {
                             ),
                             const Spacer(),
                             _buildStatusBadge(slot.status),
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert, size: 20),
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  _editSlot(slot);
+                                } else if (value == 'delete') {
+                                  _confirmDeleteSlot(slot);
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit, size: 18, color: Colors.teal),
+                                      SizedBox(width: 8),
+                                      Text('Edit Slot'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, size: 18, color: Colors.red),
+                                      SizedBox(width: 8),
+                                      Text('Delete Slot'),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -355,6 +387,61 @@ class _MyAvailabilityScreenState extends State<MyAvailabilityScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _editSlot(GuideAvailabilitySlot slot) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddEditAvailabilityScreen(
+          guideId: widget.guideId,
+          service: _service,
+          existingSlot: slot,
+        ),
+      ),
+    );
+    if (result == true) {
+      _loadAvailability();
+    }
+  }
+
+  Future<void> _confirmDeleteSlot(GuideAvailabilitySlot slot) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Availability Slot'),
+        content: Text('Are you sure you want to delete the availability slot for ${DateFormat('MMM d, yyyy').format(slot.startTime)}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _service.deleteAvailabilitySlot(slot.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Slot deleted successfully'), backgroundColor: Colors.green),
+          );
+          _loadAvailability();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   Color _getStatusColor(String status) {
