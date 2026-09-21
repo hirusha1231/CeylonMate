@@ -3,6 +3,7 @@ using System;
 using CeylonMate.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CeylonMate.Api.Data.Migrations
 {
     [DbContext(typeof(CeylonMateDbContext))]
-    partial class CeylonMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260920050118_AddMember4ItineraryBookingAndWorkflow")]
+    partial class AddMember4ItineraryBookingAndWorkflow
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

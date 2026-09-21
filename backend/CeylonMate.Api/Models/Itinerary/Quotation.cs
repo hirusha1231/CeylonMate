@@ -12,6 +12,6 @@ public class Quotation
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public Itinerary Itinerary { get; set; } = null!;
+    public Itinerary? Itinerary { get; set; }
     public ICollection<QuotationItem> Items { get; set; } = new List<QuotationItem>();
 }

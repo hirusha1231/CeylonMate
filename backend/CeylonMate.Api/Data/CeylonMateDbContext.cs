@@ -1,6 +1,7 @@
 using CeylonMate.Api.Auth;
 using CeylonMate.Api.Trips;
 using CeylonMate.Api.Models;
+using CeylonMate.Api.Models.Itinerary;
 using Microsoft.EntityFrameworkCore;
 
 namespace CeylonMate.Api.Data;
@@ -15,6 +16,19 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
     public DbSet<TransportSlot> TransportSlots => Set<TransportSlot>();
     public DbSet<AttractionSlot> AttractionSlots => Set<AttractionSlot>();
 
+    // Member 4 - Workflow & Itinerary/Booking
+    public DbSet<WorkflowExecution> WorkflowExecutions => Set<WorkflowExecution>();
+    public DbSet<WorkflowStep> WorkflowSteps => Set<WorkflowStep>();
+    public DbSet<Itinerary> Itineraries => Set<Itinerary>();
+    public DbSet<ItineraryDay> ItineraryDays => Set<ItineraryDay>();
+    public DbSet<ItineraryItem> ItineraryItems => Set<ItineraryItem>();
+    public DbSet<Quotation> Quotations => Set<Quotation>();
+    public DbSet<QuotationItem> QuotationItems => Set<QuotationItem>();
+    public DbSet<Booking> Bookings => Set<Booking>();
+    public DbSet<Reservation> Reservations => Set<Reservation>();
+    public DbSet<ApprovalDecision> ApprovalDecisions => Set<ApprovalDecision>();
+
+    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new TravelerProfileConfiguration());
@@ -107,4 +121,5 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
         attractionSlot.Property(x => x.Notes).HasMaxLength(500);
         attractionSlot.Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
     }
+
 }
