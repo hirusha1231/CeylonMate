@@ -9,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<CeylonMateDbContext>(options =>
@@ -95,12 +97,25 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 
     await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<CeylonMateDbContext>();
+    await db.Database.MigrateAsync();
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(@"
+            ALTER TABLE IF EXISTS public.guide_availabilities ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
+            ALTER TABLE IF EXISTS public.transport_slots ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
+            ALTER TABLE IF EXISTS public.attraction_slots ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
+        ");
+    }
+    catch
+    {
+        // Ignore if tables do not exist yet
+    }
+
     var seedOptions = scope.ServiceProvider
         .GetRequiredService<Microsoft.Extensions.Options.IOptions<SeedUsersOptions>>().Value;
     if (seedOptions.Enabled)
     {
-        var db = scope.ServiceProvider.GetRequiredService<CeylonMateDbContext>();
-        await db.Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<DevelopmentUserSeeder>().SeedAsync();
     }
 }
