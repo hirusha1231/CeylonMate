@@ -6,11 +6,13 @@ import '../services/guide_availability_service.dart';
 class AddEditAvailabilityScreen extends StatefulWidget {
   final String guideId;
   final GuideAvailabilityService? service;
+  final GuideAvailabilitySlot? existingSlot;
 
   const AddEditAvailabilityScreen({
     super.key,
     required this.guideId,
     this.service,
+    this.existingSlot,
   });
 
   @override
@@ -26,9 +28,9 @@ class _AddEditAvailabilityScreenState extends State<AddEditAvailabilityScreen> {
   TimeOfDay _endTime = const TimeOfDay(hour: 17, minute: 0);
 
   String _selectedSlotType = 'FULL_DAY';
-  final TextEditingController _priceController = TextEditingController(text: '15000');
-  final TextEditingController _capacityController = TextEditingController(text: '1');
-  final TextEditingController _notesController = TextEditingController();
+  late final TextEditingController _priceController;
+  late final TextEditingController _capacityController;
+  late final TextEditingController _notesController;
 
   bool _isSubmitting = false;
 
@@ -36,6 +38,21 @@ class _AddEditAvailabilityScreenState extends State<AddEditAvailabilityScreen> {
   void initState() {
     super.initState();
     _service = widget.service ?? GuideAvailabilityService();
+
+    final slot = widget.existingSlot;
+    if (slot != null) {
+      _selectedDate = slot.startTime;
+      _startTime = TimeOfDay.fromDateTime(slot.startTime);
+      _endTime = TimeOfDay.fromDateTime(slot.endTime);
+      _selectedSlotType = slot.slotType;
+      _priceController = TextEditingController(text: slot.priceAmount.toStringAsFixed(0));
+      _capacityController = TextEditingController(text: slot.maxCapacity.toString());
+      _notesController = TextEditingController(text: slot.notes ?? '');
+    } else {
+      _priceController = TextEditingController(text: '15000');
+      _capacityController = TextEditingController(text: '1');
+      _notesController = TextEditingController();
+    }
   }
 
   @override
@@ -135,24 +152,30 @@ class _AddEditAvailabilityScreenState extends State<AddEditAvailabilityScreen> {
 
     try {
       final slot = GuideAvailabilitySlot(
-        id: '',
+        id: widget.existingSlot?.id ?? '',
         localGuideUserId: widget.guideId,
         startTime: startDateTime,
         endTime: endDateTime,
         slotType: _selectedSlotType,
-        status: 'AVAILABLE',
+        status: widget.existingSlot?.status ?? 'AVAILABLE',
         maxCapacity: int.tryParse(_capacityController.text.trim()) ?? 1,
         priceAmount: double.tryParse(_priceController.text.trim()) ?? 0.0,
         currency: 'LKR',
         notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
       );
 
-      await _service.saveAvailability(widget.guideId, slot);
+      if (widget.existingSlot != null) {
+        await _service.updateAvailabilitySlot(widget.existingSlot!.id, slot);
+      } else {
+        await _service.saveAvailability(widget.guideId, slot);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Availability slot created successfully!'),
+          SnackBar(
+            content: Text(widget.existingSlot != null
+                ? 'Availability slot updated successfully!'
+                : 'Availability slot created successfully!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -181,7 +204,7 @@ class _AddEditAvailabilityScreenState extends State<AddEditAvailabilityScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Availability Slot'),
+        title: Text(widget.existingSlot != null ? 'Edit Availability Slot' : 'Add Availability Slot'),
         elevation: 1,
       ),
       body: SingleChildScrollView(
@@ -373,9 +396,9 @@ class _AddEditAvailabilityScreenState extends State<AddEditAvailabilityScreen> {
                           height: 24,
                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                         )
-                      : const Text(
-                          'Publish Slot',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      : Text(
+                          widget.existingSlot != null ? 'Save Changes' : 'Publish Slot',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                 ),
               ),

@@ -10,12 +10,22 @@ public interface ICapacityReservationService
 {
     Task<CapacitySearchResponseDto> SearchCapacityAsync(CapacitySearchQueryDto query, CancellationToken ct = default);
     Task<ReservationResultDto> ReserveResourcesAsync(ReservationRequestDto dto, CancellationToken ct = default);
+
     Task<IEnumerable<GuideAvailabilityDto>> GetGuideAvailabilityAsync(Guid guideUserId, DateTimeOffset? startDate = null, DateTimeOffset? endDate = null, CancellationToken ct = default);
     Task<GuideAvailabilityDto> AddGuideAvailabilityAsync(Guid guideUserId, CreateGuideAvailabilityRequestDto request, CancellationToken ct = default);
+    Task<GuideAvailabilityDto?> UpdateGuideAvailabilityAsync(Guid slotId, UpdateGuideAvailabilityRequestDto request, CancellationToken ct = default);
+    Task<bool> DeleteGuideAvailabilityAsync(Guid slotId, CancellationToken ct = default);
+
     Task<IEnumerable<TransportSlotDto>> GetTransportAvailabilityAsync(Guid transportOptionId, DateTimeOffset? startDate = null, DateTimeOffset? endDate = null, CancellationToken ct = default);
     Task<TransportSlotDto> AddTransportSlotAsync(Guid transportOptionId, CreateTransportSlotRequestDto request, CancellationToken ct = default);
+    Task<TransportSlotDto?> UpdateTransportSlotAsync(Guid slotId, UpdateTransportSlotRequestDto request, CancellationToken ct = default);
+    Task<bool> DeleteTransportSlotAsync(Guid slotId, CancellationToken ct = default);
+
     Task<IEnumerable<AttractionSlotDto>> GetAttractionAvailabilityAsync(Guid attractionId, DateTimeOffset? startDate = null, DateTimeOffset? endDate = null, CancellationToken ct = default);
     Task<AttractionSlotDto> AddAttractionSlotAsync(Guid attractionId, CreateAttractionSlotRequestDto request, CancellationToken ct = default);
+    Task<AttractionSlotDto?> UpdateAttractionSlotAsync(Guid slotId, UpdateAttractionSlotRequestDto request, CancellationToken ct = default);
+    Task<bool> DeleteAttractionSlotAsync(Guid slotId, CancellationToken ct = default);
+
     Task ReleaseExpiredHoldsAsync(CancellationToken ct = default);
 }
 
@@ -589,5 +599,189 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
             slot.RowVersion,
             slot.HeldUntilUtc
         );
+    }
+
+    public async Task<GuideAvailabilityDto?> UpdateGuideAvailabilityAsync(Guid slotId, UpdateGuideAvailabilityRequestDto request, CancellationToken ct = default)
+    {
+        if (request.EndTimeUtc <= request.StartTimeUtc)
+        {
+            throw new ArgumentException("EndTimeUtc must be greater than StartTimeUtc.", nameof(request));
+        }
+
+        var slot = await db.GuideAvailabilities.SingleOrDefaultAsync(x => x.Id == slotId, ct);
+        if (slot is null) return null;
+
+        if (request.RowVersion is not null && request.RowVersion.Length > 0)
+        {
+            db.Entry(slot).Property(x => x.RowVersion).OriginalValue = request.RowVersion;
+        }
+
+        slot.StartTimeUtc = request.StartTimeUtc;
+        slot.EndTimeUtc = request.EndTimeUtc;
+        slot.SlotType = request.SlotType;
+        slot.Status = request.Status;
+        slot.MaxCapacity = request.MaxCapacity;
+        slot.PriceAmount = request.PriceAmount;
+        slot.Currency = string.IsNullOrWhiteSpace(request.Currency) ? "LKR" : request.Currency;
+        slot.Notes = request.Notes;
+        slot.RowVersion = Guid.NewGuid().ToByteArray();
+        slot.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        await db.SaveChangesAsync(ct);
+
+        return new GuideAvailabilityDto(
+            slot.Id,
+            slot.LocalGuideUserId,
+            slot.GuideProfileId,
+            slot.StartTimeUtc,
+            slot.EndTimeUtc,
+            slot.SlotType,
+            slot.Status,
+            slot.MaxCapacity,
+            slot.BookedCapacity,
+            slot.PriceAmount,
+            slot.Currency,
+            slot.Notes,
+            slot.RowVersion,
+            slot.HeldUntilUtc
+        );
+    }
+
+    public async Task<bool> DeleteGuideAvailabilityAsync(Guid slotId, CancellationToken ct = default)
+    {
+        var slot = await db.GuideAvailabilities.SingleOrDefaultAsync(x => x.Id == slotId, ct);
+        if (slot is null) return false;
+
+        if (slot.BookedCapacity > 0 || slot.Status == AvailabilityStatus.RESERVED || slot.Status == AvailabilityStatus.BOOKED)
+        {
+            throw new InvalidOperationException("Cannot delete slot with active reservations or holds.");
+        }
+
+        db.GuideAvailabilities.Remove(slot);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<TransportSlotDto?> UpdateTransportSlotAsync(Guid slotId, UpdateTransportSlotRequestDto request, CancellationToken ct = default)
+    {
+        if (request.EndTimeUtc <= request.StartTimeUtc)
+        {
+            throw new ArgumentException("EndTimeUtc must be greater than StartTimeUtc.", nameof(request));
+        }
+
+        var slot = await db.TransportSlots.Include(x => x.TransportOption).SingleOrDefaultAsync(x => x.Id == slotId, ct);
+        if (slot is null) return null;
+
+        if (request.RowVersion is not null && request.RowVersion.Length > 0)
+        {
+            db.Entry(slot).Property(x => x.RowVersion).OriginalValue = request.RowVersion;
+        }
+
+        slot.StartTimeUtc = request.StartTimeUtc;
+        slot.EndTimeUtc = request.EndTimeUtc;
+        slot.VehicleType = request.VehicleType;
+        slot.Status = request.Status;
+        slot.TotalSeats = request.TotalSeats;
+        slot.AvailableSeats = request.AvailableSeats;
+        slot.PricePerSeat = request.PricePerSeat;
+        slot.Currency = string.IsNullOrWhiteSpace(request.Currency) ? "LKR" : request.Currency;
+        slot.OriginDestinationId = request.OriginDestinationId;
+        slot.DestinationId = request.DestinationId;
+        slot.RowVersion = Guid.NewGuid().ToByteArray();
+        slot.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        await db.SaveChangesAsync(ct);
+
+        return new TransportSlotDto(
+            slot.Id,
+            slot.TransportOptionId,
+            slot.TransportOption != null ? slot.TransportOption.Title : string.Empty,
+            slot.VehicleType,
+            slot.OriginDestinationId,
+            slot.DestinationId,
+            slot.StartTimeUtc,
+            slot.EndTimeUtc,
+            slot.Status,
+            slot.TotalSeats,
+            slot.AvailableSeats,
+            slot.PricePerSeat,
+            slot.Currency,
+            slot.RowVersion,
+            slot.HeldUntilUtc
+        );
+    }
+
+    public async Task<bool> DeleteTransportSlotAsync(Guid slotId, CancellationToken ct = default)
+    {
+        var slot = await db.TransportSlots.SingleOrDefaultAsync(x => x.Id == slotId, ct);
+        if (slot is null) return false;
+
+        if (slot.AvailableSeats < slot.TotalSeats || slot.Status == SlotStatus.RESERVED || slot.Status == SlotStatus.BOOKED)
+        {
+            throw new InvalidOperationException("Cannot delete transport slot with active bookings or holds.");
+        }
+
+        db.TransportSlots.Remove(slot);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<AttractionSlotDto?> UpdateAttractionSlotAsync(Guid slotId, UpdateAttractionSlotRequestDto request, CancellationToken ct = default)
+    {
+        if (request.EndTimeUtc <= request.StartTimeUtc)
+        {
+            throw new ArgumentException("EndTimeUtc must be greater than StartTimeUtc.", nameof(request));
+        }
+
+        var slot = await db.AttractionSlots.SingleOrDefaultAsync(x => x.Id == slotId, ct);
+        if (slot is null) return null;
+
+        if (request.RowVersion is not null && request.RowVersion.Length > 0)
+        {
+            db.Entry(slot).Property(x => x.RowVersion).OriginalValue = request.RowVersion;
+        }
+
+        slot.StartTimeUtc = request.StartTimeUtc;
+        slot.EndTimeUtc = request.EndTimeUtc;
+        slot.Status = request.Status;
+        slot.MaxCapacity = request.MaxCapacity;
+        slot.BookedCapacity = request.BookedCapacity;
+        slot.PriceAmount = request.PriceAmount;
+        slot.Currency = string.IsNullOrWhiteSpace(request.Currency) ? "LKR" : request.Currency;
+        slot.Notes = request.Notes;
+        slot.RowVersion = Guid.NewGuid().ToByteArray();
+        slot.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+        await db.SaveChangesAsync(ct);
+
+        return new AttractionSlotDto(
+            slot.Id,
+            slot.AttractionId,
+            slot.StartTimeUtc,
+            slot.EndTimeUtc,
+            slot.Status,
+            slot.MaxCapacity,
+            slot.BookedCapacity,
+            slot.PriceAmount,
+            slot.Currency,
+            slot.Notes,
+            slot.RowVersion,
+            slot.HeldUntilUtc
+        );
+    }
+
+    public async Task<bool> DeleteAttractionSlotAsync(Guid slotId, CancellationToken ct = default)
+    {
+        var slot = await db.AttractionSlots.SingleOrDefaultAsync(x => x.Id == slotId, ct);
+        if (slot is null) return false;
+
+        if (slot.BookedCapacity > 0 || slot.Status == SlotStatus.RESERVED || slot.Status == SlotStatus.BOOKED)
+        {
+            throw new InvalidOperationException("Cannot delete attraction slot with active bookings or holds.");
+        }
+
+        db.AttractionSlots.Remove(slot);
+        await db.SaveChangesAsync(ct);
+        return true;
     }
 }
