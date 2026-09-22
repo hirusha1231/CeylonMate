@@ -109,15 +109,25 @@ public record CreateGuideAvailabilityRequestDto(
 );
 
 public record CreateTransportSlotRequestDto(
-    DateTimeOffset StartTimeUtc,
-    DateTimeOffset EndTimeUtc,
+    DateTimeOffset? StartTimeUtc = null,
+    DateTimeOffset? EndTimeUtc = null,
+    DateTimeOffset? DepartureTimeUtc = null,
+    DateTimeOffset? ArrivalTimeUtc = null,
     VehicleType VehicleType = VehicleType.SEDAN,
-    int TotalSeats = 4,
-    decimal PricePerSeat = 0,
+    int? TotalSeats = null,
+    int? AvailableSeats = null,
+    decimal? PricePerSeat = null,
+    decimal? PriceLkr = null,
     string Currency = "LKR",
     Guid? OriginDestinationId = null,
     Guid? DestinationId = null
-);
+)
+{
+    public DateTimeOffset EffectiveStartTime => StartTimeUtc ?? DepartureTimeUtc ?? DateTimeOffset.UtcNow;
+    public DateTimeOffset EffectiveEndTime => EndTimeUtc ?? ArrivalTimeUtc ?? EffectiveStartTime.AddHours(2);
+    public int EffectiveTotalSeats => TotalSeats ?? AvailableSeats ?? 4;
+    public decimal EffectivePrice => PricePerSeat ?? PriceLkr ?? 0;
+}
 
 public record CreateAttractionSlotRequestDto(
     DateTimeOffset StartTimeUtc,

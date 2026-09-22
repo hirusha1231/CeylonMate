@@ -36,21 +36,27 @@ export const GuideAvailabilityPage: React.FC = () => {
   const [deletingSlot, setDeletingSlot] = useState<GuideSlot | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  const guideId = '00000000-0000-0000-0000-000000000001';
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:5084';
+  const guideId = '00000000-0000-0000-0000-000000000000';
 
   const fetchSlots = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:5084/api/guides/${guideId}/availability`);
+      const res = await fetch(`${API_BASE}/api/guides/${guideId}/availability`);
       if (res.ok) {
         const data = await res.json();
         setSlots(data);
       } else {
-        setError(`Failed to fetch availability (${res.status})`);
+        setError(`Failed to fetch availability (${res.status} ${res.statusText})`);
       }
     } catch (e: any) {
-      setError(e.message || 'Error connecting to API server');
+      console.error('Error fetching guide availability:', e);
+      setError(
+        e?.message
+          ? `Failed to connect to API (${e.message}). Ensure backend API is running at ${API_BASE}.`
+          : `Error connecting to API server at ${API_BASE}`
+      );
     } finally {
       setLoading(false);
     }
@@ -85,7 +91,7 @@ export const GuideAvailabilityPage: React.FC = () => {
         rowVersion: editingSlot.rowVersion,
       };
 
-      const res = await fetch(`http://localhost:5084/api/guides/availability/${editingSlot.id}`, {
+      const res = await fetch(`${API_BASE}/api/guides/availability/${editingSlot.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -111,7 +117,7 @@ export const GuideAvailabilityPage: React.FC = () => {
     if (!deletingSlot) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`http://localhost:5084/api/guides/availability/${deletingSlot.id}`, {
+      const res = await fetch(`${API_BASE}/api/guides/availability/${deletingSlot.id}`, {
         method: 'DELETE',
       });
 
