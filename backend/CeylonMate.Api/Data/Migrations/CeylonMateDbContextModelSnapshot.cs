@@ -59,6 +59,227 @@ namespace CeylonMate.Api.Data.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("CeylonMate.Api.Destinations.Attraction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccessibilityNotes")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("BasePrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid>("DestinationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationId");
+
+                    b.ToTable("attractions", (string)null);
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Destinations.AttractionOpeningRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AttractionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<TimeOnly>("CloseTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("DayOfWeek")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<TimeOnly?>("LastEntryTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly>("OpenTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateOnly?>("ValidFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("ValidTo")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttractionId");
+
+                    b.ToTable("attraction_opening_rules", (string)null);
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Destinations.Destination", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)");
+
+                    b.Property<decimal>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("destinations", (string)null);
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Destinations.DestinationAdvisory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DestinationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("EndsAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("StartsAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationId");
+
+                    b.ToTable("destination_advisories", (string)null);
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Destinations.LocalGuideReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DestinationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GuideId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)");
+
+                    b.Property<decimal?>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PhotoUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReportType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("ReportedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationId");
+
+                    b.ToTable("local_guide_reports", (string)null);
+                });
+
             modelBuilder.Entity("CeylonMate.Api.Models.AttractionSlot", b =>
                 {
                     b.Property<Guid>("Id")
@@ -236,6 +457,290 @@ namespace CeylonMate.Api.Data.Migrations
                     b.ToTable("guide_profiles", (string)null);
                 });
 
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.ApprovalDecision", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("DecidedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text");
+
+                    b.Property<int>("TravelAgentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WorkflowId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ApprovalDecisions");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.Booking", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("BookedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("BookingReference")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("ItineraryId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("QuotationId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TravelerId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TripRequestId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Bookings");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.Itinerary", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TotalDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TripRequestId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int?>("WorkflowId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Itineraries");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.ItineraryDay", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("DayNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ItineraryId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItineraryId");
+
+                    b.ToTable("ItineraryDays");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.ItineraryItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AttractionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("AttractionSlotId")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeSpan>("EndTime")
+                        .HasColumnType("interval");
+
+                    b.Property<int>("ItineraryDayId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<TimeSpan>("StartTime")
+                        .HasColumnType("interval");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("TransportSlotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItineraryDayId");
+
+                    b.ToTable("ItineraryItems");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.Quotation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("ItineraryId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("SubTotal")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItineraryId")
+                        .IsUnique();
+
+                    b.ToTable("Quotations");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.QuotationItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("LineTotal")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("QuotationId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuotationId");
+
+                    b.ToTable("QuotationItems");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.Reservation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BookingId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ReservedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("ResourceId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.ToTable("Reservations");
+                });
+
             modelBuilder.Entity("CeylonMate.Api.Models.TransportOption", b =>
                 {
                     b.Property<Guid>("Id")
@@ -355,6 +860,48 @@ namespace CeylonMate.Api.Data.Migrations
                     b.HasIndex("TransportOptionId", "StartTimeUtc", "EndTimeUtc");
 
                     b.ToTable("transport_slots", (string)null);
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.WorkflowStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AgentName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<string>("InputJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OutputJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("StepOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("WorkflowId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkflowId");
+
+                    b.ToTable("WorkflowSteps");
                 });
 
             modelBuilder.Entity("CeylonMate.Api.Trips.TravelerProfile", b =>
@@ -529,6 +1076,50 @@ namespace CeylonMate.Api.Data.Migrations
                     b.ToTable("workflow_executions", (string)null);
                 });
 
+            modelBuilder.Entity("CeylonMate.Api.Destinations.Attraction", b =>
+                {
+                    b.HasOne("CeylonMate.Api.Destinations.Destination", "Destination")
+                        .WithMany("Attractions")
+                        .HasForeignKey("DestinationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Destination");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Destinations.AttractionOpeningRule", b =>
+                {
+                    b.HasOne("CeylonMate.Api.Destinations.Attraction", "Attraction")
+                        .WithMany("OpeningRules")
+                        .HasForeignKey("AttractionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Attraction");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Destinations.DestinationAdvisory", b =>
+                {
+                    b.HasOne("CeylonMate.Api.Destinations.Destination", "Destination")
+                        .WithMany("Advisories")
+                        .HasForeignKey("DestinationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Destination");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Destinations.LocalGuideReport", b =>
+                {
+                    b.HasOne("CeylonMate.Api.Destinations.Destination", "Destination")
+                        .WithMany("GuideReports")
+                        .HasForeignKey("DestinationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Destination");
+                });
+
             modelBuilder.Entity("CeylonMate.Api.Models.GuideAvailability", b =>
                 {
                     b.HasOne("CeylonMate.Api.Models.GuideProfile", "GuideProfile")
@@ -558,6 +1149,61 @@ namespace CeylonMate.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.ItineraryDay", b =>
+                {
+                    b.HasOne("CeylonMate.Api.Models.Itinerary.Itinerary", "Itinerary")
+                        .WithMany("Days")
+                        .HasForeignKey("ItineraryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Itinerary");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.ItineraryItem", b =>
+                {
+                    b.HasOne("CeylonMate.Api.Models.Itinerary.ItineraryDay", "ItineraryDay")
+                        .WithMany("Items")
+                        .HasForeignKey("ItineraryDayId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ItineraryDay");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.Quotation", b =>
+                {
+                    b.HasOne("CeylonMate.Api.Models.Itinerary.Itinerary", "Itinerary")
+                        .WithOne("Quotation")
+                        .HasForeignKey("CeylonMate.Api.Models.Itinerary.Quotation", "ItineraryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Itinerary");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.QuotationItem", b =>
+                {
+                    b.HasOne("CeylonMate.Api.Models.Itinerary.Quotation", "Quotation")
+                        .WithMany("Items")
+                        .HasForeignKey("QuotationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Quotation");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.Reservation", b =>
+                {
+                    b.HasOne("CeylonMate.Api.Models.Itinerary.Booking", "Booking")
+                        .WithMany("Reservations")
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Booking");
+                });
+
             modelBuilder.Entity("CeylonMate.Api.Models.TransportOption", b =>
                 {
                     b.HasOne("CeylonMate.Api.Auth.User", "ProviderUser")
@@ -577,6 +1223,17 @@ namespace CeylonMate.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("TransportOption");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.WorkflowStep", b =>
+                {
+                    b.HasOne("CeylonMate.Api.Trips.WorkflowExecution", "Workflow")
+                        .WithMany()
+                        .HasForeignKey("WorkflowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Workflow");
                 });
 
             modelBuilder.Entity("CeylonMate.Api.Trips.TravelerProfile", b =>
@@ -632,9 +1289,45 @@ namespace CeylonMate.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CeylonMate.Api.Destinations.Attraction", b =>
+                {
+                    b.Navigation("OpeningRules");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Destinations.Destination", b =>
+                {
+                    b.Navigation("Advisories");
+
+                    b.Navigation("Attractions");
+
+                    b.Navigation("GuideReports");
+                });
+
             modelBuilder.Entity("CeylonMate.Api.Models.GuideProfile", b =>
                 {
                     b.Navigation("Availabilities");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.Booking", b =>
+                {
+                    b.Navigation("Reservations");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.Itinerary", b =>
+                {
+                    b.Navigation("Days");
+
+                    b.Navigation("Quotation");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.ItineraryDay", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("CeylonMate.Api.Models.Itinerary.Quotation", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("CeylonMate.Api.Models.TransportOption", b =>

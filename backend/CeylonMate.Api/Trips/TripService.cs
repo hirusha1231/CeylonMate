@@ -123,17 +123,18 @@ public sealed class TripService(CeylonMateDbContext db)
         return Map(trip);
     }
 
-    public async Task<TripResponse?> StartPlanningAsync(Guid id, Guid staffUserId, CancellationToken ct)
+    public async Task<TripResponse?> StartPlanningAsync(Guid id, Guid travelerUserId, CancellationToken ct)
     {
-        var trip = await db.Set<TripRequest>().SingleOrDefaultAsync(x => x.Id == id, ct);
+        var trip = await db.Set<TripRequest>()
+            .SingleOrDefaultAsync(x => x.Id == id && x.TravelerId == travelerUserId, ct);
         if (trip is null) return null;
         if (trip.Status != TripStatus.SUBMITTED)
             throw new InvalidOperationException("Planning can start only from SUBMITTED.");
-        Transition(trip, TripStatus.PLANNING, staffUserId);
+        Transition(trip, TripStatus.PLANNING, travelerUserId);
         db.Set<WorkflowExecution>().Add(new WorkflowExecution
         {
             TripRequestId = trip.Id,
-            RequestedByUserId = staffUserId
+            RequestedByUserId = travelerUserId
         });
         await db.SaveChangesAsync(ct);
         return Map(trip);

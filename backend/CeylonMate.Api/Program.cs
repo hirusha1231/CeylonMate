@@ -10,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 var useInMemory = builder.Configuration.GetValue<bool>("UseInMemoryDatabase");
@@ -63,8 +65,6 @@ builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<TripService>();
 builder.Services.AddScoped<ICapacityReservationService, CapacityReservationService>();
 builder.Services.AddScoped<CeylonMate.Api.Destinations.DestinationService>();
-builder.Services.AddScoped<CeylonMate.Api.Itineraries.ItineraryService>();
-builder.Services.AddScoped<CeylonMate.Api.Itineraries.WorkflowApprovalService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -126,6 +126,16 @@ builder.Services.AddSwaggerGen(options =>
         }] = Array.Empty<string>()
     });
 });
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DevCorsPolicy", policy =>
+    {
+        policy.SetIsOriginAllowed(_ => true)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
@@ -138,23 +148,37 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 
     await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<CeylonMateDbContext>();
+    if (db.Database.IsRelational())
+    {
+        await db.Database.MigrateAsync();
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE IF EXISTS public.guide_availabilities ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
+                ALTER TABLE IF EXISTS public.transport_slots ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
+                ALTER TABLE IF EXISTS public.attraction_slots ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
+            ");
+        }
+        catch
+        {
+            // Ignore if tables do not exist yet
+        }
+    }
+    else
+    {
+        await db.Database.EnsureCreatedAsync();
+    }
+
     var seedOptions = scope.ServiceProvider
         .GetRequiredService<Microsoft.Extensions.Options.IOptions<SeedUsersOptions>>().Value;
     if (seedOptions.Enabled)
     {
-        var db = scope.ServiceProvider.GetRequiredService<CeylonMateDbContext>();
-        if (db.Database.IsRelational())
-        {
-            await db.Database.MigrateAsync();
-        }
-        else
-        {
-            await db.Database.EnsureCreatedAsync();
-        }
         await scope.ServiceProvider.GetRequiredService<DevelopmentUserSeeder>().SeedAsync();
     }
 }
 
+app.UseCors("DevCorsPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

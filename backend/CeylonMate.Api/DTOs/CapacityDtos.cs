@@ -109,15 +109,25 @@ public record CreateGuideAvailabilityRequestDto(
 );
 
 public record CreateTransportSlotRequestDto(
-    DateTimeOffset StartTimeUtc,
-    DateTimeOffset EndTimeUtc,
+    DateTimeOffset? StartTimeUtc = null,
+    DateTimeOffset? EndTimeUtc = null,
+    DateTimeOffset? DepartureTimeUtc = null,
+    DateTimeOffset? ArrivalTimeUtc = null,
     VehicleType VehicleType = VehicleType.SEDAN,
-    int TotalSeats = 4,
-    decimal PricePerSeat = 0,
+    int? TotalSeats = null,
+    int? AvailableSeats = null,
+    decimal? PricePerSeat = null,
+    decimal? PriceLkr = null,
     string Currency = "LKR",
     Guid? OriginDestinationId = null,
     Guid? DestinationId = null
-);
+)
+{
+    public DateTimeOffset EffectiveStartTime => StartTimeUtc ?? DepartureTimeUtc ?? DateTimeOffset.UtcNow;
+    public DateTimeOffset EffectiveEndTime => EndTimeUtc ?? ArrivalTimeUtc ?? EffectiveStartTime.AddHours(2);
+    public int EffectiveTotalSeats => TotalSeats ?? AvailableSeats ?? 4;
+    public decimal EffectivePrice => PricePerSeat ?? PriceLkr ?? 0;
+}
 
 public record CreateAttractionSlotRequestDto(
     DateTimeOffset StartTimeUtc,
@@ -126,4 +136,42 @@ public record CreateAttractionSlotRequestDto(
     decimal PriceAmount = 0,
     string Currency = "LKR",
     string? Notes = null
+);
+
+public record UpdateGuideAvailabilityRequestDto(
+    DateTimeOffset StartTimeUtc,
+    DateTimeOffset EndTimeUtc,
+    SlotType SlotType = SlotType.FULL_DAY,
+    AvailabilityStatus Status = AvailabilityStatus.AVAILABLE,
+    int MaxCapacity = 1,
+    decimal PriceAmount = 0,
+    string Currency = "LKR",
+    string? Notes = null,
+    byte[]? RowVersion = null
+);
+
+public record UpdateTransportSlotRequestDto(
+    DateTimeOffset StartTimeUtc,
+    DateTimeOffset EndTimeUtc,
+    VehicleType VehicleType = VehicleType.SEDAN,
+    SlotStatus Status = SlotStatus.AVAILABLE,
+    int TotalSeats = 4,
+    int AvailableSeats = 4,
+    decimal PricePerSeat = 0,
+    string Currency = "LKR",
+    Guid? OriginDestinationId = null,
+    Guid? DestinationId = null,
+    byte[]? RowVersion = null
+);
+
+public record UpdateAttractionSlotRequestDto(
+    DateTimeOffset StartTimeUtc,
+    DateTimeOffset EndTimeUtc,
+    SlotStatus Status = SlotStatus.AVAILABLE,
+    int MaxCapacity = 50,
+    int BookedCapacity = 0,
+    decimal PriceAmount = 0,
+    string Currency = "LKR",
+    string? Notes = null,
+    byte[]? RowVersion = null
 );

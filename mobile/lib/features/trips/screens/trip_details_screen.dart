@@ -3,7 +3,8 @@ import 'package:intl/intl.dart';
 import '../models/trip.dart';
 import '../services/trip_service.dart';
 import 'trip_form_screen.dart';
-
+import '../../itinerary/screens/itinerary_screen.dart';
+import '../../itinerary/services/itinerary_service.dart';
 class TripDetailsScreen extends StatefulWidget {
   final TripService service;
   final String tripId;
@@ -110,6 +111,21 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                   if (trip.status == 'SUBMITTED' && widget.service.isStaff)
                     FilledButton(onPressed: _working ? null : () => _transition(planning: true),
                       child: Text(_working ? 'Starting…' : 'Start planning')),
+                  FilledButton.icon(
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('View Itinerary & Booking'),
+                  onPressed: () {
+                  final intId = int.tryParse(widget.tripId) ?? 0;
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ItineraryScreen(
+                        tripRequestId: intId,
+                        service: ItineraryService(widget.service.client),
+                      ),
+                    ),
+                  );
+                },
+              ),
                 ]),
     );
   }

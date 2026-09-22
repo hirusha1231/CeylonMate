@@ -140,4 +140,83 @@ public class CapacityReservationServiceTests
         await actEarlier.Should().ThrowAsync<ArgumentException>()
             .WithMessage("*EndTimeUtc must be greater than StartTimeUtc*");
     }
+
+    [Fact]
+    public async Task UpdateGuideAvailability_ValidSlot_UpdatesSuccessfully()
+    {
+        var options = CreateInMemoryOptions(Guid.NewGuid().ToString("N"));
+        await using var db = new CeylonMateDbContext(options);
+        var service = new CapacityReservationService(db);
+
+        var guideUserId = Guid.NewGuid();
+        var initial = await service.AddGuideAvailabilityAsync(guideUserId, new CreateGuideAvailabilityRequestDto(
+            StartTimeUtc: DateTimeOffset.UtcNow.AddDays(1),
+            EndTimeUtc: DateTimeOffset.UtcNow.AddDays(1).AddHours(8),
+            PriceAmount: 10000
+        ));
+
+        var updateRequest = new UpdateGuideAvailabilityRequestDto(
+            StartTimeUtc: DateTimeOffset.UtcNow.AddDays(1).AddHours(1),
+            EndTimeUtc: DateTimeOffset.UtcNow.AddDays(1).AddHours(9),
+            SlotType: SlotType.HALF_DAY_MORNING,
+            Status: AvailabilityStatus.AVAILABLE,
+            MaxCapacity: 2,
+            PriceAmount: 18000,
+            Currency: "LKR",
+            Notes: "Updated notes"
+        );
+
+        var updated = await service.UpdateGuideAvailabilityAsync(initial.Id, updateRequest);
+
+        updated.Should().NotBeNull();
+        updated!.PriceAmount.Should().Be(18000);
+        updated.MaxCapacity.Should().Be(2);
+        updated.SlotType.Should().Be(SlotType.HALF_DAY_MORNING);
+        updated.Notes.Should().Be("Updated notes");
+    }
+
+    [Fact]
+    public async Task DeleteGuideAvailability_AvailableSlot_DeletesSuccessfully()
+    {
+        var options = CreateInMemoryOptions(Guid.NewGuid().ToString("N"));
+        await using var db = new CeylonMateDbContext(options);
+        var service = new CapacityReservationService(db);
+
+        var guideUserId = Guid.NewGuid();
+        var initial = await service.AddGuideAvailabilityAsync(guideUserId, new CreateGuideAvailabilityRequestDto(
+            StartTimeUtc: DateTimeOffset.UtcNow.AddDays(1),
+            EndTimeUtc: DateTimeOffset.UtcNow.AddDays(1).AddHours(8)
+        ));
+
+        var deleted = await service.DeleteGuideAvailabilityAsync(initial.Id);
+        deleted.Should().BeTrue();
+
+        var dbSlot = await db.GuideAvailabilities.SingleOrDefaultAsync(x => x.Id == initial.Id);
+        dbSlot.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteGuideAvailability_SlotWithActiveHolds_ThrowsInvalidOperationException()
+    {
+        var options = CreateInMemoryOptions(Guid.NewGuid().ToString("N"));
+        await using var db = new CeylonMateDbContext(options);
+        var service = new CapacityReservationService(db);
+
+        var slot = new GuideAvailability
+        {
+            Id = Guid.NewGuid(),
+            LocalGuideUserId = Guid.NewGuid(),
+            StartTimeUtc = DateTimeOffset.UtcNow.AddDays(1),
+            EndTimeUtc = DateTimeOffset.UtcNow.AddDays(1).AddHours(8),
+            Status = AvailabilityStatus.RESERVED,
+            BookedCapacity = 1,
+            MaxCapacity = 1
+        };
+        db.GuideAvailabilities.Add(slot);
+        await db.SaveChangesAsync();
+
+        Func<Task> act = async () => await service.DeleteGuideAvailabilityAsync(slot.Id);
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*Cannot delete slot with active reservations or holds*");
+    }
 }
