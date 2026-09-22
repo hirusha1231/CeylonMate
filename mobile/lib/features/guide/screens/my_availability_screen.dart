@@ -188,24 +188,24 @@ class _MyAvailabilityScreenState extends State<MyAvailabilityScreen> {
 
     if (_errorMessage != null) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, color: theme.colorScheme.error, size: 48),
-              const SizedBox(height: 12),
+              Icon(Icons.error_outline, color: theme.colorScheme.error, size: 40),
+              const SizedBox(height: 8),
               Text(
                 'Could not load slots',
                 style: theme.textTheme.titleMedium,
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               ElevatedButton.icon(
                 onPressed: _loadAvailability,
                 icon: const Icon(Icons.refresh),
