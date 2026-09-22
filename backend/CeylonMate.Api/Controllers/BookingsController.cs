@@ -57,9 +57,8 @@ public class BookingsController : ControllerBase
             return NotFound();
         }
 
-        existing.TripTitle = updatedBooking.TripTitle ?? existing.TripTitle;
         existing.Status = updatedBooking.Status ?? existing.Status;
-        existing.Notes = updatedBooking.Notes ?? existing.Notes;
+        existing.BookingReference = updatedBooking.BookingReference ?? existing.BookingReference;
 
         await _context.SaveChangesAsync();
         return Ok(existing);
