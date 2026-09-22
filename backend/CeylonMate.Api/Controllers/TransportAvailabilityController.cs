@@ -34,7 +34,7 @@ public sealed class TransportAvailabilityController(ICapacityReservationService 
         [FromBody] CreateTransportSlotRequestDto request,
         CancellationToken cancellationToken)
     {
-        if (request.EndTimeUtc <= request.StartTimeUtc)
+        if (request.EffectiveEndTime <= request.EffectiveStartTime)
         {
             ModelState.AddModelError(nameof(request.EndTimeUtc), "EndTimeUtc must be after StartTimeUtc.");
             return ValidationProblem(ModelState);

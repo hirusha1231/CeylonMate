@@ -89,6 +89,16 @@ builder.Services.AddSwaggerGen(options =>
         }] = Array.Empty<string>()
     });
 });
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DevCorsPolicy", policy =>
+    {
+        policy.SetIsOriginAllowed(_ => true)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
@@ -122,6 +132,7 @@ if (app.Environment.IsDevelopment())
     }
 }
 
+app.UseCors("DevCorsPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
