@@ -48,4 +48,34 @@ public class BookingsController : ControllerBase
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = booking.Id }, booking);
     }
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(int id, [FromBody] Booking updatedBooking)
+    {
+        var existing = await _context.Bookings.FindAsync(id);
+        if (existing == null)
+        {
+            return NotFound();
+        }
+
+        existing.TripTitle = updatedBooking.TripTitle ?? existing.TripTitle;
+        existing.Status = updatedBooking.Status ?? existing.Status;
+        existing.Notes = updatedBooking.Notes ?? existing.Notes;
+
+        await _context.SaveChangesAsync();
+        return Ok(existing);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var booking = await _context.Bookings.FindAsync(id);
+        if (booking == null)
+        {
+            return NotFound();
+        }
+
+        _context.Bookings.Remove(booking);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
 }
