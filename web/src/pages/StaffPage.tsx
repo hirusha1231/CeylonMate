@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { GuideAvailabilityPage } from './GuideAvailabilityPage';
 import { TransportAttractionCapacityPage } from './TransportAttractionCapacityPage';
+import { ApprovalQueuePage } from './ApprovalQueuePage';
 
 type StaffPageKind = 'overview' | 'capacity' | 'agents' | 'admin';
 
@@ -12,7 +13,7 @@ const copy: Record<Exclude<StaffPageKind, 'capacity'>, { title: string; descript
   },
   agents: {
     title: 'Agent desk',
-    description: 'Travel agent tools have not been added to this shell yet.',
+    description: 'Review pending itinerary proposals, quotation summaries, and human-in-the-loop approvals.',
   },
   admin: {
     title: 'Administration',
@@ -24,25 +25,28 @@ export function StaffPage({ kind }: { kind: StaffPageKind }) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'guides' | 'capacity'>('guides');
 
+  if (kind === 'agents') {
+    return <ApprovalQueuePage />;
+  }
+
   if (kind === 'capacity') {
     return (
       <main>
         <p className="eyebrow">{user?.role.replaceAll('_', ' ')}</p>
-        <h1>Capacity desk</h1>
-        <div className="tab-switcher" style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
           <button
             type="button"
-            className={`tab-btn ${activeTab === 'guides' ? 'active' : ''}`}
+            className={activeTab === 'guides' ? 'primary-button' : 'secondary-button'}
             onClick={() => setActiveTab('guides')}
           >
-            👨‍✈️ Guide Availability
+            Guide Availability
           </button>
           <button
             type="button"
-            className={`tab-btn ${activeTab === 'capacity' ? 'active' : ''}`}
+            className={activeTab === 'capacity' ? 'primary-button' : 'secondary-button'}
             onClick={() => setActiveTab('capacity')}
           >
-            🚘 Transport & Attractions
+            Transport & Attraction Capacity
           </button>
         </div>
         {activeTab === 'guides' ? <GuideAvailabilityPage /> : <TransportAttractionCapacityPage />}
@@ -50,16 +54,11 @@ export function StaffPage({ kind }: { kind: StaffPageKind }) {
     );
   }
 
-  const page = copy[kind];
   return (
     <main>
       <p className="eyebrow">{user?.role.replaceAll('_', ' ')}</p>
-      <h1>{page.title}</h1>
-      <section className="empty-state" aria-label="No content yet">
-        <h2>Nothing here yet</h2>
-        <p>{page.description}</p>
-      </section>
+      <h1>{copy[kind].title}</h1>
+      <p className="lead">{copy[kind].description}</p>
     </main>
   );
 }
-
