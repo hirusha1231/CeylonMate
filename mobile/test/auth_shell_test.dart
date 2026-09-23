@@ -49,17 +49,18 @@ void main() {
     expect(find.text('Sign in'), findsWidgets);
   });
 
-  testWidgets('restored local guide opens guide home', (tester) async {
+  testWidgets('restored local guide opens guide home and navigates to availability', (tester) async {
     final gateway = FakeAuthGateway()
       ..savedUser = const AuthUser(
         id: 'guide-id', email: 'guide@example.com', role: 'LOCAL_GUIDE');
     await tester.pumpWidget(CeylonMateApp(authGateway: gateway));
     await tester.pumpAndSettle();
     expect(find.text('Local Guide Home'), findsOneWidget);
-    final context = tester.element(find.text('Local Guide Home'));
-    Navigator.of(context).pushNamed('/traveler');
+    expect(find.text('Manage My Availability'), findsOneWidget);
+
+    await tester.tap(find.text('Manage My Availability'));
     await tester.pumpAndSettle();
-    expect(find.text('Access denied'), findsOneWidget);
+    expect(find.text('My Guide Availability'), findsOneWidget);
   });
 
   testWidgets('restore error does not open protected content', (tester) async {
@@ -70,3 +71,4 @@ void main() {
     expect(find.text('Traveler Home'), findsNothing);
   });
 }
+
