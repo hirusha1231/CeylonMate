@@ -6,6 +6,7 @@ const links = [
   { to: '/staff/capacity', label: 'Capacity desk', roles: ['CAPACITY_OFFICER', 'ADMIN'] },
   { to: '/staff/agents', label: 'Agent desk', roles: ['TRAVEL_AGENT', 'ADMIN'] },
   { to: '/staff/trips', label: 'Trip requests', roles: ['TRAVEL_AGENT', 'ADMIN'] },
+  { to: '/staff/destinations', label: 'Destinations', roles: ['TRAVEL_AGENT', 'ADMIN'] },
   { to: '/staff/admin', label: 'Administration', roles: ['ADMIN'] },
 ];
 
@@ -38,3 +39,4 @@ export function AppLayout() {
     </div>
   </div>;
 }
+

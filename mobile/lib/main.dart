@@ -4,10 +4,12 @@ import 'core/auth/auth_repository.dart';
 import 'core/auth/auth_user.dart';
 import 'core/auth/token_store.dart';
 import 'core/network/api_client.dart';
+import 'features/guide/screens/add_condition_report_screen.dart';
 import 'features/guide/screens/my_availability_screen.dart';
 import 'features/guide/screens/my_reports_screen.dart';
 import 'features/guide/services/guide_availability_service.dart';
 import 'features/guide/services/report_service.dart';
+import 'features/trips/screens/my_trips_screen.dart';
 import 'features/trips/screens/trip_details_screen.dart';
 import 'features/trips/screens/trip_form_screen.dart';
 import 'features/trips/services/trip_service.dart';
@@ -68,6 +70,7 @@ class _CeylonMateAppState extends State<CeylonMateApp> {
   @override
   Widget build(BuildContext context) {
     final trips = TripService(_client);
+    final reports = ReportService(_client);
 
     return MaterialApp(
       title: 'CeylonMate Mobile',
@@ -83,12 +86,27 @@ class _CeylonMateAppState extends State<CeylonMateApp> {
             builder: (_) => TripFormScreen(service: trips),
           );
         }
+        if (settings.name == '/trips/my') {
+          return MaterialPageRoute(
+            builder: (_) => MyTripsScreen(service: trips),
+          );
+        }
         if (settings.name == '/trips/details' && settings.arguments is String) {
           return MaterialPageRoute(
             builder: (_) => TripDetailsScreen(
               service: trips,
               tripId: settings.arguments! as String,
             ),
+          );
+        }
+        if (settings.name == '/guide/report') {
+          return MaterialPageRoute(
+            builder: (_) => AddConditionReportScreen(service: reports),
+          );
+        }
+        if (settings.name == '/guide/reports') {
+          return MaterialPageRoute(
+            builder: (_) => MyReportsScreen(service: reports),
           );
         }
 
@@ -125,35 +143,35 @@ class _CeylonMateAppState extends State<CeylonMateApp> {
       },
       home: switch (_auth.phase) {
         AuthPhase.checking => const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+            body: Center(child: CircularProgressIndicator()),
+          ),
         AuthPhase.error => Scaffold(
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.cloud_off, size: 48),
-                  const SizedBox(height: 12),
-                  Text(
-                    _auth.error ?? 'Unable to verify your session.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _auth.initialize,
-                    child: const Text('Retry'),
-                  ),
-                  TextButton(
-                    onPressed: _auth.logout,
-                    child: const Text('Sign out'),
-                  ),
-                ],
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off, size: 48),
+                    const SizedBox(height: 12),
+                    Text(
+                      _auth.error ?? 'Unable to verify your session.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _auth.initialize,
+                      child: const Text('Retry'),
+                    ),
+                    TextButton(
+                      onPressed: _auth.logout,
+                      child: const Text('Sign out'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
         AuthPhase.signedOut => LoginScreen(auth: _auth),
         AuthPhase.signedIn => RoleHomeScreen(
             auth: _auth,
@@ -339,8 +357,56 @@ class RoleHomeScreen extends StatelessWidget {
                         : 'This mobile shell does not support ${user.role} yet.',
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 24),
+
+              // Traveler UI Actions (Member 1)
+              if (user.role == 'TRAVELER') ...[
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.add_location_alt),
+                          label: const Text('Create Trip Request'),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => TripFormScreen(
+                                  service: TripService(client),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.list_alt),
+                          label: const Text('My Trips'),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => MyTripsScreen(
+                                  service: TripService(client),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              // Local Guide UI Actions (Member 2 & Member 3)
               if (user.role == 'LOCAL_GUIDE') ...[
-                const SizedBox(height: 24),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 320),
                   child: Column(
@@ -415,10 +481,29 @@ class RoleHomeScreen extends StatelessWidget {
                           },
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.report_problem_outlined),
+                          label: const Text('Add Condition Report'),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AddConditionReportScreen(
+                                  service: ReportService(client),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
+
               if (auth.error != null) ...[
                 const SizedBox(height: 12),
                 Text(

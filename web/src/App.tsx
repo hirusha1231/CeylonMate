@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { StaffPage } from './pages/StaffPage';
 import { TripRequestsPage } from './features/trips/TripRequestsPage';
 import { TripDetailsPage } from './features/trips/TripDetailsPage';
+import { DestinationsManagementPage } from './features/destinations/DestinationsManagementPage';
 
 export function App() {
   return (
@@ -23,6 +24,7 @@ export function App() {
                 <Route path="agents" element={<StaffPage kind="agents" />} />
                 <Route path="trips" element={<TripRequestsPage />} />
                 <Route path="trips/:id" element={<TripDetailsPage />} />
+                <Route path="destinations" element={<DestinationsManagementPage />} />
               </Route>
               <Route element={<RequireAuth roles={['ADMIN']} />}>
                 <Route path="admin" element={<StaffPage kind="admin" />} />
@@ -37,3 +39,4 @@ export function App() {
 }
 
 export default App;
+
