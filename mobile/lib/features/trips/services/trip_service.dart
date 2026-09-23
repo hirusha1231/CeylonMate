@@ -65,6 +65,13 @@ class TripService {
       rethrow;
     }
   }
+  Future<void> cancelTrip(String tripId) async {
+    await client.dio.delete('/api/bookings/$tripId');
+  }
+
+  Future<void> deleteBooking(int bookingId) async {
+    await client.dio.delete('/api/Bookings/$bookingId');
+  }
 
   Future<void> savePreferences(TravelerPreferences preferences) async {
     await client.dio.put('/api/traveler/profile', data: {

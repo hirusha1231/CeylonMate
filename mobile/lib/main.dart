@@ -5,6 +5,8 @@ import 'core/auth/auth_user.dart';
 import 'core/auth/token_store.dart';
 import 'core/network/api_client.dart';
 import 'features/guide/screens/add_condition_report_screen.dart';
+import 'features/guide/screens/my_availability_screen.dart';
+import 'features/guide/screens/my_reports_screen.dart';
 import 'features/guide/services/guide_availability_service.dart';
 import 'features/guide/services/report_service.dart';
 import 'features/trips/screens/my_trips_screen.dart';
@@ -102,6 +104,11 @@ class _CeylonMateAppState extends State<CeylonMateApp> {
             builder: (_) => AddConditionReportScreen(service: reports),
           );
         }
+        if (settings.name == '/guide/reports') {
+          return MaterialPageRoute(
+            builder: (_) => MyReportsScreen(service: reports),
+          );
+        }
 
         final requiredRole = switch (settings.name) {
           '/traveler' => 'TRAVELER',
@@ -125,7 +132,12 @@ class _CeylonMateAppState extends State<CeylonMateApp> {
                 ),
               );
             }
-            return RoleHomeScreen(auth: _auth, user: _auth.user!, client: _client);
+            return RoleHomeScreen(
+              auth: _auth,
+              user: _auth.user!,
+              apiClient: _client,
+              guideService: widget.guideService,
+            );
           },
         );
       },
@@ -161,7 +173,12 @@ class _CeylonMateAppState extends State<CeylonMateApp> {
             ),
           ),
         AuthPhase.signedOut => LoginScreen(auth: _auth),
-        AuthPhase.signedIn => RoleHomeScreen(auth: _auth, user: _auth.user!, client: _client),
+        AuthPhase.signedIn => RoleHomeScreen(
+            auth: _auth,
+            user: _auth.user!,
+            apiClient: _client,
+            guideService: widget.guideService,
+          ),
       },
     );
   }
@@ -282,13 +299,15 @@ class _LoginScreenState extends State<LoginScreen> {
 class RoleHomeScreen extends StatelessWidget {
   final AuthController auth;
   final AuthUser user;
-  final ApiClient client;
+  final ApiClient? apiClient;
+  final GuideAvailabilityService? guideService;
 
   const RoleHomeScreen({
     super.key,
     required this.auth,
     required this.user,
-    required this.client,
+    this.apiClient,
+    this.guideService,
   });
 
   @override
@@ -298,6 +317,8 @@ class RoleHomeScreen extends StatelessWidget {
       'LOCAL_GUIDE' => 'Local Guide',
       _ => 'Unsupported role',
     };
+
+    final client = apiClient ?? ApiClient();
 
     return Scaffold(
       appBar: AppBar(
@@ -311,7 +332,7 @@ class RoleHomeScreen extends StatelessWidget {
         ],
       ),
       body: Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -340,49 +361,146 @@ class RoleHomeScreen extends StatelessWidget {
 
               // Traveler UI Actions (Member 1)
               if (user.role == 'TRAVELER') ...[
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.add_location_alt),
-                  label: const Text('Create Trip Request'),
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => TripFormScreen(
-                          service: TripService(client),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.add_location_alt),
+                          label: const Text('Create Trip Request'),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => TripFormScreen(
+                                  service: TripService(client),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.list_alt),
-                  label: const Text('My Trips'),
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => MyTripsScreen(
-                          service: TripService(client),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.list_alt),
+                          label: const Text('My Trips'),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => MyTripsScreen(
+                                  service: TripService(client),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    );
-                  },
+                    ],
+                  ),
                 ),
               ],
 
-              // Local Guide UI Actions (Member 2)
+              // Local Guide UI Actions (Member 2 & Member 3)
               if (user.role == 'LOCAL_GUIDE') ...[
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.report_problem_outlined),
-                  label: const Text('Add Condition Report'),
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => AddConditionReportScreen(
-                          service: ReportService(client),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F766E),
+                            foregroundColor: Colors.white,
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.calendar_month),
+                          label: const Text(
+                            'Manage My Availability',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          onPressed: () {
+                            final service = guideService ??
+                                GuideAvailabilityService(apiClient: client);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MyAvailabilityScreen(
+                                  guideId: user.id,
+                                  service: service,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    );
-                  },
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF0F766E),
+                            side: const BorderSide(
+                              color: Color(0xFF0F766E),
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.assignment_turned_in),
+                          label: const Text(
+                            'Condition Reports',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MyReportsScreen(
+                                  service: ReportService(client),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.report_problem_outlined),
+                          label: const Text('Add Condition Report'),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AddConditionReportScreen(
+                                  service: ReportService(client),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
 
