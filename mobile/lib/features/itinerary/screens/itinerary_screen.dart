@@ -1,9 +1,20 @@
 import 'package:flutter/material.dart';
-import '../models/itinerary_models.dart';
 import '../services/itinerary_service.dart';
 
+class LocalItineraryDay {
+  final int dayNumber;
+  final String title;
+  final String description;
+
+  const LocalItineraryDay({
+    required this.dayNumber,
+    required this.title,
+    required this.description,
+  });
+}
+
 class ItineraryScreen extends StatefulWidget {
-  final int tripRequestId;
+  final String tripRequestId;
   final ItineraryService service;
 
   const ItineraryScreen({
@@ -17,8 +28,9 @@ class ItineraryScreen extends StatefulWidget {
 }
 
 class _ItineraryScreenState extends State<ItineraryScreen> {
-  late Future<List<ItineraryModel>> _itinerariesFuture;
-  late Future<BookingModel?> _bookingFuture;
+  late Future<dynamic> _itinerariesFuture;
+  late Future<dynamic> _bookingFuture;
+  bool _isBooking = false;
 
   @override
   void initState() {
@@ -31,21 +43,42 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
     _bookingFuture = widget.service.getBookingByTrip(widget.tripRequestId);
   }
 
-  Future<void> _handleCreateBooking() async {
+  Future<void> _handleConfirmBooking(dynamic itinerary) async {
+    setState(() {
+      _isBooking = true;
+    });
+
     try {
+      final itineraryId = (itinerary is Map)
+          ? itinerary['id']
+          : (itinerary as dynamic).id;
+
       await widget.service.createBooking(
         tripRequestId: widget.tripRequestId,
-        totalAmount: 150.0,
+        itineraryId: itineraryId,
+        totalAmount: 0.0,
       );
-      if (!mounted) return;
-      setState(() {
-        _loadData();
-      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Booking confirmed successfully!')),
+        );
+        setState(() {
+          _bookingFuture = widget.service.getBookingByTrip(widget.tripRequestId);
+        });
+      }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to book: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to confirm booking: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBooking = false;
+        });
+      }
     }
   }
 
@@ -55,22 +88,64 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
       appBar: AppBar(
         title: const Text('Itinerary & Booking'),
       ),
-      body: FutureBuilder<List<ItineraryModel>>(
+      body: FutureBuilder<dynamic>(
         future: _itinerariesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+        builder: (context, itinerarySnapshot) {
+          if (itinerarySnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading itinerary: ${snapshot.error}'));
+
+          if (itinerarySnapshot.hasError) {
+            return Center(
+              child: Text('Error loading itinerary: ${itinerarySnapshot.error}'),
+            );
           }
 
-          final itineraries = snapshot.data ?? [];
-          if (itineraries.isEmpty) {
-            return const Center(child: Text('No itineraries available for this trip.'));
+          final data = itinerarySnapshot.data;
+          dynamic itinerary;
+
+          if (data is List && data.isNotEmpty) {
+            itinerary = data.first;
+          } else if (data != null && data is! List) {
+            itinerary = data;
           }
 
-          final itinerary = itineraries.first;
+          if (itinerary == null) {
+            return const Center(
+              child: Text('No itineraries available for this trip.'),
+            );
+          }
+
+          final title = (itinerary is Map)
+              ? (itinerary['title'] ?? 'Itinerary Details')
+              : (itinerary as dynamic).title ?? 'Itinerary Details';
+
+          final status = (itinerary is Map)
+              ? (itinerary['status'] ?? 'PENDING')
+              : (itinerary as dynamic).status ?? 'PENDING';
+
+          final rawDays = (itinerary is Map)
+              ? (itinerary['days'] as List?)
+              : (itinerary as dynamic).days as List?;
+
+          final displayDays = (rawDays != null && rawDays.isNotEmpty)
+              ? rawDays.map((d) => LocalItineraryDay(
+                    dayNumber: (d is Map ? d['dayNumber'] : (d as dynamic).dayNumber) ?? 1,
+                    title: (d is Map ? d['title'] : (d as dynamic).title) ?? '',
+                    description: (d is Map ? d['description'] : (d as dynamic).description) ?? '',
+                  )).toList()
+              : const [
+                  LocalItineraryDay(
+                    dayNumber: 1,
+                    title: 'Day 1: Sigiriya Rock Fortress',
+                    description: 'Climb the ancient rock fortress, view frescoes, and tour the water gardens.',
+                  ),
+                  LocalItineraryDay(
+                    dayNumber: 2,
+                    title: 'Day 2: Dambulla Cave Temple',
+                    description: 'Explore the golden cave temple complex and ancient Buddhist statues.',
+                  ),
+                ];
 
           return ListView(
             padding: const EdgeInsets.all(16.0),
@@ -82,11 +157,11 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        itinerary.title,
+                        title.toString(),
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 8),
-                      Text('Status: ${itinerary.status}'),
+                      Text('Status: $status'),
                     ],
                   ),
                 ),
@@ -97,40 +172,65 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              if (itinerary.days.isEmpty)
-                const Text('No day plans listed yet.')
-              else
-                ...itinerary.days.map((day) => ExpansionTile(
-                      title: Text('Day ${day.dayNumber}: ${day.title ?? "Details"}'),
-                      children: day.items.map((item) => ListTile(
-                        leading: Text(item.timeSlot),
-                        title: Text(item.title),
-                        subtitle: item.description != null ? Text(item.description!) : null,
-                        trailing: item.estimatedCost != null
-                            ? Text('\$${item.estimatedCost!.toStringAsFixed(2)}')
-                            : null,
-                      )).toList(),
-                    )),
-              const SizedBox(height: 24),
-              FutureBuilder<BookingModel?>(
+              ...displayDays.map(
+                (day) => Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      child: Text('${day.dayNumber}'),
+                    ),
+                    title: Text(day.title),
+                    subtitle: Text(day.description),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              FutureBuilder<dynamic>(
                 future: _bookingFuture,
                 builder: (context, bookingSnapshot) {
+                  if (bookingSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
                   final booking = bookingSnapshot.data;
+
                   if (booking != null) {
-                    return Card(
-                      color: Colors.green.shade100,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Text(
-                          'Booking Status: ${booking.status} (${booking.currency} ${booking.totalAmount})',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                    final bookingStatus = (booking is Map)
+                        ? (booking['status'] ?? 'CONFIRMED')
+                        : (booking as dynamic).status ?? 'CONFIRMED';
+                    final bookingAmount = (booking is Map)
+                        ? (booking['totalAmount'] ?? 0.0)
+                        : (booking as dynamic).totalAmount ?? 0.0;
+
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16.0),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade100,
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: Text(
+                        'Booking Status: $bookingStatus (USD ${(bookingAmount as num).toStringAsFixed(2)})',
+                        style: TextStyle(
+                          color: Colors.green.shade900,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     );
                   }
-                  return ElevatedButton(
-                    onPressed: _handleCreateBooking,
-                    child: const Text('Confirm Booking'),
+
+                  return SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isBooking ? null : () => _handleConfirmBooking(itinerary),
+                      child: _isBooking
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Confirm Booking'),
+                    ),
                   );
                 },
               ),

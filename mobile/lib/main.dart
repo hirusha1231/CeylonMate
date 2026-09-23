@@ -1,3 +1,4 @@
+import 'features/trips/screens/trip_details_screen.dart';
 import 'package:flutter/material.dart';
 import 'core/auth/auth_controller.dart';
 import 'core/auth/auth_repository.dart';
@@ -125,35 +126,35 @@ class _CeylonMateAppState extends State<CeylonMateApp> {
       },
       home: switch (_auth.phase) {
         AuthPhase.checking => const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          ),
+          body: Center(child: CircularProgressIndicator()),
+        ),
         AuthPhase.error => Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.cloud_off, size: 48),
-                    const SizedBox(height: 12),
-                    Text(
-                      _auth.error ?? 'Unable to verify your session.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: _auth.initialize,
-                      child: const Text('Retry'),
-                    ),
-                    TextButton(
-                      onPressed: _auth.logout,
-                      child: const Text('Sign out'),
-                    ),
-                  ],
-                ),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.cloud_off, size: 48),
+                  const SizedBox(height: 12),
+                  Text(
+                    _auth.error ?? 'Unable to verify your session.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: _auth.initialize,
+                    child: const Text('Retry'),
+                  ),
+                  TextButton(
+                    onPressed: _auth.logout,
+                    child: const Text('Sign out'),
+                  ),
+                ],
               ),
             ),
           ),
+        ),
         AuthPhase.signedOut => LoginScreen(auth: _auth),
         AuthPhase.signedIn => RoleHomeScreen(
             auth: _auth,
@@ -219,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.email],
                   decoration: const InputDecoration(labelText: 'Email'),
-                  validator: (value) => RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+                  validator: (value) => RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$')
                           .hasMatch(value?.trim() ?? '')
                       ? null
                       : 'Enter a valid email',
@@ -240,7 +241,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             : Icons.visibility_off,
                       ),
                       onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword),
+                        () => _obscurePassword = !_obscurePassword,
+                      ),
                     ),
                   ),
                   validator: (value) => value == null || value.isEmpty
@@ -437,4 +439,4 @@ class RoleHomeScreen extends StatelessWidget {
       ),
     );
   }
-}
+}
