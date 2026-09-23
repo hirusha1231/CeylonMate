@@ -128,6 +128,10 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
         attractionSlot.Property(x => x.Currency).HasMaxLength(3).IsRequired();
         attractionSlot.Property(x => x.Notes).HasMaxLength(500);
         attractionSlot.Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+        attractionSlot.HasOne(x => x.Attraction)
+                     .WithMany()
+                     .HasForeignKey(x => x.AttractionId)
+                     .OnDelete(DeleteBehavior.Cascade);
 
         // Destinations Module Configurations
         var destination = modelBuilder.Entity<Destination>();

@@ -26,7 +26,7 @@ public sealed class AttractionAvailabilityController(ICapacityReservationService
     }
 
     [HttpPost("{attractionId:guid}/availability")]
-    [AllowAnonymous]
+    [Authorize(Roles = "CAPACITY_OFFICER,LOCAL_GUIDE,ADMIN")]
     [ProducesResponseType<AttractionSlotDto>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<AttractionSlotDto>> AddAttractionSlot(
@@ -45,7 +45,7 @@ public sealed class AttractionAvailabilityController(ICapacityReservationService
     }
 
     [HttpPut("slots/{slotId:guid}")]
-    [AllowAnonymous]
+    [Authorize(Roles = "CAPACITY_OFFICER,LOCAL_GUIDE,ADMIN")]
     [ProducesResponseType<AttractionSlotDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -74,7 +74,7 @@ public sealed class AttractionAvailabilityController(ICapacityReservationService
     }
 
     [HttpDelete("slots/{slotId:guid}")]
-    [AllowAnonymous]
+    [Authorize(Roles = "CAPACITY_OFFICER,LOCAL_GUIDE,ADMIN")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

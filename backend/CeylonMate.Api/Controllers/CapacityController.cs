@@ -21,7 +21,7 @@ public sealed class CapacityController(ICapacityReservationService capacityServi
     }
 
     [HttpPost("reserve")]
-    [AllowAnonymous]
+    [Authorize(Roles = "CAPACITY_OFFICER,TRAVEL_AGENT,TRAVELER,ADMIN")]
     [ProducesResponseType<ReservationResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ReservationResultDto>(StatusCodes.Status409Conflict)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]

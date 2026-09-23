@@ -1,4 +1,3 @@
-import 'features/trips/screens/trip_details_screen.dart';
 import 'package:flutter/material.dart';
 import 'core/auth/auth_controller.dart';
 import 'core/auth/auth_repository.dart';
@@ -301,6 +300,8 @@ class RoleHomeScreen extends StatelessWidget {
       _ => 'Unsupported role',
     };
 
+    final client = apiClient ?? ApiClient();
+
     return Scaffold(
       appBar: AppBar(
         title: Text('$roleLabel Home'),
@@ -366,7 +367,7 @@ class RoleHomeScreen extends StatelessWidget {
                           ),
                           onPressed: () {
                             final service = guideService ??
-                                GuideAvailabilityService(apiClient: apiClient);
+                                GuideAvailabilityService(apiClient: client);
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -403,7 +404,6 @@ class RoleHomeScreen extends StatelessWidget {
                             ),
                           ),
                           onPressed: () {
-                            final client = apiClient ?? ApiClient();
                             Navigator.push(
                               context,
                               MaterialPageRoute(
