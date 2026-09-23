@@ -9,6 +9,7 @@ namespace CeylonMate.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+[Route("api/trips")]
     public class BookingsController : ControllerBase
     {
         private readonly CeylonMateDbContext _context;

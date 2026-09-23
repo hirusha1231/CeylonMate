@@ -45,7 +45,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
   }
 
   Future<Map<String, dynamic>> _fetchTripDetails() async {
-    final response = await _apiClient.dio.get('/api/trips/${widget.tripId}');
+    final response = await _apiClient.dio.get('/api/bookings/1');
     return Map<String, dynamic>.from(response.data as Map);
   }
 
@@ -55,7 +55,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
     });
 
     try {
-      await _apiClient.dio.post('/api/trips/${widget.tripId}/submit');
+      await _apiClient.dio.post('/api/bookings/');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Trip submitted successfully!')),
