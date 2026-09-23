@@ -331,7 +331,7 @@ class RoleHomeScreen extends StatelessWidget {
                       MaterialPageRoute(
                         builder: (_) => MyAvailabilityScreen(
                           guideId: user.id,
-                          service: GuideAvailabilityService(client),
+                          service: GuideAvailabilityService(apiClient: client),
                         ),
                       ),
                     );
