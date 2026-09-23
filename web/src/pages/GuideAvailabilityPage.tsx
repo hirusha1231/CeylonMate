@@ -32,6 +32,10 @@ export const GuideAvailabilityPage: React.FC = () => {
   const [editNotes, setEditNotes] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
 
+  // Delete Modal State
+  const [deletingSlot, setDeletingSlot] = useState<GuideSlot | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
   // Create Modal State
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [cGuideId, setCGuideId] = useState<string>('00000000-0000-0000-0000-000000000001');
@@ -345,6 +349,16 @@ export const GuideAvailabilityPage: React.FC = () => {
                 ⚠️ Warning: This slot has active bookings ({deletingSlot.bookedCapacity} booked). Deletion will be rejected.
               </p>
             )}
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setDeletingSlot(null)}>Cancel</button>
+              <button className="btn-danger" onClick={handleDelete} disabled={isDeleting}>
+                {isDeleting ? 'Deleting...' : 'Delete Slot'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Slot Modal */}
       {isCreating && (
         <div className="modal-backdrop">
