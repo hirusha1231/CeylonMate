@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using CeylonMate.Api.Destinations;
 
 namespace CeylonMate.Api.Models;
 
@@ -7,6 +8,7 @@ public class AttractionSlot
     public Guid Id { get; set; } = Guid.NewGuid();
 
     public Guid AttractionId { get; set; }
+    public Attraction? Attraction { get; set; }
 
     public DateTimeOffset StartTimeUtc { get; set; }
     public DateTimeOffset EndTimeUtc { get; set; }

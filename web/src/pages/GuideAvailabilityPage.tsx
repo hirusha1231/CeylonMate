@@ -32,18 +32,25 @@ export const GuideAvailabilityPage: React.FC = () => {
   const [editNotes, setEditNotes] = useState<string>('');
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
 
-  // Delete Modal State
-  const [deletingSlot, setDeletingSlot] = useState<GuideSlot | null>(null);
-  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  // Create Modal State
+  const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [cGuideId, setCGuideId] = useState<string>('00000000-0000-0000-0000-000000000001');
+  const [cStartTime, setCStartTime] = useState<string>(new Date().toISOString().slice(0, 16));
+  const [cEndTime, setCEndTime] = useState<string>(new Date(Date.now() + 28800000).toISOString().slice(0, 16));
+  const [cSlotType, setCSlotType] = useState<string>('FULL_DAY');
+  const [cPrice, setCPrice] = useState<number>(15000);
+  const [cCapacity, setCCapacity] = useState<number>(1);
+  const [cNotes, setCNotes] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:5084';
-  const guideId = '00000000-0000-0000-0000-000000000000';
+  const queryGuideId = '00000000-0000-0000-0000-000000000000';
 
   const fetchSlots = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/guides/${guideId}/availability`);
+      const res = await fetch(`${API_BASE}/api/guides/${queryGuideId}/availability`);
       if (res.ok) {
         const data = await res.json();
         setSlots(data);
@@ -65,6 +72,48 @@ export const GuideAvailabilityPage: React.FC = () => {
   useEffect(() => {
     fetchSlots();
   }, []);
+
+  const handleCreate = async () => {
+    if (!cStartTime || !cEndTime) {
+      alert('Please select both Start Time and End Time.');
+      return;
+    }
+    if (new Date(cEndTime) <= new Date(cStartTime)) {
+      alert('End Time must be after Start Time.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        startTimeUtc: new Date(cStartTime).toISOString(),
+        endTimeUtc: new Date(cEndTime).toISOString(),
+        slotType: cSlotType,
+        maxCapacity: cCapacity,
+        priceAmount: cPrice,
+        currency: 'LKR',
+        notes: cNotes,
+      };
+
+      const res = await fetch(`${API_BASE}/api/guides/${cGuideId}/availability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok || res.status === 201) {
+        setIsCreating(false);
+        fetchSlots();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.message || errData.title || 'Failed to create guide availability slot.');
+      }
+    } catch (e: any) {
+      alert(`Error creating slot: ${e.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const openEditModal = (slot: GuideSlot) => {
     setEditingSlot(slot);
@@ -149,9 +198,14 @@ export const GuideAvailabilityPage: React.FC = () => {
           <h2>Guide Availability Management</h2>
           <p className="subtitle">Publish, update, and manage local guide daily schedules</p>
         </div>
-        <button className="btn-primary" onClick={fetchSlots}>
-          🔄 Refresh
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn-primary" onClick={() => setIsCreating(true)}>
+            ➕ Add Guide Slot
+          </button>
+          <button className="btn-secondary" onClick={fetchSlots}>
+            🔄 Refresh
+          </button>
+        </div>
       </div>
 
       <div className="filter-bar">
@@ -291,10 +345,52 @@ export const GuideAvailabilityPage: React.FC = () => {
                 ⚠️ Warning: This slot has active bookings ({deletingSlot.bookedCapacity} booked). Deletion will be rejected.
               </p>
             )}
+      {/* Create Slot Modal */}
+      {isCreating && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <h3>Add New Guide Availability Slot</h3>
+            <div className="form-group">
+              <label>Guide User ID</label>
+              <input type="text" value={cGuideId} onChange={(e) => setCGuideId(e.target.value)} placeholder="00000000-0000-0000-0000-000000000001" />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Start Time</label>
+                <input type="datetime-local" value={cStartTime} onChange={(e) => setCStartTime(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>End Time</label>
+                <input type="datetime-local" value={cEndTime} onChange={(e) => setCEndTime(e.target.value)} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Slot Type</label>
+              <select value={cSlotType} onChange={(e) => setCSlotType(e.target.value)}>
+                <option value="FULL_DAY">Full Day</option>
+                <option value="HALF_DAY_MORNING">Morning (Half Day)</option>
+                <option value="HALF_DAY_AFTERNOON">Afternoon (Half Day)</option>
+                <option value="HOURLY">Hourly</option>
+              </select>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Price Amount (LKR)</label>
+                <input type="number" value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} />
+              </div>
+              <div className="form-group">
+                <label>Max Capacity</label>
+                <input type="number" value={cCapacity} onChange={(e) => setCCapacity(Number(e.target.value))} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Notes / Tour Highlights</label>
+              <input type="text" value={cNotes} onChange={(e) => setCNotes(e.target.value)} placeholder="e.g., Kandy Cultural & Heritage Walking Tour" />
+            </div>
             <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setDeletingSlot(null)}>Cancel</button>
-              <button className="btn-danger" onClick={handleDelete} disabled={isDeleting}>
-                {isDeleting ? 'Deleting...' : 'Delete Slot'}
+              <button className="btn-secondary" onClick={() => setIsCreating(false)}>Cancel</button>
+              <button className="btn-primary" onClick={handleCreate} disabled={isSubmitting}>
+                {isSubmitting ? 'Creating...' : 'Create Slot'}
               </button>
             </div>
           </div>

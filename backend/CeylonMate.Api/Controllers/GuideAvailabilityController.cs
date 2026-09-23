@@ -26,7 +26,7 @@ public sealed class GuideAvailabilityController(ICapacityReservationService capa
     }
 
     [HttpPost("{guideId:guid}/availability")]
-    [AllowAnonymous]
+    [Authorize(Roles = "CAPACITY_OFFICER,LOCAL_GUIDE,ADMIN")]
     [ProducesResponseType<GuideAvailabilityDto>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<GuideAvailabilityDto>> AddGuideAvailability(
@@ -45,7 +45,7 @@ public sealed class GuideAvailabilityController(ICapacityReservationService capa
     }
 
     [HttpPut("availability/{slotId:guid}")]
-    [AllowAnonymous]
+    [Authorize(Roles = "CAPACITY_OFFICER,LOCAL_GUIDE,ADMIN")]
     [ProducesResponseType<GuideAvailabilityDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -74,7 +74,7 @@ public sealed class GuideAvailabilityController(ICapacityReservationService capa
     }
 
     [HttpDelete("availability/{slotId:guid}")]
-    [AllowAnonymous]
+    [Authorize(Roles = "CAPACITY_OFFICER,LOCAL_GUIDE,ADMIN")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

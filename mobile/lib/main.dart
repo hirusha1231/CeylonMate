@@ -5,6 +5,7 @@ import 'core/auth/auth_repository.dart';
 import 'core/auth/auth_user.dart';
 import 'core/auth/token_store.dart';
 import 'core/network/api_client.dart';
+import 'features/guide/screens/my_availability_screen.dart';
 import 'features/guide/services/guide_availability_service.dart';
 import 'features/trips/screens/trip_form_screen.dart';
 import 'features/trips/services/trip_service.dart';
@@ -323,6 +324,23 @@ class RoleHomeScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
+              if (user.role == 'LOCAL_GUIDE') ...[
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => MyAvailabilityScreen(
+                          guideId: user.id,
+                          service: GuideAvailabilityService(client),
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.calendar_month),
+                  label: const Text('Manage Guide Availability'),
+                ),
+                const SizedBox(height: 12),
+              ],
               ElevatedButton.icon(
                 onPressed: () {
                   
