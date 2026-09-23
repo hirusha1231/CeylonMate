@@ -1,4 +1,3 @@
-import 'features/trips/screens/trip_details_screen.dart';
 import 'package:flutter/material.dart';
 import 'core/auth/auth_controller.dart';
 import 'core/auth/auth_repository.dart';
@@ -6,7 +5,10 @@ import 'core/auth/auth_user.dart';
 import 'core/auth/token_store.dart';
 import 'core/network/api_client.dart';
 import 'features/guide/screens/my_availability_screen.dart';
+import 'features/guide/screens/my_reports_screen.dart';
 import 'features/guide/services/guide_availability_service.dart';
+import 'features/guide/services/report_service.dart';
+import 'features/trips/screens/trip_details_screen.dart';
 import 'features/trips/screens/trip_form_screen.dart';
 import 'features/trips/services/trip_service.dart';
 
@@ -112,7 +114,12 @@ class _CeylonMateAppState extends State<CeylonMateApp> {
                 ),
               );
             }
-            return RoleHomeScreen(auth: _auth, user: _auth.user!, client: _client);
+            return RoleHomeScreen(
+              auth: _auth,
+              user: _auth.user!,
+              apiClient: _client,
+              guideService: widget.guideService,
+            );
           },
         );
       },
@@ -148,7 +155,12 @@ class _CeylonMateAppState extends State<CeylonMateApp> {
           ),
         ),
         AuthPhase.signedOut => LoginScreen(auth: _auth),
-        AuthPhase.signedIn => RoleHomeScreen(auth: _auth, user: _auth.user!, client: _client),
+        AuthPhase.signedIn => RoleHomeScreen(
+            auth: _auth,
+            user: _auth.user!,
+            apiClient: _client,
+            guideService: widget.guideService,
+          ),
       },
     );
   }
@@ -269,13 +281,15 @@ class _LoginScreenState extends State<LoginScreen> {
 class RoleHomeScreen extends StatelessWidget {
   final AuthController auth;
   final AuthUser user;
-  final ApiClient client;
+  final ApiClient? apiClient;
+  final GuideAvailabilityService? guideService;
 
   const RoleHomeScreen({
     super.key,
     required this.auth,
     required this.user,
-    required this.client,
+    this.apiClient,
+    this.guideService,
   });
 
   @override
@@ -285,6 +299,8 @@ class RoleHomeScreen extends StatelessWidget {
       'LOCAL_GUIDE' => 'Local Guide',
       _ => 'Unsupported role',
     };
+
+    final client = apiClient ?? ApiClient();
 
     return Scaffold(
       appBar: AppBar(
@@ -298,7 +314,7 @@ class RoleHomeScreen extends StatelessWidget {
         ],
       ),
       body: Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -323,39 +339,86 @@ class RoleHomeScreen extends StatelessWidget {
                         : 'This mobile shell does not support ${user.role} yet.',
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 24),
               if (user.role == 'LOCAL_GUIDE') ...[
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => MyAvailabilityScreen(
-                          guideId: user.id,
-                          service: GuideAvailabilityService(apiClient: client),
+                const SizedBox(height: 24),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F766E),
+                            foregroundColor: Colors.white,
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.calendar_month),
+                          label: const Text(
+                            'Manage My Availability',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          onPressed: () {
+                            final service = guideService ??
+                                GuideAvailabilityService(apiClient: client);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MyAvailabilityScreen(
+                                  guideId: user.id,
+                                  service: service,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.calendar_month),
-                  label: const Text('Manage Guide Availability'),
-                ),
-                const SizedBox(height: 12),
-              ],
-              ElevatedButton.icon(
-                onPressed: () {
-                  
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => TripDetailsScreen(
-                        tripId: '1158cdc4-cac2-43f1-aabd-d88837cbac99',
-                        service: TripService(client),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF0F766E),
+                            side: const BorderSide(
+                              color: Color(0xFF0F766E),
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.assignment_turned_in),
+                          label: const Text(
+                            'Condition Reports',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MyReportsScreen(
+                                  service: ReportService(client),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.luggage),
-                label: const Text('Open Trip Details'),
-              ),
+                    ],
+                  ),
+                ),
+              ],
               if (auth.error != null) ...[
                 const SizedBox(height: 12),
                 Text(
