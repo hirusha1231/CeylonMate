@@ -23,6 +23,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
   late Future<Map<String, dynamic>> _tripFuture;
   late final ApiClient _apiClient;
   bool _isSubmitting = false;
+  bool _isCancelling = false;
 
   @override
   void initState() {
@@ -69,6 +70,53 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _cancelTrip() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel Booking'),
+        content: const Text('Are you sure you want to cancel and remove this booking?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes, Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    setState(() {
+      _isCancelling = true;
+    });
+
+    try {
+      await _apiClient.dio.delete('/api/Bookings/${widget.tripId}');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Booking cancelled successfully.')),
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to cancel booking: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCancelling = false;
         });
       }
     }
@@ -226,9 +274,9 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => ItineraryScreen(
-                          tripRequestId: int.tryParse(widget.tripId.toString()) != null 
-    ? widget.tripId.toString() 
-    : '1',
+                          tripRequestId: int.tryParse(widget.tripId.toString()) != null
+                              ? widget.tripId.toString()
+                              : '1',
                           service: ItineraryService(_apiClient),
                         ),
                       ),
@@ -239,6 +287,26 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00695C),
                     foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _isCancelling ? null : _cancelTrip,
+                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                  label: _isCancelling
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red),
+                        )
+                      : const Text('Cancel Booking', style: TextStyle(color: Colors.red)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
                     minimumSize: const Size.fromHeight(48),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24),
@@ -261,7 +329,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
         children: [
           Text(
             title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           ),
           const SizedBox(height: 2),
           Text(
