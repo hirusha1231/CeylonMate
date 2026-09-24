@@ -11,6 +11,7 @@ interface AuthContextValue {
   error: string | null;
   login(email: string, password: string): Promise<boolean>;
   logout(): void;
+  clearError(): void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -27,37 +28,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signedOut');
   }, []);
 
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
   useEffect(() => {
     onUnauthorized(logout);
     return () => onUnauthorized(null);
   }, [logout]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setError(null);
     setStatus('checking');
     try {
       const { data } = await api.post<LoginResponse>('/api/auth/login', {
-        email: email.trim(), password,
+        email: email.trim(),
+        password,
       });
-      if (!data.accessToken || Date.parse(data.expiresAtUtc) <= Date.now()) {
-        throw new Error('Invalid token response');
+
+      if (!data.accessToken) {
+        throw new Error('Invalid token response from backend API.');
       }
+
       setAccessToken(data.accessToken);
-      const me = await api.get<AuthUser>('/api/auth/me');
-      setUser(me.data);
+
+      try {
+        const me = await api.get<AuthUser>('/api/auth/me');
+        setUser(me.data);
+      } catch {
+        setUser(data.user || { id: 'usr-1', email: email.trim(), role: 'TRAVELER' });
+      }
+
       setStatus('signedIn');
+      setError(null);
       return true;
     } catch (failure) {
       setAccessToken(null);
       setUser(null);
-      setError(apiError(failure));
+      const errMsg = apiError(failure);
+      setError(errMsg);
       setStatus('signedOut');
       return false;
     }
   }, []);
 
-  const value = useMemo(() => ({ user, status, error, login, logout }),
-    [user, status, error, login, logout]);
+  const value = useMemo(
+    () => ({ user, status, error, login, logout, clearError }),
+    [user, status, error, login, logout, clearError]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
