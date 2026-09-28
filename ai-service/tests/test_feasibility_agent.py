@@ -12,16 +12,17 @@ async def test_feasibility_agent_all_feasible():
         items=[
             ItineraryItemRequest(item_id="i-1", resource_type=ResourceType.GUIDE, date="2026-10-01", party_size=2, lat=7.2906, lng=80.6337),
             ItineraryItemRequest(item_id="i-2", resource_type=ResourceType.ATTRACTION, date="2026-10-01", party_size=2, lat=7.9570, lng=80.7600),
-        ]
+        ],
+        circuit_route="Colombo -> Kandy"
     )
 
     with patch("app.agent.feasibility_agent.search_guide_availability", new_callable=AsyncMock) as mock_guide, \
          patch("app.agent.feasibility_agent.search_attraction_slots", new_callable=AsyncMock) as mock_attraction, \
-         patch("app.agent.feasibility_agent.get_route_estimate", new_callable=AsyncMock) as mock_route:
+         patch("app.agent.feasibility_agent.get_leg_telemetry") as mock_route:
 
         mock_guide.return_value = {"available": True, "capacity": 1, "note": "Guide available"}
         mock_attraction.return_value = {"available": True, "capacity": 50, "note": "Attraction quota open"}
-        mock_route.return_value = {"distanceKm": 90.0, "durationMinutes": 135.0, "isFallback": False}
+        mock_route.return_value = (90.0, 135.0, 1.00)
 
         res = await agent.evaluate_feasibility(req)
 
