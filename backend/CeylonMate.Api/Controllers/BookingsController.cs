@@ -125,84 +125,125 @@ namespace CeylonMate.Api.Controllers
                 packageIdInt = parsedPkgId;
             }
 
-            var booking = new Booking
+            Guid? guideSlotId = null;
+            if (dto.GuideSlotId != null && Guid.TryParse(dto.GuideSlotId.ToString(), out Guid parsedGuideId))
             {
-                TravelerId = travelerId,
-                BookingReference = bookingRef,
-                Status = "PENDING_AGENT_REVIEW",
-                VehicleCapacityStatus = "HELD_PENDING_CONFIRMATION",
-                GuideAssignmentStatus = "PENDING_GUIDE_ACCEPTANCE",
-                PackageId = packageIdInt,
-                GuideSlotId = dto.GuideSlotId,
-                VehicleSlotId = dto.VehicleSlotId,
-                StartDate = dto.StartDate,
-                PickupTime = string.IsNullOrWhiteSpace(dto.PickupTime) ? "06:30 AM" : dto.PickupTime,
-                TravelerNotes = dto.Notes ?? dto.TravelerNotes,
-                BookedAt = DateTime.UtcNow
-            };
+                guideSlotId = parsedGuideId;
+            }
 
-            _context.Bookings.Add(booking);
-            await _context.SaveChangesAsync();
-
-            // Dispatch notification to assigned Local Guide
-            _context.Notifications.Add(new Notification
+            Guid? vehicleSlotId = null;
+            if (dto.VehicleSlotId != null && Guid.TryParse(dto.VehicleSlotId.ToString(), out Guid parsedVehicleId))
             {
-                Id = Guid.NewGuid(),
-                RecipientUserId = Guid.Empty,
-                RecipientRole = "LOCAL_GUIDE",
-                BookingId = booking.Id,
-                Type = "GUIDE_REQUEST_RAISED",
-                Title = "New Expedition Request Received",
-                Message = $"You have a new Expedition Request for {booking.StartDate ?? "upcoming date"} (Booking #{bookingRef}). Please review and respond.",
-                IsRead = false,
-                CreatedAt = DateTime.UtcNow
-            });
+                vehicleSlotId = parsedVehicleId;
+            }
 
-            // Increment HeldSeats on Vehicle Slot & notify Capacity Officer
-            string vehicleModel = "Selected VIP Transport Vehicle";
-            if (dto.VehicleSlotId.HasValue)
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
             {
-                var vSlot = await _context.TransportSlots
-                    .Include(ts => ts.VehicleCatalog)
-                    .FirstOrDefaultAsync(ts => ts.Id == dto.VehicleSlotId.Value);
-
-                if (vSlot != null)
+                var booking = new Booking
                 {
-                    vSlot.HeldSeats += passengerCount;
-                    vSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
-                    if (vSlot.VehicleCatalog != null)
+                    TravelerId = travelerId,
+                    BookingReference = bookingRef,
+                    Status = "PENDING_AGENT_REVIEW",
+                    VehicleCapacityStatus = "HELD_PENDING_CONFIRMATION",
+                    GuideAssignmentStatus = "PENDING_GUIDE_ACCEPTANCE",
+                    PackageId = packageIdInt,
+                    GuideSlotId = guideSlotId,
+                    VehicleSlotId = vehicleSlotId,
+                    StartDate = dto.StartDate,
+                    PickupTime = string.IsNullOrWhiteSpace(dto.PickupTime) ? "06:30 AM" : dto.PickupTime,
+                    TravelerNotes = dto.Notes ?? dto.TravelerNotes,
+                    BookedAt = DateTime.UtcNow
+                };
+
+                _context.Bookings.Add(booking);
+                await _context.SaveChangesAsync();
+
+                // Dispatch notification to assigned Local Guide
+                _context.Notifications.Add(new Notification
+                {
+                    Id = Guid.NewGuid(),
+                    RecipientUserId = Guid.Empty,
+                    RecipientRole = "LOCAL_GUIDE",
+                    BookingId = booking.Id,
+                    Type = "GUIDE_REQUEST_RAISED",
+                    Title = "New Expedition Request Received",
+                    Message = $"You have a new Expedition Request for {booking.StartDate ?? "upcoming date"} (Booking #{bookingRef}). Please review and respond.",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                // Increment HeldSeats on Vehicle Slot & notify Capacity Officer
+                string vehicleModel = "Selected VIP Transport Vehicle";
+                if (vehicleSlotId.HasValue)
+                {
+                    var vSlot = await _context.TransportSlots
+                        .Include(ts => ts.VehicleCatalog)
+                        .FirstOrDefaultAsync(ts => ts.Id == vehicleSlotId.Value);
+
+                    if (vSlot != null)
                     {
-                        vehicleModel = vSlot.VehicleCatalog.VehicleModel;
+                        vSlot.HeldSeats += passengerCount;
+                        vSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
+                        if (vSlot.VehicleCatalog != null)
+                        {
+                            vehicleModel = vSlot.VehicleCatalog.VehicleModel;
+                        }
                     }
                 }
-            }
 
-            // Put Guide Slot on 30-minute hold if selected
-            if (dto.GuideSlotId.HasValue)
-            {
-                var gSlot = await _context.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == dto.GuideSlotId.Value);
-                if (gSlot != null)
+                // Put Guide Slot on 30-minute hold if selected
+                if (guideSlotId.HasValue)
                 {
-                    gSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
+                    var gSlot = await _context.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == guideSlotId.Value);
+                    if (gSlot != null)
+                    {
+                        gSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
+                        gSlot.Status = AvailabilityStatus.RESERVED;
+                    }
                 }
+
+                // Put Attraction Slots on 30-minute hold and increment booked tickets
+                if (dto.AttractionSlotIds != null && dto.AttractionSlotIds.Any())
+                {
+                    foreach (var attrIdObj in dto.AttractionSlotIds)
+                    {
+                        if (attrIdObj != null && Guid.TryParse(attrIdObj.ToString(), out Guid attrSlotId))
+                        {
+                            var aSlot = await _context.AttractionSlots.FirstOrDefaultAsync(a => a.Id == attrSlotId);
+                            if (aSlot != null)
+                            {
+                                aSlot.BookedCapacity += passengerCount;
+                                aSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
+                            }
+                        }
+                    }
+                }
+
+                // Create Capacity Notification
+                var notification = new CapacityNotification
+                {
+                    Id = Guid.NewGuid(),
+                    BookingId = booking.Id,
+                    VehicleSlotId = vehicleSlotId ?? Guid.Empty,
+                    Title = $"New Vehicle Slot requested for Booking #{bookingRef}",
+                    Message = $"New Vehicle Slot requested for Booking #{bookingRef}. Vehicle auto-held. Rejection only required if unavailable.",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.CapacityNotifications.Add(notification);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return CreatedAtAction(nameof(GetById), new { id = booking.Id.ToString() }, booking);
             }
-
-            // Create Capacity Notification
-            var notification = new CapacityNotification
+            catch (Exception)
             {
-                Id = Guid.NewGuid(),
-                BookingId = booking.Id,
-                VehicleSlotId = dto.VehicleSlotId ?? Guid.Empty,
-                Title = $"New Vehicle Slot requested for Booking #{bookingRef}",
-                Message = $"New Vehicle Slot requested for Booking #{bookingRef}. Vehicle auto-held. Rejection only required if unavailable.",
-                IsRead = false,
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.CapacityNotifications.Add(notification);
-
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetById), new { id = booking.Id.ToString() }, booking);
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         // STEP 6: Traveler Payment & Confirmation
@@ -312,7 +353,6 @@ namespace CeylonMate.Api.Controllers
         }
 
         [HttpPost("{bookingId}/respond")]
-        [HttpPost("/api/guide/bookings/{bookingId}/respond")]
         public async Task<IActionResult> RespondToBooking(string bookingId, [FromBody] GuideResponseDto dto)
         {
             if (dto == null || string.IsNullOrWhiteSpace(dto.Decision))
@@ -381,13 +421,14 @@ namespace CeylonMate.Api.Controllers
     }
 
     public record RaiseCuratedBookingRequestDto(
-        int? PackageId,
-        Guid? GuideSlotId,
-        Guid? VehicleSlotId,
+        object? PackageId,
+        object? GuideSlotId,
+        object? VehicleSlotId,
         string? StartDate,
         string? PickupTime,
         int? PassengerCount,
         string? Notes,
-        string? TravelerNotes
+        string? TravelerNotes,
+        IEnumerable<object>? AttractionSlotIds = null
     );
 }

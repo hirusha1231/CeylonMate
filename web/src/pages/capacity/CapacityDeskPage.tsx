@@ -34,6 +34,7 @@ export interface GuideSlot {
   localGuideUserId: string;
   guideName?: string;
   guideEmail?: string;
+  licenseNumber?: string;
   startTimeUtc: string;
   endTimeUtc: string;
   slotType: string;
@@ -1070,6 +1071,11 @@ export const CapacityDeskPage: React.FC = () => {
                                 <UserCheck className="w-4 h-4 text-[#C5A880]" />
                                 <span>{slot.guideName || slot.notes || 'Certified Local Guide'}</span>
                               </div>
+                              {slot.licenseNumber && slot.licenseNumber !== 'N/A' && (
+                                <div className="text-xs text-[#C5A880] mt-0.5 font-mono flex items-center gap-1">
+                                  <Tag className="w-3 h-3" /> License: {slot.licenseNumber}
+                                </div>
+                              )}
                               {slot.guideEmail && (
                                 <div className="text-xs text-stone-400 mt-0.5 font-mono">{slot.guideEmail}</div>
                               )}

@@ -356,8 +356,6 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
     }
 
     [HttpPost("bookings/{bookingId}/respond")]
-    [HttpPost("/api/guide/bookings/{bookingId}/respond")]
-    [HttpPost("/api/bookings/{bookingId}/respond")]
     public async Task<IActionResult> RespondToBooking(string bookingId, [FromBody] GuideResponseDto dto, CancellationToken cancellationToken)
     {
         if (dto == null || string.IsNullOrWhiteSpace(dto.Decision))

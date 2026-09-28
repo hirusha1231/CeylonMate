@@ -3,11 +3,23 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   MapPin, AlertTriangle, ShieldCheck, FileCode, Play, RefreshCw, Compass, CheckCircle2, XCircle, ChevronRight
 } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router';
 import { api } from '../../api/client';
 import { fadeInVariants, hoverLiftProps, buttonPressProps } from '../../utils/animations';
+import { PipelineStepperHeader } from '../../components/common/PipelineStepperHeader';
 
 export const DestinationsSafetyPage: React.FC = () => {
-  const [selectedThemes, setSelectedThemes] = useState<string[]>(['Tea Estates', 'Heritage', 'Coastal Riviera']);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const incomingTheme = searchParams.get('theme');
+  const incomingRoute = searchParams.get('route');
+  const incomingPax = searchParams.get('pax');
+  const incomingBudget = searchParams.get('budget');
+
+  const [selectedThemes, setSelectedThemes] = useState<string[]>(
+    incomingTheme ? incomingTheme.split(',').map((t) => t.trim()).filter(Boolean) : ['Tea Estates', 'Heritage', 'Coastal Riviera']
+  );
   const [hazardSimActive, setHazardSimActive] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<any>(null);
@@ -25,8 +37,8 @@ export const DestinationsSafetyPage: React.FC = () => {
     try {
       const response = await api.post('/api/trips/evaluate-destinations', {
         tripRequestId: `CM-GEOSPATIAL-${Date.now()}`,
-        regionsOrThemes: selectedThemes,
-        interests: selectedThemes,
+        regionsOrThemes: selectedThemes.length > 0 ? selectedThemes : ['Tea Estates', 'Heritage'],
+        interests: selectedThemes.length > 0 ? selectedThemes : ['Tea Estates', 'Heritage'],
         startDate: '2026-11-10',
         endDate: '2026-11-17',
         accessibilityConstraints: isSimActive
@@ -46,13 +58,15 @@ export const DestinationsSafetyPage: React.FC = () => {
   }, []);
 
   return (
-    <motion.div
-      variants={fadeInVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="bg-[#0B132B] text-slate-100 min-h-screen py-10 px-4 md:px-8 font-sans selection:bg-[#C5A880] selection:text-[#0B132B]"
-    >
+    <div className="min-h-screen bg-[#0B132B]">
+      <PipelineStepperHeader currentStep={2} />
+      <motion.div
+        variants={fadeInVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        className="text-slate-100 py-10 px-4 md:px-8 font-sans selection:bg-[#C5A880] selection:text-[#0B132B]"
+      >
       <div className="max-w-6xl mx-auto space-y-8">
         
         {/* Page Header */}
@@ -215,7 +229,25 @@ export const DestinationsSafetyPage: React.FC = () => {
           )
         )}
 
+        {/* PROMINENT HANDOFF TO STAGE 03 */}
+        {result && (
+          <div className="p-6 bg-slate-900/90 border border-emerald-900/50 rounded-3xl shadow-xl">
+            <button
+              onClick={() => {
+                const activeRoute = incomingRoute || 'Colombo -> Kandy -> Nuwara Eliya -> Yala';
+                const activePax = incomingPax || 2;
+                const activeBudget = incomingBudget || 3500;
+                navigate(`/operations/capacity-dispatch?route=${encodeURIComponent(activeRoute)}&pax=${activePax}&budget=${activeBudget}&theme=${encodeURIComponent(selectedThemes.join(','))}`);
+              }}
+              className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white font-mono font-bold text-xs sm:text-sm uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all border border-emerald-400/40"
+            >
+              <span>⚡ HANDOFF TO STAGE 03: CAPACITY & FLEET DISPATCH ➔</span>
+            </button>
+          </div>
+        )}
+
       </div>
     </motion.div>
+    </div>
   );
 };

@@ -172,8 +172,11 @@ export const CuratedJourneyBookingPage: React.FC = () => {
 
     setSubmitting(true);
     try {
+      const rawPkg = journey?.id || packageId;
+      const pkgIdNum = typeof rawPkg === 'number' ? rawPkg : (parseInt(String(rawPkg), 10) || 101);
+
       const payload = {
-        packageId: journey?.id || packageId,
+        packageId: pkgIdNum,
         guideSlotId: selectedGuide?.id || null,
         vehicleSlotId: selectedVehicle?.id || null,
         startDate: startDate,

@@ -93,6 +93,114 @@ public sealed class CapacityController(
         return Ok(notifications);
     }
 
+    [HttpGet("pending-dispatches")]
+    [Authorize(Roles = "CAPACITY_OFFICER,ADMIN,TRAVEL_AGENT")]
+    public async Task<IActionResult> GetPendingDispatches(CancellationToken cancellationToken)
+    {
+        var bookings = await db.Bookings
+            .AsNoTracking()
+            .OrderByDescending(b => b.BookedAt)
+            .ToListAsync(cancellationToken);
+
+        var users = await db.Users.AsNoTracking().ToListAsync(cancellationToken);
+        var journeys = await db.SignatureJourneys.AsNoTracking().ToListAsync(cancellationToken);
+        var vSlots = await db.TransportSlots.Include(s => s.VehicleCatalog).AsNoTracking().ToListAsync(cancellationToken);
+        var gSlots = await db.GuideAvailabilitySlots.Include(s => s.GuideProfile).AsNoTracking().ToListAsync(cancellationToken);
+
+        var dispatchList = bookings.Select(b => {
+            var user = users.FirstOrDefault(u => u.Id.ToString() == b.TravelerId.ToString() || u.Id.GetHashCode() == b.TravelerId);
+            var travelerName = !string.IsNullOrWhiteSpace(user?.FullName) ? user.FullName : "Registered Traveler";
+
+            var journey = journeys.FirstOrDefault(j => j.Id.GetHashCode() == b.PackageId || j.Id.ToString() == b.PackageId?.ToString());
+            var packageTitle = journey?.Title ?? "Bespoke Expedition";
+
+            var vSlot = b.VehicleSlotId.HasValue ? vSlots.FirstOrDefault(s => s.Id == b.VehicleSlotId.Value) : null;
+            var vehicleModel = vSlot?.VehicleCatalog?.VehicleModel ?? "Luxury VIP Fleet Vehicle";
+
+            var gSlot = b.GuideSlotId.HasValue ? gSlots.FirstOrDefault(s => s.Id == b.GuideSlotId.Value) : null;
+            var guideName = gSlot?.GuideProfile?.FullName ?? "SLTDA Certified Guide";
+
+            return new
+            {
+                id = b.Id,
+                bookingReference = !string.IsNullOrWhiteSpace(b.BookingReference) ? b.BookingReference : $"CM-2026-{b.Id:D4}",
+                travelerName = travelerName,
+                packageTitle = packageTitle,
+                startDate = b.StartDate ?? b.BookedAt.ToString("yyyy-MM-dd"),
+                vehicleModel = vehicleModel,
+                vehicleSlotId = b.VehicleSlotId,
+                guideName = guideName,
+                guideSlotId = b.GuideSlotId,
+                status = b.Status,
+                vehicleCapacityStatus = b.VehicleCapacityStatus,
+                guideAssignmentStatus = b.GuideAssignmentStatus,
+                capacityRejectionReason = b.CapacityRejectionReason,
+                bookedAt = b.BookedAt
+            };
+        }).ToList();
+
+        return Ok(dispatchList);
+    }
+
+    [HttpPost("bookings/{bookingId}/confirm-dispatch")]
+    [Authorize(Roles = "CAPACITY_OFFICER,ADMIN")]
+    public async Task<IActionResult> ConfirmDispatch(
+        int bookingId,
+        [FromBody] ConfirmDispatchDto? dto,
+        CancellationToken cancellationToken)
+    {
+        var booking = await db.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
+        if (booking == null)
+        {
+            return NotFound(new { message = "Booking request not found." });
+        }
+
+        if (dto?.VehicleSlotId.HasValue == true && dto.VehicleSlotId.Value != Guid.Empty)
+        {
+            booking.VehicleSlotId = dto.VehicleSlotId.Value;
+        }
+
+        if (dto?.GuideSlotId.HasValue == true && dto.GuideSlotId.Value != Guid.Empty)
+        {
+            booking.GuideSlotId = dto.GuideSlotId.Value;
+        }
+
+        if (booking.VehicleSlotId.HasValue)
+        {
+            var vSlot = await db.TransportSlots.FirstOrDefaultAsync(t => t.Id == booking.VehicleSlotId.Value, cancellationToken);
+            if (vSlot != null)
+            {
+                vSlot.Status = SlotStatus.BOOKED;
+                vSlot.BookedSeats = Math.Min(vSlot.TotalSeats, vSlot.BookedSeats + 1);
+            }
+        }
+
+        booking.VehicleCapacityStatus = "ACKNOWLEDGED";
+        if (booking.Status == "CAPACITY_FLAGGED_REJECTED")
+        {
+            booking.Status = "PENDING_REVIEW";
+        }
+
+        db.CapacityNotifications.Add(new CapacityNotification
+        {
+            Id = Guid.NewGuid(),
+            BookingId = booking.Id,
+            Title = "Fleet & Guide Dispatch Confirmed",
+            Message = $"Capacity Officer confirmed VIP Fleet & Guide Dispatch for Booking #{booking.BookingReference}",
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation("Capacity Officer confirmed dispatch for Booking #{BookingId}", booking.Id);
+
+        return Ok(new
+        {
+            message = "Capacity dispatch confirmed and inventory locked in database.",
+            booking
+        });
+    }
+
     [HttpPost("bookings/{bookingId}/reject-vehicle")]
     [Authorize(Roles = "CAPACITY_OFFICER,ADMIN")]
     public async Task<IActionResult> RejectVehicle(
@@ -280,14 +388,18 @@ public sealed class CapacityController(
         var slots = await db.GuideAvailabilities
             .AsNoTracking()
             .Include(g => g.LocalGuideUser)
+            .Include(g => g.GuideProfile)
             .OrderBy(g => g.StartTimeUtc)
             .Select(g => new
             {
                 id = g.Id,
                 localGuideUserId = g.LocalGuideUserId,
-                guideName = g.LocalGuideUser != null
-                    ? (string.IsNullOrWhiteSpace(g.LocalGuideUser.FullName) ? g.LocalGuideUser.Email : g.LocalGuideUser.FullName)
-                    : "Certified Guide",
+                guideName = g.GuideProfile != null && !string.IsNullOrWhiteSpace(g.GuideProfile.FullName)
+                    ? g.GuideProfile.FullName
+                    : (g.LocalGuideUser != null && !string.IsNullOrWhiteSpace(g.LocalGuideUser.FullName)
+                        ? g.LocalGuideUser.FullName
+                        : (g.LocalGuideUser != null ? g.LocalGuideUser.Email : "Certified Guide")),
+                licenseNumber = g.GuideProfile != null ? g.GuideProfile.LicenseNumber : "N/A",
                 guideEmail = g.LocalGuideUser != null ? g.LocalGuideUser.Email : "",
                 startTimeUtc = g.StartTimeUtc,
                 endTimeUtc = g.EndTimeUtc,
@@ -669,3 +781,6 @@ public record UpdateTransportSlotRequest(
 );
 
 public record RejectVehicleRequestDto(string RejectionReason);
+
+public record ConfirmDispatchDto(Guid? VehicleSlotId, Guid? GuideSlotId, string? DispatchNotes);
+

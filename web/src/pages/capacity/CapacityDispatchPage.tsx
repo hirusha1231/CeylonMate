@@ -3,13 +3,25 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Compass, Mountain, ShieldCheck, Calendar, Users, FileCode, Play, RefreshCw, CheckCircle2, Car, Clock, MapPin, Layers, Info
 } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router';
 import { api } from '../../api/client';
 import { fadeInVariants, hoverLiftProps, buttonPressProps } from '../../utils/animations';
+import { PipelineStepperHeader } from '../../components/common/PipelineStepperHeader';
 
 export const CapacityDispatchPage: React.FC = () => {
-  const [selectedRoute, setSelectedRoute] = useState<string>('Colombo -> Kandy -> Nuwara Eliya -> Yala');
-  const [customRouteInput, setCustomRouteInput] = useState<string>('Colombo -> Kandy -> Nuwara Eliya -> Yala');
-  const [paxCount, setPaxCount] = useState<number>(2);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const incomingRoute = searchParams.get('route');
+  const incomingPax = searchParams.get('pax');
+  const incomingBudget = searchParams.get('budget');
+
+  const defaultRoute = incomingRoute || 'Colombo -> Kandy -> Nuwara Eliya -> Yala';
+  const defaultPax = incomingPax ? Number(incomingPax) : 2;
+
+  const [selectedRoute, setSelectedRoute] = useState<string>(defaultRoute);
+  const [customRouteInput, setCustomRouteInput] = useState<string>(defaultRoute);
+  const [paxCount, setPaxCount] = useState<number>(defaultPax);
   const [travelDate, setTravelDate] = useState<string>('2026-11-10');
   const [activeTab, setActiveTab] = useState<'matrix' | 'legs' | 'items' | 'json'>('matrix');
   const [loading, setLoading] = useState<boolean>(false);
@@ -43,13 +55,15 @@ export const CapacityDispatchPage: React.FC = () => {
   }, []);
 
   return (
-    <motion.div
-      variants={fadeInVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="bg-[#0B132B] text-slate-100 min-h-screen py-10 px-4 md:px-8 font-sans selection:bg-[#C5A880] selection:text-[#0B132B]"
-    >
+    <div className="min-h-screen bg-[#0B132B]">
+      <PipelineStepperHeader currentStep={3} />
+      <motion.div
+        variants={fadeInVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        className="text-slate-100 py-10 px-4 md:px-8 font-sans selection:bg-[#C5A880] selection:text-[#0B132B]"
+      >
       <div className="max-w-6xl mx-auto space-y-8">
         
         {/* Page Header */}
@@ -344,10 +358,24 @@ export const CapacityDispatchPage: React.FC = () => {
               </pre>
             )}
 
+            {/* PROMINENT HANDOFF TO STAGE 04 */}
+            <div className="pt-4 border-t border-slate-800">
+              <button
+                onClick={() => {
+                  const activeBudget = incomingBudget || 3500;
+                  navigate(`/operations/concierge-approval?itineraryId=BESPOKE-CM-2026&budget=${activeBudget}&route=${encodeURIComponent(customRouteInput)}&pax=${paxCount}`);
+                }}
+                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white font-mono font-bold text-xs sm:text-sm uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all border border-emerald-400/40"
+              >
+                <span>⚡ HANDOFF TO STAGE 04: CONCIERGE APPROVAL DESK ➔</span>
+              </button>
+            </div>
+
           </div>
         )}
 
       </div>
     </motion.div>
+    </div>
   );
 };

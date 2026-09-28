@@ -13,6 +13,7 @@ import { api } from '../api/client';
 import {
   fadeInVariants, slideUpVariants, hoverLiftProps, buttonPressProps, scaleInModalVariants
 } from '../utils/animations';
+import { PipelineStepperHeader } from '../components/common/PipelineStepperHeader';
 
 export const formatBespokeTitle = (durationDays: number, interests?: string[]): string => {
   if (!interests || interests.length === 0) {
@@ -380,13 +381,15 @@ export const BespokePlannerPage: React.FC = () => {
   };
 
   return (
-    <motion.div
-      variants={fadeInVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="bg-[#FDFBF7] text-[#0B131F] min-h-screen py-12 px-4 md:px-8 font-sans"
-    >
+    <div className="min-h-screen bg-[#FDFBF7]">
+      <PipelineStepperHeader currentStep={1} />
+      <motion.div
+        variants={fadeInVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        className="text-[#0B131F] py-12 px-4 md:px-8 font-sans"
+      >
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header Title */}
         <div className="text-center space-y-3">
@@ -1050,6 +1053,22 @@ export const BespokePlannerPage: React.FC = () => {
                           </motion.button>
                         </div>
                       </div>
+
+                      {/* PROMINENT PIPELINE HANDOFF TO STAGE 02 */}
+                      <div className="pt-4 border-t border-stone-200">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const route = dreamPrompt || 'Colombo -> Kandy -> Nuwara Eliya -> Yala';
+                            const themes = selectedInterests.join(',');
+                            const pax = adults + children;
+                            navigate(`/operations/destinations-safety?theme=${encodeURIComponent(themes)}&route=${encodeURIComponent(route)}&pax=${pax}&budget=${budgetUsd}`);
+                          }}
+                          className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 hover:from-emerald-600 hover:to-teal-600 text-white font-mono font-bold text-xs sm:text-sm uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all border border-emerald-400/40"
+                        >
+                          <span>⚡ HANDOFF TO STAGE 02: SAFETY & HAZARD AUDIT ➔</span>
+                        </button>
+                      </div>
                     </div>
                   );
                 })() : (
@@ -1086,5 +1105,6 @@ export const BespokePlannerPage: React.FC = () => {
         titleHint={pendingAction === 'submit' ? 'Sign In to Submit Proposal' : 'Sign In to Save Journey'}
       />
     </motion.div>
+    </div>
   );
 };
