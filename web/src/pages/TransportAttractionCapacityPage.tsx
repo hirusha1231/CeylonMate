@@ -1,4 +1,28 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Bus,
+  Ticket,
+  Plus,
+  RefreshCw,
+  Edit3,
+  Trash2,
+  X,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  Calendar,
+  Clock,
+  Ban,
+  CheckCircle2,
+  AlertTriangle,
+  Info,
+  MapPin,
+  Compass
+} from 'lucide-react';
+import { useToast } from '../context/ToastContext';
+import { api, apiError } from '../api/client';
+import { fadeInVariants, scaleInModalVariants } from '../utils/animations';
 
 export interface TransportSlot {
   id: string;
@@ -29,8 +53,33 @@ export interface AttractionSlot {
   rowVersion?: string;
 }
 
-export const TransportAttractionCapacityPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'transport' | 'attractions'>('transport');
+interface TransportAttractionCapacityPageProps {
+  onTabChange?: (tab: 'guides' | 'capacity') => void;
+}
+
+const initialCreateTransportForm = {
+  startTime: '',
+  endTime: '',
+  vehicleType: '',
+  totalSeats: '',
+  pricePerSeat: '',
+  currency: 'LKR'
+};
+
+const initialCreateAttractionForm = {
+  startTime: '',
+  endTime: '',
+  maxCapacity: '',
+  priceAmount: '',
+  currency: 'LKR',
+  notes: ''
+};
+
+export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapacityPageProps> = ({
+  onTabChange
+}) => {
+  const { showToast } = useToast();
+  const [activeSubTab, setActiveSubTab] = useState<'transport' | 'attractions'>('transport');
 
   const [transportSlots, setTransportSlots] = useState<TransportSlot[]>([]);
   const [attractionSlots, setAttractionSlots] = useState<AttractionSlot[]>([]);
@@ -39,84 +88,57 @@ export const TransportAttractionCapacityPage: React.FC = () => {
 
   // Modals for Transport Create/Edit/Delete
   const [isCreatingTransport, setIsCreatingTransport] = useState(false);
+  const [createTransportForm, setCreateTransportForm] = useState(initialCreateTransportForm);
   const [editingTransport, setEditingTransport] = useState<TransportSlot | null>(null);
+  const [editTransportForm, setEditTransportForm] = useState({
+    startTime: '',
+    endTime: '',
+    vehicleType: 'VAN',
+    totalSeats: 12,
+    availableSeats: 12,
+    pricePerSeat: 3500,
+    currency: 'LKR',
+    status: 'AVAILABLE'
+  });
   const [deletingTransport, setDeletingTransport] = useState<TransportSlot | null>(null);
 
   // Modals for Attraction Create/Edit/Delete
   const [isCreatingAttraction, setIsCreatingAttraction] = useState(false);
+  const [createAttractionForm, setCreateAttractionForm] = useState(initialCreateAttractionForm);
   const [editingAttraction, setEditingAttraction] = useState<AttractionSlot | null>(null);
+  const [editAttractionForm, setEditAttractionForm] = useState({
+    startTime: '',
+    endTime: '',
+    maxCapacity: 100,
+    bookedCapacity: 0,
+    priceAmount: 2000,
+    currency: 'LKR',
+    status: 'AVAILABLE',
+    notes: ''
+  });
   const [deletingAttraction, setDeletingAttraction] = useState<AttractionSlot | null>(null);
-
-  // Form inputs state - Transport
-  const [tStartTime, setTStartTime] = useState<string>(new Date().toISOString().slice(0, 16));
-  const [tEndTime, setTEndTime] = useState<string>(new Date(Date.now() + 86400000).toISOString().slice(0, 16));
-  const [tVehicleType, setTVehicleType] = useState<string>('VAN');
-  const [tTotalSeats, setTTotalSeats] = useState<number>(12);
-  const [tAvailableSeats, setTAvailableSeats] = useState<number>(12);
-  const [tPricePerSeat, setTPricePerSeat] = useState<number>(3500);
-  const [tCurrency, setTCurrency] = useState<string>('LKR');
-  const [tStatus, setTStatus] = useState<string>('AVAILABLE');
-
-  // Form inputs state - Attraction
-  const [aStartTime, setAStartTime] = useState<string>(new Date().toISOString().slice(0, 16));
-  const [aEndTime, setAEndTime] = useState<string>(new Date(Date.now() + 86400000).toISOString().slice(0, 16));
-  const [aMaxCapacity, setAMaxCapacity] = useState<number>(100);
-  const [aBookedCapacity, setABookedCapacity] = useState<number>(0);
-  const [aPriceAmount, setAPriceAmount] = useState<number>(2000);
-  const [aCurrency, setACurrency] = useState<string>('LKR');
-  const [aStatus, setAStatus] = useState<string>('AVAILABLE');
-  const [aNotes, setANotes] = useState<string>('');
 
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:5084';
   const defaultOptionId = '00000000-0000-0000-0000-000000000001';
 
-  // Helper to extract detailed error messages from responses
-  const parseErrorMessage = async (res: Response, fallback: string) => {
-    try {
-      const text = await res.text();
-      if (text) {
-        const json = JSON.parse(text);
-        if (json.errors && typeof json.errors === 'object') {
-          const messages = Object.values(json.errors).flat();
-          if (messages.length > 0) return messages.join(' ');
-        }
-        return json.detail || json.message || json.title || text;
-      }
-    } catch {
-      // ignore JSON parse failure
-    }
-    return fallback;
-  };
-
-  // Read (GET)
+  // Fetch Data
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      if (activeTab === 'transport') {
-        const res = await fetch(`${API_BASE}/api/transport/${defaultOptionId}/availability`);
-        if (res.ok) {
-          const data = await res.json();
-          setTransportSlots(data);
-        } else {
-          const errDetail = await parseErrorMessage(res, `(${res.status} ${res.statusText})`);
-          setError(`Failed to fetch transport slots: ${errDetail}`);
-        }
+      if (activeSubTab === 'transport') {
+        const res = await api.get<TransportSlot[]>(`/api/transport/${defaultOptionId}/availability`);
+        setTransportSlots(res.data || []);
       } else {
-        const res = await fetch(`${API_BASE}/api/attractions/${defaultOptionId}/availability`);
-        if (res.ok) {
-          const data = await res.json();
-          setAttractionSlots(data);
-        } else {
-          const errDetail = await parseErrorMessage(res, `(${res.status} ${res.statusText})`);
-          setError(`Failed to fetch attraction slots: ${errDetail}`);
-        }
+        const res = await api.get<AttractionSlot[]>(`/api/attractions/${defaultOptionId}/availability`);
+        setAttractionSlots(res.data || []);
       }
     } catch (e: any) {
       console.error('Error fetching capacity data:', e);
-      setError(e?.message ? `API Error: ${e.message}` : 'Error connecting to API server');
+      const msg = apiError(e);
+      setError(msg);
+      showToast('Logistics Data Error', msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -124,54 +146,73 @@ export const TransportAttractionCapacityPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, [activeSubTab]);
 
-  // Handle Create Transport (POST)
+  // Open & Reset Create Modals
   const openCreateTransport = () => {
-    setTStartTime(new Date().toISOString().slice(0, 16));
-    setTEndTime(new Date(Date.now() + 86400000).toISOString().slice(0, 16));
-    setTVehicleType('VAN');
-    setTTotalSeats(12);
-    setTPricePerSeat(3500);
-    setTCurrency('LKR');
+    setCreateTransportForm(initialCreateTransportForm);
     setIsCreatingTransport(true);
   };
 
+  const closeCreateTransport = () => {
+    setCreateTransportForm(initialCreateTransportForm);
+    setIsCreatingTransport(false);
+  };
+
+  const openCreateAttraction = () => {
+    setCreateAttractionForm(initialCreateAttractionForm);
+    setIsCreatingAttraction(true);
+  };
+
+  const closeCreateAttraction = () => {
+    setCreateAttractionForm(initialCreateAttractionForm);
+    setIsCreatingAttraction(false);
+  };
+
+  // Handle Create Transport (POST)
   const handleCreateTransport = async () => {
+    if (!createTransportForm.startTime || !createTransportForm.endTime) {
+      showToast('Validation Failed', 'Please select valid departure and arrival date/times.', 'error');
+      return;
+    }
+    if (!createTransportForm.vehicleType) {
+      showToast('Validation Failed', 'Please select a vehicle type (e.g. VAN, SUV, SEDAN).', 'error');
+      return;
+    }
+    if (!createTransportForm.totalSeats || Number(createTransportForm.totalSeats) <= 0) {
+      showToast('Validation Failed', 'Please enter a valid total seat count.', 'error');
+      return;
+    }
+    if (!createTransportForm.pricePerSeat || Number(createTransportForm.pricePerSeat) <= 0) {
+      showToast('Validation Failed', 'Please enter a valid price per seat in LKR.', 'error');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const startTimeIso = new Date(tStartTime).toISOString();
-      const endTimeIso = new Date(tEndTime).toISOString();
+      const startTimeIso = new Date(createTransportForm.startTime).toISOString();
+      const endTimeIso = new Date(createTransportForm.endTime).toISOString();
 
       const payload = {
         startTimeUtc: startTimeIso,
         endTimeUtc: endTimeIso,
         departureTimeUtc: startTimeIso,
         arrivalTimeUtc: endTimeIso,
-        vehicleType: tVehicleType,
-        totalSeats: tTotalSeats,
-        availableSeats: tTotalSeats,
-        pricePerSeat: tPricePerSeat,
-        priceLkr: tPricePerSeat,
-        currency: tCurrency,
-        status: 'AVAILABLE',
+        vehicleType: createTransportForm.vehicleType,
+        totalSeats: Number(createTransportForm.totalSeats),
+        availableSeats: Number(createTransportForm.totalSeats),
+        pricePerSeat: Number(createTransportForm.pricePerSeat),
+        priceLkr: Number(createTransportForm.pricePerSeat),
+        currency: createTransportForm.currency || 'LKR',
+        status: 'AVAILABLE'
       };
 
-      const res = await fetch(`${API_BASE}/api/transport/${defaultOptionId}/availability`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok || res.status === 201) {
-        setIsCreatingTransport(false);
-        fetchData();
-      } else {
-        const errDetail = await parseErrorMessage(res, 'Failed to create transport slot.');
-        alert(`Error (${res.status}): ${errDetail}`);
-      }
+      await api.post(`/api/transport/${defaultOptionId}/availability`, payload);
+      showToast('Transport Slot Created', 'New vehicle capacity slot successfully published.', 'success');
+      closeCreateTransport();
+      fetchData();
     } catch (e: any) {
-      alert(`Error creating transport slot: ${e.message}`);
+      showToast('Failed to Create Transport Slot', apiError(e), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -180,55 +221,52 @@ export const TransportAttractionCapacityPage: React.FC = () => {
   // Handle Edit Transport (PUT)
   const openEditTransport = (slot: TransportSlot) => {
     setEditingTransport(slot);
-    setTStartTime(new Date(slot.startTimeUtc).toISOString().slice(0, 16));
-    setTEndTime(new Date(slot.endTimeUtc).toISOString().slice(0, 16));
-    setTVehicleType(slot.vehicleType || 'VAN');
-    setTTotalSeats(slot.totalSeats);
-    setTAvailableSeats(slot.availableSeats);
-    setTPricePerSeat(slot.pricePerSeat);
-    setTCurrency(slot.currency || 'LKR');
-    setTStatus(slot.status);
+    setEditTransportForm({
+      startTime: slot.startTimeUtc ? new Date(slot.startTimeUtc).toISOString().slice(0, 16) : '',
+      endTime: slot.endTimeUtc ? new Date(slot.endTimeUtc).toISOString().slice(0, 16) : '',
+      vehicleType: slot.vehicleType || 'VAN',
+      totalSeats: slot.totalSeats,
+      availableSeats: slot.availableSeats,
+      pricePerSeat: slot.pricePerSeat,
+      currency: slot.currency || 'LKR',
+      status: slot.status || 'AVAILABLE'
+    });
   };
 
   const handleUpdateTransport = async () => {
     if (!editingTransport) return;
+
+    if (!editTransportForm.startTime || !editTransportForm.endTime) {
+      showToast('Validation Failed', 'Please select valid start and end times.', 'error');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const startTimeIso = new Date(tStartTime).toISOString();
-      const endTimeIso = new Date(tEndTime).toISOString();
+      const startTimeIso = new Date(editTransportForm.startTime).toISOString();
+      const endTimeIso = new Date(editTransportForm.endTime).toISOString();
 
       const payload = {
         startTimeUtc: startTimeIso,
         endTimeUtc: endTimeIso,
         departureTimeUtc: startTimeIso,
         arrivalTimeUtc: endTimeIso,
-        vehicleType: tVehicleType,
-        status: tStatus,
-        totalSeats: tTotalSeats,
-        availableSeats: tAvailableSeats,
-        pricePerSeat: tPricePerSeat,
-        priceLkr: tPricePerSeat,
-        currency: tCurrency,
-        rowVersion: editingTransport.rowVersion,
+        vehicleType: editTransportForm.vehicleType,
+        status: editTransportForm.status,
+        totalSeats: Number(editTransportForm.totalSeats),
+        availableSeats: Number(editTransportForm.availableSeats),
+        pricePerSeat: Number(editTransportForm.pricePerSeat),
+        priceLkr: Number(editTransportForm.pricePerSeat),
+        currency: editTransportForm.currency || 'LKR',
+        rowVersion: editingTransport.rowVersion
       };
 
-      const res = await fetch(`${API_BASE}/api/transport/slots/${editingTransport.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        setEditingTransport(null);
-        fetchData();
-      } else if (res.status === 409) {
-        alert('Concurrency conflict detected! Slot was modified by another user.');
-      } else {
-        const errDetail = await parseErrorMessage(res, 'Failed to update transport slot.');
-        alert(`Error (${res.status}): ${errDetail}`);
-      }
+      await api.put(`/api/transport/slots/${editingTransport.id}`, payload);
+      showToast('Transport Slot Updated', 'Vehicle capacity slot changes saved successfully.', 'success');
+      setEditingTransport(null);
+      fetchData();
     } catch (e: any) {
-      alert(`Error updating transport slot: ${e.message}`);
+      showToast('Failed to Update Transport Slot', apiError(e), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -247,23 +285,18 @@ export const TransportAttractionCapacityPage: React.FC = () => {
         availableSeats: slot.availableSeats,
         pricePerSeat: slot.pricePerSeat,
         currency: slot.currency || 'LKR',
-        rowVersion: slot.rowVersion,
+        rowVersion: slot.rowVersion
       };
 
-      const res = await fetch(`${API_BASE}/api/transport/slots/${slot.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        fetchData();
-      } else {
-        const errDetail = await parseErrorMessage(res, 'Failed to update slot status.');
-        alert(`Error (${res.status}): ${errDetail}`);
-      }
+      await api.put(`/api/transport/slots/${slot.id}`, payload);
+      showToast(
+        newStatus === 'BLOCKED' ? 'Slot Blocked' : 'Slot Available',
+        `Transport slot status changed to ${newStatus}.`,
+        'info'
+      );
+      fetchData();
     } catch (e: any) {
-      alert(`Error toggling status: ${e.message}`);
+      showToast('Status Toggle Error', apiError(e), 'error');
     }
   };
 
@@ -272,62 +305,51 @@ export const TransportAttractionCapacityPage: React.FC = () => {
     if (!deletingTransport) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/transport/slots/${deletingTransport.id}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok || res.status === 204) {
-        setDeletingTransport(null);
-        fetchData();
-      } else {
-        const errDetail = await parseErrorMessage(res, 'Cannot delete slot with active reservations.');
-        alert(`Error (${res.status}): ${errDetail}`);
-      }
+      await api.delete(`/api/transport/slots/${deletingTransport.id}`);
+      showToast('Transport Slot Removed', 'Capacity slot has been deleted.', 'success');
+      setDeletingTransport(null);
+      fetchData();
     } catch (e: any) {
-      alert(`Error deleting transport slot: ${e.message}`);
+      showToast('Delete Failed', apiError(e), 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   // Handle Create Attraction (POST)
-  const openCreateAttraction = () => {
-    setAStartTime(new Date().toISOString().slice(0, 16));
-    setAEndTime(new Date(Date.now() + 86400000).toISOString().slice(0, 16));
-    setAMaxCapacity(100);
-    setAPriceAmount(2000);
-    setACurrency('LKR');
-    setANotes('');
-    setIsCreatingAttraction(true);
-  };
-
   const handleCreateAttraction = async () => {
+    if (!createAttractionForm.startTime || !createAttractionForm.endTime) {
+      showToast('Validation Failed', 'Please select valid start and end attraction entry times.', 'error');
+      return;
+    }
+    if (!createAttractionForm.maxCapacity || Number(createAttractionForm.maxCapacity) <= 0) {
+      showToast('Validation Failed', 'Please enter a valid max visitor capacity.', 'error');
+      return;
+    }
+    if (!createAttractionForm.priceAmount || Number(createAttractionForm.priceAmount) <= 0) {
+      showToast('Validation Failed', 'Please enter a valid entrance ticket price.', 'error');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload = {
-        startTimeUtc: new Date(aStartTime).toISOString(),
-        endTimeUtc: new Date(aEndTime).toISOString(),
-        maxCapacity: aMaxCapacity,
-        priceAmount: aPriceAmount,
-        currency: aCurrency,
-        notes: aNotes,
+        startTimeUtc: new Date(createAttractionForm.startTime).toISOString(),
+        endTimeUtc: new Date(createAttractionForm.endTime).toISOString(),
+        maxCapacity: Number(createAttractionForm.maxCapacity),
+        bookedCapacity: 0,
+        priceAmount: Number(createAttractionForm.priceAmount),
+        currency: createAttractionForm.currency || 'LKR',
+        notes: createAttractionForm.notes || '',
+        status: 'AVAILABLE'
       };
 
-      const res = await fetch(`${API_BASE}/api/attractions/${defaultOptionId}/availability`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok || res.status === 201) {
-        setIsCreatingAttraction(false);
-        fetchData();
-      } else {
-        const errDetail = await parseErrorMessage(res, 'Failed to create attraction slot.');
-        alert(`Error (${res.status}): ${errDetail}`);
-      }
+      await api.post(`/api/attractions/${defaultOptionId}/availability`, payload);
+      showToast('Attraction Quota Created', 'New attraction entrance capacity slot published.', 'success');
+      closeCreateAttraction();
+      fetchData();
     } catch (e: any) {
-      alert(`Error creating attraction slot: ${e.message}`);
+      showToast('Failed to Create Attraction Quota', apiError(e), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -336,49 +358,46 @@ export const TransportAttractionCapacityPage: React.FC = () => {
   // Handle Edit Attraction (PUT)
   const openEditAttraction = (slot: AttractionSlot) => {
     setEditingAttraction(slot);
-    setAStartTime(new Date(slot.startTimeUtc).toISOString().slice(0, 16));
-    setAEndTime(new Date(slot.endTimeUtc).toISOString().slice(0, 16));
-    setAMaxCapacity(slot.maxCapacity);
-    setABookedCapacity(slot.bookedCapacity);
-    setAPriceAmount(slot.priceAmount);
-    setACurrency(slot.currency || 'LKR');
-    setAStatus(slot.status);
-    setANotes(slot.notes || '');
+    setEditAttractionForm({
+      startTime: slot.startTimeUtc ? new Date(slot.startTimeUtc).toISOString().slice(0, 16) : '',
+      endTime: slot.endTimeUtc ? new Date(slot.endTimeUtc).toISOString().slice(0, 16) : '',
+      maxCapacity: slot.maxCapacity,
+      bookedCapacity: slot.bookedCapacity,
+      priceAmount: slot.priceAmount,
+      currency: slot.currency || 'LKR',
+      status: slot.status || 'AVAILABLE',
+      notes: slot.notes || ''
+    });
   };
 
   const handleUpdateAttraction = async () => {
     if (!editingAttraction) return;
+
+    if (!editAttractionForm.startTime || !editAttractionForm.endTime) {
+      showToast('Validation Failed', 'Please select valid start and end times.', 'error');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload = {
-        startTimeUtc: new Date(aStartTime).toISOString(),
-        endTimeUtc: new Date(aEndTime).toISOString(),
-        status: aStatus,
-        maxCapacity: aMaxCapacity,
-        bookedCapacity: aBookedCapacity,
-        priceAmount: aPriceAmount,
-        currency: aCurrency,
-        notes: aNotes,
-        rowVersion: editingAttraction.rowVersion,
+        startTimeUtc: new Date(editAttractionForm.startTime).toISOString(),
+        endTimeUtc: new Date(editAttractionForm.endTime).toISOString(),
+        status: editAttractionForm.status,
+        maxCapacity: Number(editAttractionForm.maxCapacity),
+        bookedCapacity: Number(editAttractionForm.bookedCapacity),
+        priceAmount: Number(editAttractionForm.priceAmount),
+        currency: editAttractionForm.currency || 'LKR',
+        notes: editAttractionForm.notes,
+        rowVersion: editingAttraction.rowVersion
       };
 
-      const res = await fetch(`${API_BASE}/api/attractions/slots/${editingAttraction.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        setEditingAttraction(null);
-        fetchData();
-      } else if (res.status === 409) {
-        alert('Concurrency conflict detected! Slot was modified by another user.');
-      } else {
-        const errDetail = await parseErrorMessage(res, 'Failed to update attraction slot.');
-        alert(`Error (${res.status}): ${errDetail}`);
-      }
+      await api.put(`/api/attractions/slots/${editingAttraction.id}`, payload);
+      showToast('Attraction Quota Updated', 'Entrance quota changes saved successfully.', 'success');
+      setEditingAttraction(null);
+      fetchData();
     } catch (e: any) {
-      alert(`Error updating attraction slot: ${e.message}`);
+      showToast('Failed to Update Attraction Quota', apiError(e), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -397,23 +416,18 @@ export const TransportAttractionCapacityPage: React.FC = () => {
         priceAmount: slot.priceAmount,
         currency: slot.currency || 'LKR',
         notes: slot.notes,
-        rowVersion: slot.rowVersion,
+        rowVersion: slot.rowVersion
       };
 
-      const res = await fetch(`${API_BASE}/api/attractions/slots/${slot.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        fetchData();
-      } else {
-        const errDetail = await parseErrorMessage(res, 'Failed to update slot status.');
-        alert(`Error (${res.status}): ${errDetail}`);
-      }
+      await api.put(`/api/attractions/slots/${slot.id}`, payload);
+      showToast(
+        newStatus === 'BLOCKED' ? 'Attraction Quota Blocked' : 'Attraction Quota Available',
+        `Entrance status updated to ${newStatus}.`,
+        'info'
+      );
+      fetchData();
     } catch (e: any) {
-      alert(`Error toggling status: ${e.message}`);
+      showToast('Status Toggle Error', apiError(e), 'error');
     }
   };
 
@@ -422,464 +436,1038 @@ export const TransportAttractionCapacityPage: React.FC = () => {
     if (!deletingAttraction) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/attractions/slots/${deletingAttraction.id}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok || res.status === 204) {
-        setDeletingAttraction(null);
-        fetchData();
-      } else {
-        const errDetail = await parseErrorMessage(res, 'Cannot delete attraction slot with active bookings.');
-        alert(`Error (${res.status}): ${errDetail}`);
-      }
+      await api.delete(`/api/attractions/slots/${deletingAttraction.id}`);
+      showToast('Attraction Quota Removed', 'Entrance slot has been deleted.', 'success');
+      setDeletingAttraction(null);
+      fetchData();
     } catch (e: any) {
-      alert(`Error deleting attraction slot: ${e.message}`);
+      showToast('Delete Failed', apiError(e), 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="page-container">
-      <div className="header-bar">
+    <motion.div
+      variants={fadeInVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      className="min-h-screen bg-[#0B131F] text-slate-100 p-6 md:p-10 font-sans relative selection:bg-[#C5A880]/30 selection:text-white"
+    >
+      {/* Subtle Luxury Background Glows */}
+      <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#C5A880]/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 left-10 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Top Header Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         <div>
-          <h2>Transport & Attraction Capacity Engine</h2>
-          <p className="subtitle">Manage vehicle seat inventories and attraction entrance quotas</p>
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[#C5A880] mb-2">
+            <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+            <span>CeylonMate Commercial Inventory</span>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#C5A880] via-[#E6CA65] to-amber-100">
+            Transport & Attraction Capacity Engine
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Real-time control center for vehicle seat allocations, route timings, and attraction entry quotas.
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn-secondary" onClick={fetchData}>
-            🔄 Refresh
+      </div>
+
+      {/* Navigation & Action Controls Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8 bg-[#0F1A24]/90 p-3 rounded-2xl border border-[#C5A880]/20 backdrop-blur-xl shadow-xl">
+        {/* Navigation Tabs */}
+        <div className="flex flex-wrap items-center gap-2">
+          {onTabChange && (
+            <button
+              onClick={() => onTabChange('guides')}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-[#C5A880]/70 hover:text-[#C5A880] hover:bg-[#C5A880]/10 transition-all flex items-center gap-2 border border-transparent hover:border-[#C5A880]/20 cursor-pointer"
+            >
+              <Users className="w-4 h-4" />
+              <span>Guide Availability</span>
+            </button>
+          )}
+
+          <div className="h-6 w-px bg-[#C5A880]/20 hidden sm:block mx-1" />
+
+          <button
+            onClick={() => setActiveSubTab('transport')}
+            className={`px-5 py-2.5 rounded-xl font-medium text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${
+              activeSubTab === 'transport'
+                ? 'bg-gradient-to-r from-[#C5A880] to-[#E6CA65] text-[#0B131F] font-semibold shadow-lg shadow-[#C5A880]/20'
+                : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
+            }`}
+          >
+            <Bus className="w-4 h-4" />
+            <span>Transport Slots</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+              activeSubTab === 'transport' ? 'bg-[#0B131F]/20 text-[#0B131F]' : 'bg-[#C5A880]/20 text-[#C5A880]'
+            }`}>
+              {transportSlots.length}
+            </span>
           </button>
-          {activeTab === 'transport' ? (
-            <button className="btn-primary" onClick={openCreateTransport}>
-              ➕ Add Transport Slot
+
+          <button
+            onClick={() => setActiveSubTab('attractions')}
+            className={`px-5 py-2.5 rounded-xl font-medium text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${
+              activeSubTab === 'attractions'
+                ? 'bg-gradient-to-r from-[#C5A880] to-[#E6CA65] text-[#0B131F] font-semibold shadow-lg shadow-[#C5A880]/20'
+                : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
+            }`}
+          >
+            <Ticket className="w-4 h-4" />
+            <span>Attraction Slots</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+              activeSubTab === 'attractions' ? 'bg-[#0B131F]/20 text-[#0B131F]' : 'bg-[#C5A880]/20 text-[#C5A880]'
+            }`}>
+              {attractionSlots.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Actions Bar */}
+        <div className="flex items-center gap-3 self-end lg:self-auto">
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="px-4 py-2.5 rounded-xl font-medium text-xs md:text-sm text-[#C5A880] bg-[#0F1A24]/80 border border-[#C5A880]/30 hover:bg-[#C5A880]/10 backdrop-blur-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+
+          {activeSubTab === 'transport' ? (
+            <button
+              onClick={openCreateTransport}
+              className="px-5 py-2.5 rounded-xl font-bold text-xs md:text-sm text-[#0B131F] bg-gradient-to-r from-[#C5A880] via-[#D4AF37] to-[#E6CA65] hover:from-[#D4AF37] hover:to-[#C5A880] shadow-lg shadow-[#C5A880]/20 hover:shadow-[#C5A880]/40 transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>Add Transport Slot</span>
             </button>
           ) : (
-            <button className="btn-primary" onClick={openCreateAttraction}>
-              ➕ Add Attraction Quota
+            <button
+              onClick={openCreateAttraction}
+              className="px-5 py-2.5 rounded-xl font-bold text-xs md:text-sm text-[#0B131F] bg-gradient-to-r from-[#C5A880] via-[#D4AF37] to-[#E6CA65] hover:from-[#D4AF37] hover:to-[#C5A880] shadow-lg shadow-[#C5A880]/20 hover:shadow-[#C5A880]/40 transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>Add Attraction Slot</span>
             </button>
           )}
         </div>
       </div>
 
-      <div className="tab-switcher">
-        <button
-          className={`tab-btn ${activeTab === 'transport' ? 'active' : ''}`}
-          onClick={() => setActiveTab('transport')}
-        >
-          🚌 Transport Slots ({transportSlots.length})
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'attractions' ? 'active' : ''}`}
-          onClick={() => setActiveTab('attractions')}
-        >
-          🏛️ Attraction Slots ({attractionSlots.length})
-        </button>
+      {/* Main Container Card */}
+      <div className="bg-[#0F1A24]/80 backdrop-blur-xl border border-[#C5A880]/30 rounded-2xl shadow-2xl overflow-hidden">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center p-16 text-center">
+            <RefreshCw className="w-8 h-8 text-[#C5A880] animate-spin mb-4" />
+            <p className="text-[#C5A880] font-serif text-lg">Synchronizing Capacity Slots...</p>
+            <p className="text-xs text-slate-500 mt-1">Connecting to CeylonMate real-time availability engine</p>
+          </div>
+        ) : error ? (
+          <div className="p-8 m-6 bg-rose-950/40 border border-rose-500/30 rounded-xl text-rose-200 flex items-start gap-4">
+            <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0 mt-1" />
+            <div>
+              <h4 className="font-semibold text-rose-300 font-serif">Logistics Synchronization Issue</h4>
+              <p className="text-sm mt-1 opacity-90">{error}</p>
+              <button
+                onClick={fetchData}
+                className="mt-3 text-xs bg-rose-900/60 hover:bg-rose-800/80 border border-rose-500/40 px-3 py-1.5 rounded-lg font-medium transition-all"
+              >
+                Retry Request
+              </button>
+            </div>
+          </div>
+        ) : activeSubTab === 'transport' ? (
+          /* Transport Slots Table */
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#0B131F]/90 border-b border-[#C5A880]/20 text-[#C5A880] text-xs font-serif uppercase tracking-wider">
+                  <th className="px-6 py-4">Vehicle & Route</th>
+                  <th className="px-6 py-4">Type</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Seats Available</th>
+                  <th className="px-6 py-4">Price / Seat</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#C5A880]/10 text-sm">
+                {transportSlots.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-16 text-center text-slate-400 font-sans">
+                      <Bus className="w-10 h-10 text-slate-600 mx-auto mb-3 opacity-60" />
+                      <p className="text-base font-serif text-slate-300">No transport capacity slots found.</p>
+                      <p className="text-xs text-slate-500 mt-1">Click "Add Transport Slot" above to publish a new vehicle schedule.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  transportSlots.map((slot) => {
+                    const isAvailable = slot.status === 'AVAILABLE';
+                    const isBlocked = slot.status === 'BLOCKED';
+
+                    return (
+                      <tr
+                        key={slot.id}
+                        className="hover:bg-[#C5A880]/5 transition-colors duration-150"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="font-serif font-medium text-slate-100 text-base flex items-center gap-2">
+                            <Bus className="w-4 h-4 text-[#C5A880] shrink-0" />
+                            <span>{slot.optionTitle || `${slot.vehicleType} Express Logistics Route`}</span>
+                          </div>
+                          <div className="text-xs text-slate-400 font-sans flex items-center gap-2 mt-1">
+                            <span className="flex items-center gap-1 text-slate-400">
+                              <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                              {new Date(slot.startTimeUtc).toLocaleDateString()}
+                            </span>
+                            <span className="flex items-center gap-1 text-slate-400">
+                              <Clock className="w-3.5 h-3.5 text-slate-500" />
+                              {new Date(slot.startTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(slot.endTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span className="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/30 text-[#C5A880] font-mono">
+                            {slot.vehicleType}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          {isAvailable ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 w-fit">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              AVAILABLE
+                            </span>
+                          ) : isBlocked ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-red-500/10 border border-red-500/30 text-red-400 w-fit">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                              BLOCKED
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 w-fit">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                              {slot.status}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2 text-slate-200 font-medium font-mono text-sm">
+                            <Users className="w-4 h-4 text-slate-400" />
+                            <span>{slot.availableSeats} / {slot.totalSeats} seats</span>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span className="font-bold text-[#C5A880] text-base font-mono">
+                            {slot.currency || 'LKR'} {slot.pricePerSeat.toLocaleString()}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => toggleTransportStatus(slot)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer border ${
+                                isAvailable
+                                  ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              }`}
+                              title={isAvailable ? 'Block transport slot' : 'Unblock transport slot'}
+                            >
+                              {isAvailable ? (
+                                <>
+                                  <Ban className="w-3.5 h-3.5" />
+                                  <span>Block</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Unblock</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              onClick={() => openEditTransport(slot)}
+                              className="p-2 text-slate-400 hover:text-[#C5A880] hover:bg-[#C5A880]/10 rounded-lg transition-all cursor-pointer"
+                              title="Edit Transport Slot"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              onClick={() => setDeletingTransport(slot)}
+                              className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
+                              title="Delete Transport Slot"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* Attraction Slots Table */
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#0B131F]/90 border-b border-[#C5A880]/20 text-[#C5A880] text-xs font-serif uppercase tracking-wider">
+                  <th className="px-6 py-4">Attraction & Notes</th>
+                  <th className="px-6 py-4">Time Window</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Quota Booked</th>
+                  <th className="px-6 py-4">Ticket Price</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#C5A880]/10 text-sm">
+                {attractionSlots.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-16 text-center text-slate-400 font-sans">
+                      <Ticket className="w-10 h-10 text-slate-600 mx-auto mb-3 opacity-60" />
+                      <p className="text-base font-serif text-slate-300">No attraction quota slots found.</p>
+                      <p className="text-xs text-slate-500 mt-1">Click "Add Attraction Slot" above to publish a new entrance quota.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  attractionSlots.map((slot) => {
+                    const isAvailable = slot.status === 'AVAILABLE';
+                    const isBlocked = slot.status === 'BLOCKED';
+
+                    return (
+                      <tr
+                        key={slot.id}
+                        className="hover:bg-[#C5A880]/5 transition-colors duration-150"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="font-serif font-medium text-slate-100 text-base flex items-center gap-2">
+                            <Ticket className="w-4 h-4 text-[#C5A880] shrink-0" />
+                            <span>{slot.notes || 'Attraction Entry Quota'}</span>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="text-xs text-slate-300 font-sans flex items-center gap-2">
+                            <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                            {new Date(slot.startTimeUtc).toLocaleDateString()}
+                          </div>
+                          <div className="text-xs text-slate-400 font-sans flex items-center gap-1.5 mt-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-500" />
+                            {new Date(slot.startTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(slot.endTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          {isAvailable ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 w-fit">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              AVAILABLE
+                            </span>
+                          ) : isBlocked ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-red-500/10 border border-red-500/30 text-red-400 w-fit">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                              BLOCKED
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 w-fit">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                              {slot.status}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2 text-slate-200 font-medium font-mono text-sm">
+                            <Users className="w-4 h-4 text-slate-400" />
+                            <span>{slot.bookedCapacity} / {slot.maxCapacity} tickets</span>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span className="font-bold text-[#C5A880] text-base font-mono">
+                            {slot.currency || 'LKR'} {slot.priceAmount.toLocaleString()}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => toggleAttractionStatus(slot)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer border ${
+                                isAvailable
+                                  ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              }`}
+                              title={isAvailable ? 'Block attraction quota' : 'Unblock attraction quota'}
+                            >
+                              {isAvailable ? (
+                                <>
+                                  <Ban className="w-3.5 h-3.5" />
+                                  <span>Block</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Unblock</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              onClick={() => openEditAttraction(slot)}
+                              className="p-2 text-slate-400 hover:text-[#C5A880] hover:bg-[#C5A880]/10 rounded-lg transition-all cursor-pointer"
+                              title="Edit Attraction Quota"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              onClick={() => setDeletingAttraction(slot)}
+                              className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
+                              title="Delete Attraction Quota"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {loading && <div className="spinner">Loading capacity slots...</div>}
-      {error && <div className="error-card">{error}</div>}
+      {/* MODAL: Create Transport Slot */}
+      <AnimatePresence>
+        {isCreatingTransport && (
+          <div className="fixed inset-0 bg-[#0B131F]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <motion.div
+              variants={scaleInModalVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="bg-[#0F1A24] border border-[#C5A880]/30 shadow-2xl rounded-2xl w-full max-w-xl overflow-hidden p-6 text-slate-200 relative"
+            >
+              <div className="flex items-center justify-between border-b border-[#C5A880]/20 pb-4 mb-6">
+                <div className="flex items-center gap-2 text-[#C5A880]">
+                  <Bus className="w-5 h-5" />
+                  <h3 className="font-serif font-bold text-xl text-white">Add Transport Capacity Slot</h3>
+                </div>
+                <button
+                  onClick={closeCreateTransport}
+                  className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800/50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-      {!loading && !error && activeTab === 'transport' && (
-        <div className="table-wrapper">
-          <table className="glass-table">
-            <thead>
-              <tr>
-                <th>Vehicle & Route</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Seats Available</th>
-                <th>Price / Seat</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transportSlots.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>
-                    No transport capacity slots found. Click "+ Add Transport Slot" to create one.
-                  </td>
-                </tr>
-              ) : (
-                transportSlots.map((slot) => (
-                  <tr key={slot.id}>
-                    <td>
-                      <strong>{slot.optionTitle || 'Transport Option'}</strong>
-                      <div>
-                        <small style={{ opacity: 0.7 }}>
-                          {new Date(slot.startTimeUtc).toLocaleDateString()} ({new Date(slot.startTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(slot.endTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
-                        </small>
-                      </div>
-                    </td>
-                    <td><span className="badge-outline">{slot.vehicleType}</span></td>
-                    <td>
-                      <span className={`status-badge status-${slot.status.toLowerCase()}`}>
-                        {slot.status}
-                      </span>
-                    </td>
-                    <td>{slot.availableSeats} / {slot.totalSeats} seats</td>
-                    <td>{slot.currency || 'LKR'} {slot.pricePerSeat.toLocaleString()}</td>
-                    <td>
-                      <div className="action-buttons">
-                        <button
-                          className={`btn-action ${slot.status === 'AVAILABLE' ? 'btn-block' : 'btn-unblock'}`}
-                          onClick={() => toggleTransportStatus(slot)}
-                          title="Toggle Status"
-                        >
-                          {slot.status === 'AVAILABLE' ? '⛔ Block' : '✅ Unblock'}
-                        </button>
-                        <button
-                          className="btn-icon btn-edit"
-                          onClick={() => openEditTransport(slot)}
-                          title="Edit Transport Slot"
-                        >
-                          Edit ✏️
-                        </button>
-                        <button
-                          className="btn-icon btn-delete"
-                          onClick={() => setDeletingTransport(slot)}
-                          title="Delete Transport Slot"
-                        >
-                          Delete 🗑️
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Departure Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={createTransportForm.startTime}
+                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, startTime: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
 
-      {!loading && !error && activeTab === 'attractions' && (
-        <div className="table-wrapper">
-          <table className="glass-table">
-            <thead>
-              <tr>
-                <th>Attraction Name & Notes</th>
-                <th>Time Window</th>
-                <th>Status</th>
-                <th>Quota Booked</th>
-                <th>Ticket Price</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {attractionSlots.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>
-                    No attraction entrance slots found. Click "+ Add Attraction Quota" to create one.
-                  </td>
-                </tr>
-              ) : (
-                attractionSlots.map((slot) => (
-                  <tr key={slot.id}>
-                    <td>
-                      <strong>{slot.notes || 'Attraction Entry Slot'}</strong>
-                    </td>
-                    <td>
-                      {new Date(slot.startTimeUtc).toLocaleDateString()}
-                      <div>
-                        <small style={{ opacity: 0.7 }}>
-                          {new Date(slot.startTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(slot.endTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </small>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`status-badge status-${slot.status.toLowerCase()}`}>
-                        {slot.status}
-                      </span>
-                    </td>
-                    <td>{slot.bookedCapacity} / {slot.maxCapacity} visitor tickets</td>
-                    <td>{slot.currency || 'LKR'} {slot.priceAmount.toLocaleString()}</td>
-                    <td>
-                      <div className="action-buttons">
-                        <button
-                          className={`btn-action ${slot.status === 'AVAILABLE' ? 'btn-block' : 'btn-unblock'}`}
-                          onClick={() => toggleAttractionStatus(slot)}
-                          title="Toggle Status"
-                        >
-                          {slot.status === 'AVAILABLE' ? '⛔ Block' : '✅ Unblock'}
-                        </button>
-                        <button
-                          className="btn-icon btn-edit"
-                          onClick={() => openEditAttraction(slot)}
-                          title="Edit Attraction Slot"
-                        >
-                          Edit ✏️
-                        </button>
-                        <button
-                          className="btn-icon btn-delete"
-                          onClick={() => setDeletingAttraction(slot)}
-                          title="Delete Attraction Slot"
-                        >
-                          Delete 🗑️
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Arrival Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={createTransportForm.endTime}
+                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, endTime: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+                </div>
 
-      {/* Modal: Create Transport Slot */}
-      {isCreatingTransport && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <h3>➕ Add Transport Capacity Slot</h3>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Start Time (UTC)</label>
-                <input type="datetime-local" value={tStartTime} onChange={(e) => setTStartTime(e.target.value)} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Vehicle Type
+                    </label>
+                    <select
+                      value={createTransportForm.vehicleType}
+                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, vehicleType: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors cursor-pointer"
+                    >
+                      <option value="" className="bg-[#0F1A24]">Select Vehicle Type...</option>
+                      <option value="SEDAN" className="bg-[#0F1A24]">Sedan</option>
+                      <option value="SUV" className="bg-[#0F1A24]">SUV</option>
+                      <option value="VAN" className="bg-[#0F1A24]">Luxury Van</option>
+                      <option value="MINI_BUS" className="bg-[#0F1A24]">Mini Bus</option>
+                      <option value="BUS" className="bg-[#0F1A24]">Coach / Bus</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Total Seats Capacity
+                    </label>
+                    <input
+                      type="number"
+                      value={createTransportForm.totalSeats}
+                      placeholder="e.g. 12"
+                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, totalSeats: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Price Per Seat (LKR)
+                    </label>
+                    <input
+                      type="number"
+                      value={createTransportForm.pricePerSeat}
+                      placeholder="e.g. 4500"
+                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, pricePerSeat: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Currency
+                    </label>
+                    <input
+                      type="text"
+                      value={createTransportForm.currency}
+                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, currency: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="form-group">
-                <label>End Time (UTC)</label>
-                <input type="datetime-local" value={tEndTime} onChange={(e) => setTEndTime(e.target.value)} />
+
+              <div className="flex items-center justify-end gap-3 mt-8 pt-4 border-t border-[#C5A880]/20">
+                <button
+                  onClick={closeCreateTransport}
+                  className="px-5 py-2.5 rounded-xl font-medium text-sm text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateTransport}
+                  disabled={submitting}
+                  className="px-6 py-2.5 rounded-xl font-bold text-sm text-[#0B131F] bg-gradient-to-r from-[#C5A880] to-[#E6CA65] hover:from-[#E6CA65] hover:to-[#C5A880] shadow-lg shadow-[#C5A880]/20 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {submitting ? 'Publishing...' : 'Publish Transport Slot'}
+                </button>
               </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Vehicle Type</label>
-                <select value={tVehicleType} onChange={(e) => setTVehicleType(e.target.value)}>
-                  <option value="SEDAN">SEDAN</option>
-                  <option value="SUV">SUV</option>
-                  <option value="VAN">VAN</option>
-                  <option value="MINI_BUS">MINI_BUS</option>
-                  <option value="BUS">BUS</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Total Seats</label>
-                <input type="number" value={tTotalSeats} onChange={(e) => setTTotalSeats(Number(e.target.value))} />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Price Per Seat</label>
-                <input type="number" value={tPricePerSeat} onChange={(e) => setTPricePerSeat(Number(e.target.value))} />
-              </div>
-              <div className="form-group">
-                <label>Currency</label>
-                <input type="text" value={tCurrency} onChange={(e) => setTCurrency(e.target.value)} />
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setIsCreatingTransport(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleCreateTransport} disabled={submitting}>
-                {submitting ? 'Creating...' : 'Create Slot'}
-              </button>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
-      {/* Modal: Edit Transport Slot */}
-      {editingTransport && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <h3>Edit Transport Capacity Slot</h3>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Start Time (UTC)</label>
-                <input type="datetime-local" value={tStartTime} onChange={(e) => setTStartTime(e.target.value)} />
+      {/* MODAL: Edit Transport Slot */}
+      <AnimatePresence>
+        {editingTransport && (
+          <div className="fixed inset-0 bg-[#0B131F]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <motion.div
+              variants={scaleInModalVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="bg-[#0F1A24] border border-[#C5A880]/30 shadow-2xl rounded-2xl w-full max-w-xl overflow-hidden p-6 text-slate-200 relative"
+            >
+              <div className="flex items-center justify-between border-b border-[#C5A880]/20 pb-4 mb-6">
+                <div className="flex items-center gap-2 text-[#C5A880]">
+                  <Edit3 className="w-5 h-5" />
+                  <h3 className="font-serif font-bold text-xl text-white">Edit Transport Capacity Slot</h3>
+                </div>
+                <button
+                  onClick={() => setEditingTransport(null)}
+                  className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800/50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <div className="form-group">
-                <label>End Time (UTC)</label>
-                <input type="datetime-local" value={tEndTime} onChange={(e) => setTEndTime(e.target.value)} />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Vehicle Type</label>
-                <select value={tVehicleType} onChange={(e) => setTVehicleType(e.target.value)}>
-                  <option value="SEDAN">SEDAN</option>
-                  <option value="SUV">SUV</option>
-                  <option value="VAN">VAN</option>
-                  <option value="MINI_BUS">MINI_BUS</option>
-                  <option value="BUS">BUS</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Status</label>
-                <select value={tStatus} onChange={(e) => setTStatus(e.target.value)}>
-                  <option value="AVAILABLE">AVAILABLE</option>
-                  <option value="RESERVED">RESERVED</option>
-                  <option value="BOOKED">BOOKED</option>
-                  <option value="BLOCKED">BLOCKED</option>
-                </select>
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Total Seats</label>
-                <input type="number" value={tTotalSeats} onChange={(e) => setTTotalSeats(Number(e.target.value))} />
-              </div>
-              <div className="form-group">
-                <label>Available Seats</label>
-                <input type="number" value={tAvailableSeats} onChange={(e) => setTAvailableSeats(Number(e.target.value))} />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Price Per Seat</label>
-                <input type="number" value={tPricePerSeat} onChange={(e) => setTPricePerSeat(Number(e.target.value))} />
-              </div>
-              <div className="form-group">
-                <label>Currency</label>
-                <input type="text" value={tCurrency} onChange={(e) => setTCurrency(e.target.value)} />
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setEditingTransport(null)}>Cancel</button>
-              <button className="btn-primary" onClick={handleUpdateTransport} disabled={submitting}>
-                {submitting ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Modal: Delete Transport Slot */}
-      {deletingTransport && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <h3 style={{ color: '#ff4d4f' }}>Confirm Delete Transport Slot</h3>
-            <p>Are you sure you want to delete this transport slot?</p>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setDeletingTransport(null)}>Cancel</button>
-              <button className="btn-danger" onClick={handleDeleteTransport} disabled={submitting}>
-                {submitting ? 'Deleting...' : 'Delete Slot'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Departure Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={editTransportForm.startTime}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, startTime: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
 
-      {/* Modal: Create Attraction Slot */}
-      {isCreatingAttraction && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <h3>➕ Add Attraction Quota Slot</h3>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Start Time (UTC)</label>
-                <input type="datetime-local" value={aStartTime} onChange={(e) => setAStartTime(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>End Time (UTC)</label>
-                <input type="datetime-local" value={aEndTime} onChange={(e) => setAEndTime(e.target.value)} />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Max Visitor Capacity</label>
-                <input type="number" value={aMaxCapacity} onChange={(e) => setAMaxCapacity(Number(e.target.value))} />
-              </div>
-              <div className="form-group">
-                <label>Ticket Price</label>
-                <input type="number" value={aPriceAmount} onChange={(e) => setAPriceAmount(Number(e.target.value))} />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Currency</label>
-                <input type="text" value={aCurrency} onChange={(e) => setACurrency(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Notes / Inclusions</label>
-                <input type="text" value={aNotes} onChange={(e) => setANotes(e.target.value)} placeholder="e.g. Foreign Entry Ticket + Tour Guide" />
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setIsCreatingAttraction(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleCreateAttraction} disabled={submitting}>
-                {submitting ? 'Creating...' : 'Create Quota'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Arrival Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={editTransportForm.endTime}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, endTime: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+                </div>
 
-      {/* Modal: Edit Attraction Slot */}
-      {editingAttraction && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <h3>Edit Attraction Entrance Slot</h3>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Start Time (UTC)</label>
-                <input type="datetime-local" value={aStartTime} onChange={(e) => setAStartTime(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>End Time (UTC)</label>
-                <input type="datetime-local" value={aEndTime} onChange={(e) => setAEndTime(e.target.value)} />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Status</label>
-                <select value={aStatus} onChange={(e) => setAStatus(e.target.value)}>
-                  <option value="AVAILABLE">AVAILABLE</option>
-                  <option value="RESERVED">RESERVED</option>
-                  <option value="BOOKED">BOOKED</option>
-                  <option value="BLOCKED">BLOCKED</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Max Visitor Capacity</label>
-                <input type="number" value={aMaxCapacity} onChange={(e) => setAMaxCapacity(Number(e.target.value))} />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Booked Capacity</label>
-                <input type="number" value={aBookedCapacity} onChange={(e) => setABookedCapacity(Number(e.target.value))} />
-              </div>
-              <div className="form-group">
-                <label>Ticket Price</label>
-                <input type="number" value={aPriceAmount} onChange={(e) => setAPriceAmount(Number(e.target.value))} />
-              </div>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Currency</label>
-                <input type="text" value={aCurrency} onChange={(e) => setACurrency(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Notes / Inclusions</label>
-                <input type="text" value={aNotes} onChange={(e) => setANotes(e.target.value)} />
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setEditingAttraction(null)}>Cancel</button>
-              <button className="btn-primary" onClick={handleUpdateAttraction} disabled={submitting}>
-                {submitting ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Vehicle Type
+                    </label>
+                    <select
+                      value={editTransportForm.vehicleType}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, vehicleType: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors cursor-pointer"
+                    >
+                      <option value="SEDAN" className="bg-[#0F1A24]">Sedan</option>
+                      <option value="SUV" className="bg-[#0F1A24]">SUV</option>
+                      <option value="VAN" className="bg-[#0F1A24]">Luxury Van</option>
+                      <option value="MINI_BUS" className="bg-[#0F1A24]">Mini Bus</option>
+                      <option value="BUS" className="bg-[#0F1A24]">Coach / Bus</option>
+                    </select>
+                  </div>
 
-      {/* Modal: Delete Attraction Slot */}
-      {deletingAttraction && (
-        <div className="modal-backdrop">
-          <div className="modal-card">
-            <h3 style={{ color: '#ff4d4f' }}>Confirm Delete Attraction Slot</h3>
-            <p>Are you sure you want to delete this attraction slot?</p>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setDeletingAttraction(null)}>Cancel</button>
-              <button className="btn-danger" onClick={handleDeleteAttraction} disabled={submitting}>
-                {submitting ? 'Deleting...' : 'Delete Slot'}
-              </button>
-            </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Status
+                    </label>
+                    <select
+                      value={editTransportForm.status}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, status: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors cursor-pointer"
+                    >
+                      <option value="AVAILABLE" className="bg-[#0F1A24]">AVAILABLE</option>
+                      <option value="RESERVED" className="bg-[#0F1A24]">RESERVED</option>
+                      <option value="BOOKED" className="bg-[#0F1A24]">BOOKED</option>
+                      <option value="BLOCKED" className="bg-[#0F1A24]">BLOCKED</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Total Seats
+                    </label>
+                    <input
+                      type="number"
+                      value={editTransportForm.totalSeats}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, totalSeats: Number(e.target.value) })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Available Seats
+                    </label>
+                    <input
+                      type="number"
+                      value={editTransportForm.availableSeats}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, availableSeats: Number(e.target.value) })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Price Per Seat (LKR)
+                    </label>
+                    <input
+                      type="number"
+                      value={editTransportForm.pricePerSeat}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, pricePerSeat: Number(e.target.value) })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Currency
+                    </label>
+                    <input
+                      type="text"
+                      value={editTransportForm.currency}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, currency: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 mt-8 pt-4 border-t border-[#C5A880]/20">
+                <button
+                  onClick={() => setEditingTransport(null)}
+                  className="px-5 py-2.5 rounded-xl font-medium text-sm text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateTransport}
+                  disabled={submitting}
+                  className="px-6 py-2.5 rounded-xl font-bold text-sm text-[#0B131F] bg-gradient-to-r from-[#C5A880] to-[#E6CA65] hover:from-[#E6CA65] hover:to-[#C5A880] shadow-lg shadow-[#C5A880]/20 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {submitting ? 'Saving Changes...' : 'Save Slot Changes'}
+                </button>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: Delete Transport Confirmation */}
+      <AnimatePresence>
+        {deletingTransport && (
+          <div className="fixed inset-0 bg-[#0B131F]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <motion.div
+              variants={scaleInModalVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="bg-[#0F1A24] border border-rose-500/30 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden p-6 text-slate-200 relative"
+            >
+              <div className="flex items-center gap-3 text-rose-400 mb-4">
+                <AlertTriangle className="w-6 h-6 shrink-0" />
+                <h3 className="font-serif font-bold text-xl text-white">Delete Transport Slot</h3>
+              </div>
+              <p className="text-sm text-slate-300 leading-relaxed mb-6">
+                Are you sure you want to delete this transport slot? Any pending reservations linked to this slot will be canceled.
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setDeletingTransport(null)}
+                  className="px-5 py-2.5 rounded-xl font-medium text-sm text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteTransport}
+                  disabled={submitting}
+                  className="px-6 py-2.5 rounded-xl font-bold text-sm text-white bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-900/30 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {submitting ? 'Deleting...' : 'Delete Permanently'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: Create Attraction Slot */}
+      <AnimatePresence>
+        {isCreatingAttraction && (
+          <div className="fixed inset-0 bg-[#0B131F]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <motion.div
+              variants={scaleInModalVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="bg-[#0F1A24] border border-[#C5A880]/30 shadow-2xl rounded-2xl w-full max-w-xl overflow-hidden p-6 text-slate-200 relative"
+            >
+              <div className="flex items-center justify-between border-b border-[#C5A880]/20 pb-4 mb-6">
+                <div className="flex items-center gap-2 text-[#C5A880]">
+                  <Ticket className="w-5 h-5" />
+                  <h3 className="font-serif font-bold text-xl text-white">Add Attraction Quota Slot</h3>
+                </div>
+                <button
+                  onClick={closeCreateAttraction}
+                  className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800/50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Window Start Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={createAttractionForm.startTime}
+                      onChange={(e) => setCreateAttractionForm({ ...createAttractionForm, startTime: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Window End Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={createAttractionForm.endTime}
+                      onChange={(e) => setCreateAttractionForm({ ...createAttractionForm, endTime: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Max Visitor Capacity
+                    </label>
+                    <input
+                      type="number"
+                      value={createAttractionForm.maxCapacity}
+                      placeholder="e.g. 100"
+                      onChange={(e) => setCreateAttractionForm({ ...createAttractionForm, maxCapacity: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Ticket Price (LKR)
+                    </label>
+                    <input
+                      type="number"
+                      value={createAttractionForm.priceAmount}
+                      placeholder="e.g. 2000"
+                      onChange={(e) => setCreateAttractionForm({ ...createAttractionForm, priceAmount: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                    Notes / Attraction Inclusions
+                  </label>
+                  <input
+                    type="text"
+                    value={createAttractionForm.notes}
+                    placeholder="e.g. Kandy Cultural & Heritage Tour Entrance"
+                    onChange={(e) => setCreateAttractionForm({ ...createAttractionForm, notes: e.target.value })}
+                    className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 mt-8 pt-4 border-t border-[#C5A880]/20">
+                <button
+                  onClick={closeCreateAttraction}
+                  className="px-5 py-2.5 rounded-xl font-medium text-sm text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateAttraction}
+                  disabled={submitting}
+                  className="px-6 py-2.5 rounded-xl font-bold text-sm text-[#0B131F] bg-gradient-to-r from-[#C5A880] to-[#E6CA65] hover:from-[#E6CA65] hover:to-[#C5A880] shadow-lg shadow-[#C5A880]/20 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {submitting ? 'Publishing...' : 'Publish Attraction Quota'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: Edit Attraction Slot */}
+      <AnimatePresence>
+        {editingAttraction && (
+          <div className="fixed inset-0 bg-[#0B131F]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <motion.div
+              variants={scaleInModalVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="bg-[#0F1A24] border border-[#C5A880]/30 shadow-2xl rounded-2xl w-full max-w-xl overflow-hidden p-6 text-slate-200 relative"
+            >
+              <div className="flex items-center justify-between border-b border-[#C5A880]/20 pb-4 mb-6">
+                <div className="flex items-center gap-2 text-[#C5A880]">
+                  <Edit3 className="w-5 h-5" />
+                  <h3 className="font-serif font-bold text-xl text-white">Edit Attraction Entrance Quota</h3>
+                </div>
+                <button
+                  onClick={() => setEditingAttraction(null)}
+                  className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800/50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Window Start Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={editAttractionForm.startTime}
+                      onChange={(e) => setEditAttractionForm({ ...editAttractionForm, startTime: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Window End Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={editAttractionForm.endTime}
+                      onChange={(e) => setEditAttractionForm({ ...editAttractionForm, endTime: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Status
+                    </label>
+                    <select
+                      value={editAttractionForm.status}
+                      onChange={(e) => setEditAttractionForm({ ...editAttractionForm, status: e.target.value })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors cursor-pointer"
+                    >
+                      <option value="AVAILABLE" className="bg-[#0F1A24]">AVAILABLE</option>
+                      <option value="RESERVED" className="bg-[#0F1A24]">RESERVED</option>
+                      <option value="BOOKED" className="bg-[#0F1A24]">BOOKED</option>
+                      <option value="BLOCKED" className="bg-[#0F1A24]">BLOCKED</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Max Capacity
+                    </label>
+                    <input
+                      type="number"
+                      value={editAttractionForm.maxCapacity}
+                      onChange={(e) => setEditAttractionForm({ ...editAttractionForm, maxCapacity: Number(e.target.value) })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Booked Capacity
+                    </label>
+                    <input
+                      type="number"
+                      value={editAttractionForm.bookedCapacity}
+                      onChange={(e) => setEditAttractionForm({ ...editAttractionForm, bookedCapacity: Number(e.target.value) })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      Ticket Price (LKR)
+                    </label>
+                    <input
+                      type="number"
+                      value={editAttractionForm.priceAmount}
+                      onChange={(e) => setEditAttractionForm({ ...editAttractionForm, priceAmount: Number(e.target.value) })}
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                    Notes / Attraction Inclusions
+                  </label>
+                  <input
+                    type="text"
+                    value={editAttractionForm.notes}
+                    onChange={(e) => setEditAttractionForm({ ...editAttractionForm, notes: e.target.value })}
+                    className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 mt-8 pt-4 border-t border-[#C5A880]/20">
+                <button
+                  onClick={() => setEditingAttraction(null)}
+                  className="px-5 py-2.5 rounded-xl font-medium text-sm text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateAttraction}
+                  disabled={submitting}
+                  className="px-6 py-2.5 rounded-xl font-bold text-sm text-[#0B131F] bg-gradient-to-r from-[#C5A880] to-[#E6CA65] hover:from-[#E6CA65] hover:to-[#C5A880] shadow-lg shadow-[#C5A880]/20 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {submitting ? 'Saving Changes...' : 'Save Quota Changes'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: Delete Attraction Confirmation */}
+      <AnimatePresence>
+        {deletingAttraction && (
+          <div className="fixed inset-0 bg-[#0B131F]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <motion.div
+              variants={scaleInModalVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="bg-[#0F1A24] border border-rose-500/30 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden p-6 text-slate-200 relative"
+            >
+              <div className="flex items-center gap-3 text-rose-400 mb-4">
+                <AlertTriangle className="w-6 h-6 shrink-0" />
+                <h3 className="font-serif font-bold text-xl text-white">Delete Attraction Quota</h3>
+              </div>
+              <p className="text-sm text-slate-300 leading-relaxed mb-6">
+                Are you sure you want to delete this attraction entrance quota? Any active bookings associated with this slot will be affected.
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setDeletingAttraction(null)}
+                  className="px-5 py-2.5 rounded-xl font-medium text-sm text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAttraction}
+                  disabled={submitting}
+                  className="px-6 py-2.5 rounded-xl font-bold text-sm text-white bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-900/30 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {submitting ? 'Deleting...' : 'Delete Permanently'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };

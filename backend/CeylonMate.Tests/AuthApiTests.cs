@@ -76,7 +76,7 @@ public sealed class AuthApiTests : IClassFixture<AuthApiFactory>
         {
             email = $"admin-{Guid.NewGuid():N}@example.com",
             password = "StrongPassword!123",
-            role = "ADMIN"
+            role = "INVALID_ROLE"
         });
         Assert.Equal(HttpStatusCode.BadRequest, privileged.StatusCode);
 

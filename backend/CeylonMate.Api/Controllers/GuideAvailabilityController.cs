@@ -1,3 +1,4 @@
+using CeylonMate.Api.Data;
 using CeylonMate.Api.DTOs;
 using CeylonMate.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -10,8 +11,25 @@ namespace CeylonMate.Api.Controllers;
 [Tags("Capacity")]
 [ApiController]
 [Route("api/guides")]
-public sealed class GuideAvailabilityController(ICapacityReservationService capacityService) : ControllerBase
+public sealed class GuideAvailabilityController(
+    ICapacityReservationService capacityService,
+    CeylonMateDbContext db) : ControllerBase
 {
+    [HttpGet("options")]
+    [AllowAnonymous]
+    public async Task<ActionResult<IEnumerable<object>>> GetGuideOptions(CancellationToken cancellationToken)
+    {
+        var guides = await db.Users
+            .Where(u => u.Role == Auth.UserRole.LOCAL_GUIDE)
+            .Select(u => new
+            {
+                id = u.Id,
+                name = string.IsNullOrWhiteSpace(u.FullName) ? u.Email : u.FullName,
+                email = u.Email
+            })
+            .ToListAsync(cancellationToken);
+        return Ok(guides);
+    }
     [HttpGet("{guideId:guid}/availability")]
     [AllowAnonymous]
     [ProducesResponseType<IEnumerable<GuideAvailabilityDto>>(StatusCodes.Status200OK)]
@@ -64,12 +82,16 @@ public sealed class GuideAvailabilityController(ICapacityReservationService capa
         try
         {
             var result = await capacityService.UpdateGuideAvailabilityAsync(slotId, request, cancellationToken);
-            if (result is null) return NotFound();
+            if (result is null) return NotFound(new { message = $"Guide availability slot with ID '{slotId}' was not found." });
             return Ok(result);
         }
         catch (DbUpdateConcurrencyException)
         {
-            return Conflict(new { message = "Concurrency conflict detected while updating slot. Please refresh and try again." });
+            return Conflict(new { message = "This slot was modified by another operation. Please refresh and try again." });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message, inner = ex.InnerException?.Message });
         }
     }
 
