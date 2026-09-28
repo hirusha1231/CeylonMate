@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, Lock, Mail, User, ShieldCheck, Sparkles, ArrowRight, AlertTriangle, CheckCircle2, Server } from 'lucide-react';
+import {
+  X, Lock, Mail, User, Sparkles, ArrowRight, AlertTriangle, Eye, EyeOff, Phone, CheckCircle2
+} from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
+import { getRoleRedirectPath } from '../../auth/types';
 import { useToast } from '../../context/ToastContext';
-import { API_BASE_URL, checkServerHealth } from '../../services/api';
+import { API_BASE_URL, checkServerHealth, apiError } from '../../services/api';
 import { buttonPressProps, scaleInModalVariants } from '../../utils/animations';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-  initialMode?: 'signin' | 'register' | 'agent';
+  initialMode?: 'signin' | 'register';
   titleHint?: string;
 }
 
@@ -21,12 +25,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   initialMode = 'signin',
   titleHint,
 }) => {
-  const { login, error: authError, clearError } = useAuth();
+  const { login, register, error: authError, clearError } = useAuth();
   const { showToast } = useToast();
-  const [mode, setMode] = useState<'signin' | 'register' | 'agent'>(initialMode);
+  const navigate = useNavigate();
+
+  const [mode, setMode] = useState<'signin' | 'register'>(initialMode);
+  
+  // Form Fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+
+  // Password visibility toggles
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -35,9 +50,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (isOpen) {
       clearError();
       setLocalError(null);
+      setMode(initialMode);
       probeServer();
     }
-  }, [isOpen]);
+  }, [isOpen, initialMode]);
 
   const probeServer = async () => {
     const isOk = await checkServerHealth();
@@ -46,62 +62,119 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
     clearError();
 
-    if (!serverOnline) {
-      setLocalError(`🚨 Backend Server Offline: Unable to connect to CeylonMate API at ${API_BASE_URL}. Please start the ASP.NET Core backend using 'dotnet run'.`);
+    if (!email.trim() || !password) {
+      setLocalError('Please enter your email address and password.');
       return;
     }
 
-    setLoading(true);
+    if (serverOnline === false) {
+      setLocalError('Server Offline');
+      return;
+    }
 
-    const success = await login(email, password);
-    setLoading(false);
+    try {
+      setLoading(true);
+      console.log('[AuthModal] Initiating sign in for:', email);
+      const authUser = await login(email, password);
+      setLoading(false);
 
-    if (success) {
-      showToast('Signed In Successfully', 'Welcome back to CeylonMate Journeys.', 'success');
-      onSuccess?.();
-      onClose();
-    } else {
-      // STRICT REQUIREMENT: DO NOT LOG IN ON FAILURE!
-      showToast('Authentication Failed', 'Unable to sign in with provided credentials.', 'error');
+      if (authUser) {
+        showToast('Signed In Successfully', `Welcome back to CeylonMate Journeys.`, 'success');
+        onSuccess?.();
+        onClose();
+        const targetPath = getRoleRedirectPath(authUser.role);
+        if (authUser.role === 'ADMIN' || targetPath !== '/') {
+          navigate(targetPath);
+        }
+      }
+    } catch (err: any) {
+      setLoading(false);
+      console.error('[AuthModal] Login attempt failed:', err);
+      let errorMessage = 'An unexpected error occurred.';
+      if (err?.response) {
+        errorMessage = err.response.data?.detail || err.response.data?.message || err.response.data?.title || `Login failed (${err.response.status}): Invalid credentials.`;
+      } else if (err?.request) {
+        errorMessage = 'Server Offline';
+      } else if (err?.message) {
+        errorMessage = apiError(err);
+      }
+      setLocalError(errorMessage);
+      showToast('Authentication Failed', errorMessage, 'error');
     }
   };
 
-  // 1-Click Demo Buttons: Auto-fill inputs & submit through real API
-  const handleQuickDemoFill = async (role: 'TRAVEL_AGENT' | 'CAPACITY_OFFICER' | 'ADMIN') => {
-    clearError();
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLocalError(null);
+    clearError();
 
-    const demoEmail =
-      role === 'TRAVEL_AGENT'
-        ? 'agent@ceylonmate.com'
-        : role === 'CAPACITY_OFFICER'
-        ? 'capacity@ceylonmate.com'
-        : 'admin@ceylonmate.com';
-
-    setEmail(demoEmail);
-    setPassword('Password123!');
-    setMode('signin');
-
-    if (!serverOnline) {
-      setLocalError(`🚨 Backend Server Offline: Unable to connect to API at ${API_BASE_URL}. Please start backend server.`);
+    if (!fullName.trim()) {
+      setLocalError('Please enter your full name.');
       return;
     }
 
-    setLoading(true);
-    const ok = await login(demoEmail, 'Password123!');
-    setLoading(false);
+    if (/\d/.test(fullName)) {
+      setLocalError('Full Name must contain letters only. Numbers are not allowed.');
+      return;
+    }
 
-    if (ok) {
-      showToast('Authenticated via Backend API', `Logged in as ${role.replace('_', ' ')}.`, 'success');
-      onSuccess?.();
-      onClose();
-    } else {
-      showToast('Authentication Failed', `Real backend API rejected credentials for ${demoEmail}.`, 'error');
+    if (phoneNumber && /[a-zA-Z]/.test(phoneNumber)) {
+      setLocalError('Phone Number must contain numbers only. Letters are not allowed.');
+      return;
+    }
+
+    if (!email.trim()) {
+      setLocalError('Please enter a valid email address.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setLocalError('Password must be at least 6 characters in length.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setLocalError('Passwords do not match. Please re-enter your password.');
+      return;
+    }
+
+    if (serverOnline === false) {
+      setLocalError('Server Offline');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      console.log('[AuthModal] Submitting registration form:', { email, fullName });
+      const authUser = await register(email, password, fullName, phoneNumber);
+      setLoading(false);
+
+      if (authUser) {
+        showToast('Welcome to CeylonMate!', 'Your bespoke traveler account has been created.', 'success');
+        onSuccess?.();
+        onClose();
+      }
+    } catch (err: any) {
+      setLoading(false);
+      let errorMessage = "Server Offline";
+      if (err?.response?.status === 409) {
+        errorMessage = "This email address is already registered. Please sign in instead.";
+      } else if (err?.response?.status === 400) {
+        errorMessage = err.response?.data?.message || err.response?.data?.detail || "Invalid registration details. Please check the fields.";
+      } else if (err?.response?.status === 500) {
+        errorMessage = `Server database error: ${err.response?.data?.message || err.response?.data?.detail || 'Failed to save user'}`;
+      } else if (err?.message) {
+        errorMessage = apiError(err);
+      }
+
+      console.error('[AuthModal] Registration exception caught:', err?.response?.status, errorMessage);
+      setLocalError(errorMessage);
+      showToast('Registration Failed', errorMessage, 'error');
     }
   };
 
@@ -113,7 +186,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           initial="initial"
           animate="animate"
           exit="exit"
-          className="relative w-full max-w-md bg-[#0F1A24] border border-stone-700/60 rounded-2xl shadow-2xl overflow-hidden text-stone-100"
+          className="relative w-full max-w-md bg-[#0F1A24] border border-stone-700/80 rounded-2xl shadow-2xl overflow-hidden text-stone-100 font-sans"
         >
           {/* Header Banner */}
           <div className="relative p-6 pb-4 border-b border-stone-800 bg-gradient-to-r from-[#0B131F] to-[#134E4A]/30">
@@ -125,7 +198,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </button>
 
             <div className="flex items-center justify-between gap-2 mb-1">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-[#C5A880] tracking-widest uppercase">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[#C5A880] tracking-widest uppercase font-mono">
                 <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
                 <span>CeylonMate Privé</span>
               </div>
@@ -134,138 +207,120 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div className="flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 border border-stone-700">
                 <span className={`w-2 h-2 rounded-full ${serverOnline ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500 animate-ping'}`} />
                 <span className={serverOnline ? 'text-emerald-300' : 'text-rose-300'}>
-                  {serverOnline === null ? 'Probing API...' : serverOnline ? 'Server 5000 Connected' : 'Server Disconnected'}
+                  {serverOnline === null ? 'Probing API...' : serverOnline ? 'Server 5084 Connected' : 'Server Disconnected'}
                 </span>
               </div>
             </div>
 
             <h3 className="text-2xl font-serif-luxury text-stone-100 font-semibold mt-1">
-              {titleHint || (mode === 'register' ? 'Join CeylonMate' : mode === 'agent' ? 'Agent & Staff Portal' : 'Sign In to Proceed')}
+              {titleHint || (mode === 'register' ? 'Create Your Account' : 'Sign In to Proceed')}
             </h3>
-            <p className="text-xs text-stone-400 mt-1">
-              {mode === 'register'
-                ? 'Create a bespoke traveler account to lock capacity and manage proposals.'
-                : mode === 'agent'
-                ? 'Authorized access for travel agents and inventory operations.'
-                : 'Access your saved itineraries, private chauffeur schedules, and live quotes.'}
-            </p>
-
-            {/* Tabs */}
-            <div className="flex gap-2 mt-4 p-1 bg-slate-900/80 rounded-lg border border-stone-800">
-              <button
-                type="button"
-                onClick={() => { setMode('signin'); setLocalError(null); }}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${
-                  mode === 'signin'
-                    ? 'bg-[#C5A880] text-[#0B131F] font-semibold shadow'
-                    : 'text-stone-400 hover:text-stone-200'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMode('register'); setLocalError(null); }}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${
-                  mode === 'register'
-                    ? 'bg-[#C5A880] text-[#0B131F] font-semibold shadow'
-                    : 'text-stone-400 hover:text-stone-200'
-                }`}
-              >
-                New Guest
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMode('agent'); setLocalError(null); }}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${
-                  mode === 'agent'
-                    ? 'bg-[#134E4A] text-emerald-100 font-semibold shadow'
-                    : 'text-stone-400 hover:text-stone-200'
-                }`}
-              >
-                Agent Portal
-              </button>
-            </div>
           </div>
 
           {/* Body Form */}
           <div className="p-6 space-y-4">
-            {/* Prominent Red Error Banner if Offline or Auth Error */}
+            {/* Error Banner */}
             {(localError || authError || serverOnline === false) && (
-              <div className="p-3.5 bg-rose-950/80 border border-rose-500/50 rounded-xl text-rose-200 text-xs flex items-start gap-2.5 leading-relaxed">
+              <div className="p-3.5 bg-rose-950/80 border border-rose-500/50 rounded-xl text-rose-200 text-xs flex items-start gap-2.5 leading-relaxed font-mono">
                 <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                <div className="flex-1 font-mono">
-                  {localError || authError || `🚨 Backend Server Offline: Unable to connect to CeylonMate API at ${API_BASE_URL}. Please ensure the ASP.NET Core backend is running with 'dotnet run'.`}
+                <div className="flex-1">
+                  {localError || authError || 'Server Offline'}
                 </div>
               </div>
             )}
 
-            {mode === 'agent' ? (
-              <div className="space-y-3">
-                <p className="text-xs text-stone-300 leading-relaxed bg-emerald-950/40 p-3 rounded-xl border border-emerald-500/20">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 inline mr-1.5" />
-                  Select a staff role persona below. Clicking a button auto-fills credentials and executes a real backend API authentication request.
-                </p>
-
-                <div className="grid grid-cols-1 gap-2.5 pt-1">
-                  <motion.button
-                    {...buttonPressProps}
-                    type="button"
-                    onClick={() => handleQuickDemoFill('TRAVEL_AGENT')}
-                    className="flex items-center justify-between p-3 bg-slate-900/90 border border-amber-500/30 hover:border-amber-400 rounded-xl text-left group transition-all"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-amber-200">Demo as Travel Agent</div>
-                      <div className="text-[11px] text-stone-400">agent@ceylonmate.com</div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-amber-400 group-hover:translate-x-1 transition-transform" />
-                  </motion.button>
-
-                  <motion.button
-                    {...buttonPressProps}
-                    type="button"
-                    onClick={() => handleQuickDemoFill('CAPACITY_OFFICER')}
-                    className="flex items-center justify-between p-3 bg-slate-900/90 border border-teal-500/30 hover:border-teal-400 rounded-xl text-left group transition-all"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-teal-200">Demo as Capacity Officer</div>
-                      <div className="text-[11px] text-stone-400">capacity@ceylonmate.com</div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-teal-400 group-hover:translate-x-1 transition-transform" />
-                  </motion.button>
-
-                  <motion.button
-                    {...buttonPressProps}
-                    type="button"
-                    onClick={() => handleQuickDemoFill('ADMIN')}
-                    className="flex items-center justify-between p-3 bg-slate-900/90 border border-rose-500/30 hover:border-rose-400 rounded-xl text-left group transition-all"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-rose-200">Demo as System Admin</div>
-                      <div className="text-[11px] text-stone-400">admin@ceylonmate.com</div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-rose-400 group-hover:translate-x-1 transition-transform" />
-                  </motion.button>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-3.5">
-                {mode === 'register' && (
-                  <div>
-                    <label className="block text-xs font-medium text-stone-300 mb-1">Full Name</label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
-                      <input
-                        type="text"
-                        required
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Lady Evelyn Sinclair"
-                        className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-3 py-2 text-sm text-stone-100 placeholder-stone-600 focus:outline-none transition-colors"
-                      />
-                    </div>
+            {mode === 'signin' ? (
+              /* VIEW 1: SIGN IN */
+              <form onSubmit={handleSignIn} className="space-y-4" noValidate>
+                <div>
+                  <label className="block text-xs font-medium text-stone-300 mb-1">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="traveler@example.com"
+                      className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-3 py-2 text-xs text-stone-100 placeholder-stone-600 focus:outline-none transition-colors"
+                    />
                   </div>
-                )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-300 mb-1">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-10 py-2 text-xs text-stone-100 focus:outline-none transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-stone-400 hover:text-[#C5A880] transition-colors"
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <motion.button
+                  {...buttonPressProps}
+                  type="submit"
+                  disabled={loading || serverOnline === false}
+                  className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                    serverOnline === false
+                      ? 'bg-stone-800 text-stone-500 border border-stone-700 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] shadow-lg'
+                  }`}
+                >
+                  {loading ? (
+                    <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-slate-900 border-t-transparent" />
+                  ) : serverOnline === false ? (
+                    <span>Backend Offline</span>
+                  ) : (
+                    <>
+                      <span>Sign In</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </motion.button>
+
+                {/* Footer Switcher */}
+                <div className="pt-3 border-t border-stone-800 text-center">
+                  <span className="text-xs text-stone-400">Don't have an account? </span>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('register'); setLocalError(null); }}
+                    className="text-xs font-semibold text-[#C5A880] hover:underline cursor-pointer"
+                  >
+                    Create a new account
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* VIEW 2: REGISTRATION */
+              <form onSubmit={handleRegister} className="space-y-3.5" noValidate>
+                <div>
+                  <label className="block text-xs font-medium text-stone-300 mb-1">Full Name</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value.replace(/[0-9]/g, ''))}
+                      placeholder="Lady Evelyn Sinclair"
+                      className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-3 py-2 text-xs text-stone-100 placeholder-stone-600 focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
 
                 <div>
                   <label className="block text-xs font-medium text-stone-300 mb-1">Email Address</label>
@@ -276,23 +331,70 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder={mode === 'register' ? 'evelyn@luxuryjourneys.com' : 'agent@ceylonmate.com'}
-                      className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-3 py-2 text-sm text-stone-100 placeholder-stone-600 focus:outline-none transition-colors"
+                      placeholder="evelyn@luxuryjourneys.com"
+                      className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-3 py-2 text-xs text-stone-100 placeholder-stone-600 focus:outline-none transition-colors"
                     />
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-stone-300 mb-1">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Min 6 chars"
+                        className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-8 py-2 text-xs text-stone-100 focus:outline-none transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2.5 top-2.5 text-stone-400 hover:text-[#C5A880] transition-colors"
+                        title={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-stone-300 mb-1">Re-enter Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Confirm password"
+                        className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-8 py-2 text-xs text-stone-100 focus:outline-none transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-2.5 top-2.5 text-stone-400 hover:text-[#C5A880] transition-colors"
+                        title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-stone-300 mb-1">Password</label>
+                  <label className="block text-xs font-medium text-stone-300 mb-1">Phone Number (Optional)</label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
+                    <Phone className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
                     <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-3 py-2 text-sm text-stone-100 focus:outline-none transition-colors"
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value.replace(/[a-zA-Z]/g, ''))}
+                      placeholder="+94 77 123 4567"
+                      className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-3 py-2 text-xs text-stone-100 placeholder-stone-600 focus:outline-none transition-colors"
                     />
                   </div>
                 </div>
@@ -301,7 +403,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   {...buttonPressProps}
                   type="submit"
                   disabled={loading || serverOnline === false}
-                  className={`w-full mt-2 py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+                  className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
                     serverOnline === false
                       ? 'bg-stone-800 text-stone-500 border border-stone-700 cursor-not-allowed'
                       : 'bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] shadow-lg'
@@ -310,14 +412,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   {loading ? (
                     <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-slate-900 border-t-transparent" />
                   ) : serverOnline === false ? (
-                    <span>Backend Offline — Cannot Sign In</span>
+                    <span>Backend Offline</span>
                   ) : (
                     <>
-                      <span>{mode === 'register' ? 'Create Account & Continue' : 'Sign In via Backend API'}</span>
+                      <span>Create Account & Continue</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </motion.button>
+
+                {/* Footer Switcher */}
+                <div className="pt-3 border-t border-stone-800 text-center">
+                  <span className="text-xs text-stone-400">Already have an account? </span>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('signin'); setLocalError(null); }}
+                    className="text-xs font-semibold text-[#C5A880] hover:underline"
+                  >
+                    Sign In
+                  </button>
+                </div>
               </form>
             )}
           </div>

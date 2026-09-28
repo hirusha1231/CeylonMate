@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -12,11 +12,28 @@ import {
   fadeInVariants, slideUpVariants, staggerContainerVariants, staggerItemVariants,
   hoverLiftProps, buttonPressProps, scaleInModalVariants
 } from '../utils/animations';
+import { api } from '../services/api';
 import { HERO_VIDEO_FALLBACK, FLEET_IMAGES, SIGNATURE_PACKAGES_DATA } from '../utils/mediaData';
+import { FleetShowcaseSection } from '../components/fleet/FleetShowcaseSection';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
-  const { formatPrice } = useCurrency();
+  const { formatPrice, currency } = useCurrency();
+  const [liveJourneys, setLiveJourneys] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchSignatureJourneys = async () => {
+      try {
+        const res = await api.get('/api/journeys/signature');
+        if (res.data && res.data.length > 0) {
+          setLiveJourneys(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch signature journeys for homepage:', err);
+      }
+    };
+    fetchSignatureJourneys();
+  }, []);
 
   // Floating Bar State
   const [selectedRegion, setSelectedRegion] = useState('Cultural Heartland');
@@ -178,12 +195,12 @@ export const HomePage: React.FC = () => {
             </p>
           </motion.div>
 
-          <Link to="/destinations">
+          <Link to="/signature-journeys">
             <motion.button
               {...buttonPressProps}
               className="text-xs font-semibold text-[#134E4A] hover:text-[#0B131F] flex items-center gap-1.5 border-b border-[#134E4A] pb-1 transition-colors"
             >
-              <span>Explore All Destinations</span>
+              <span>Explore All Signature Collections</span>
               <ArrowRight className="w-4 h-4" />
             </motion.button>
           </Link>
@@ -197,70 +214,77 @@ export const HomePage: React.FC = () => {
           viewport={{ once: true }}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
         >
-          {SIGNATURE_PACKAGES_DATA.map((pkg) => (
-            <motion.div
-              key={pkg.id}
-              variants={staggerItemVariants}
-              {...hoverLiftProps}
-              className="bg-white rounded-2xl overflow-hidden border border-stone-200/80 shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between group"
-            >
-              <div>
-                {/* Package Image Banner */}
-                <div className="relative h-56 overflow-hidden">
-                  <img
-                    src={pkg.image}
-                    alt={pkg.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute top-3 left-3 bg-[#0B131F]/80 backdrop-blur-md border border-[#C5A880]/40 text-[#C5A880] text-[11px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
-                    {pkg.duration}
-                  </div>
-                </div>
+          {(liveJourneys.length > 0 ? liveJourneys : SIGNATURE_PACKAGES_DATA).map((pkg: any) => {
+            const isLive = !!pkg.heroImageUrl;
+            const title = pkg.title;
+            const image = isLive ? pkg.heroImageUrl : pkg.image;
+            const duration = isLive ? `${pkg.durationDays}D / ${pkg.durationNights}N` : pkg.duration;
+            const region = isLive ? (pkg.destinationsCovered || 'Sri Lanka') : pkg.region;
+            const description = pkg.description;
+            const highlights = pkg.highlights || [];
+            const price = isLive ? formatPrice(pkg.startingPriceUsd) : formatPrice(pkg.priceUsd);
 
-                {/* Card Content */}
-                <div className="p-5 space-y-3">
-                  <span className="text-[11px] font-semibold text-[#134E4A] uppercase tracking-wider">
-                    {pkg.region}
-                  </span>
-                  <h3 className="text-xl font-serif-luxury font-bold text-[#0B131F] leading-snug group-hover:text-[#134E4A] transition-colors">
-                    {pkg.title}
-                  </h3>
-                  <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
-                    {pkg.description}
-                  </p>
-
-                  <div className="pt-2 border-t border-stone-100 space-y-1.5">
-                    {pkg.highlights.slice(0, 3).map((h, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs text-stone-700">
-                        <CheckCircle className="w-3.5 h-3.5 text-[#134E4A] shrink-0" />
-                        <span className="truncate">{h}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Price & Action */}
-              <div className="p-5 pt-0 flex items-center justify-between border-t border-stone-100 mt-4">
+            return (
+              <motion.div
+                key={pkg.id}
+                variants={staggerItemVariants}
+                {...hoverLiftProps}
+                className="bg-white rounded-2xl overflow-hidden border border-stone-200/80 shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between group"
+              >
                 <div>
-                  <span className="text-[10px] text-stone-500 uppercase tracking-wider block">From</span>
-                  <span className="text-lg font-bold text-[#0B131F] font-serif-luxury">
-                    {formatPrice(pkg.priceUsd)}
-                  </span>
-                  <span className="text-[10px] text-stone-500"> / guest</span>
+                  {/* Package Image Banner */}
+                  <div className="relative h-56 overflow-hidden">
+                    <img
+                      src={image}
+                      alt={title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute top-3 left-3 bg-[#0B131F]/80 backdrop-blur-md border border-[#C5A880]/40 text-[#C5A880] text-[11px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
+                      {duration}
+                    </div>
+                  </div>
+
+                  {/* Card Content */}
+                  <div className="p-5 space-y-3">
+                    <span className="text-[11px] font-semibold text-[#134E4A] uppercase tracking-wider truncate block">
+                      {region}
+                    </span>
+                    <h3 className="text-xl font-serif-luxury font-bold text-[#0B131F] leading-snug group-hover:text-[#134E4A] transition-colors line-clamp-1">
+                      {title}
+                    </h3>
+                    <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
+                      {description}
+                    </p>
+
+                    <div className="pt-2 border-t border-stone-100 space-y-1.5">
+                      {highlights.slice(0, 3).map((h: string, i: number) => (
+                        <div key={i} className="flex items-center gap-2 text-xs text-stone-700">
+                          <CheckCircle className="w-3.5 h-3.5 text-[#134E4A] shrink-0" />
+                          <span className="truncate">{h}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
-                <motion.button
-                  {...buttonPressProps}
-                  onClick={() => setActiveModalPackage(pkg)}
-                  className="px-3.5 py-2 rounded-xl bg-[#0B131F] hover:bg-[#134E4A] text-stone-100 text-xs font-semibold transition-colors flex items-center gap-1.5"
-                >
-                  <span>View Itinerary</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-[#C5A880]" />
-                </motion.button>
-              </div>
-            </motion.div>
-          ))}
+                {/* Price & Action */}
+                <div className="p-5 pt-0 flex items-center justify-between border-t border-stone-100 mt-4">
+                  <div>
+                    <span className="text-[10px] text-stone-500 uppercase tracking-wider block font-mono">From</span>
+                    <span className="text-lg font-bold text-[#0B131F] font-serif-luxury">
+                      {price}
+                    </span>
+                  </div>
+
+                  <Link to={`/book-journey/${pkg.id}`}>
+                    <button className="p-2.5 rounded-full bg-[#134E4A] text-white hover:bg-[#0B131F] transition-colors cursor-pointer" title="Book This Journey">
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </Link>
+                </div>
+              </motion.div>
+            );
+          })}
         </motion.div>
       </section>
 
@@ -361,89 +385,7 @@ export const HomePage: React.FC = () => {
 
       {/* SECTION 4: PRIVATE FLEET & MULTILINGUAL CHAUFFEURS */}
       <section className="py-20 max-w-7xl mx-auto px-4 md:px-8 space-y-12">
-        <div className="text-center max-w-2xl mx-auto space-y-3">
-          <span className="text-xs font-mono tracking-widest text-[#134E4A] uppercase font-semibold">
-            Unrivaled Comfort & Safety
-          </span>
-          <h2 className="text-3xl sm:text-5xl font-serif-luxury font-bold text-[#0B131F]">
-            Our Private Fleet & Certified Chauffeur Guides
-          </h2>
-          <p className="text-stone-600 text-sm leading-relaxed">
-            All vehicles are company-owned, climate-controlled, equipped with Wi-Fi, and piloted by English/German/French fluent SLTDA-licensed chauffeur guides.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Fleet 1: Toyota KDH VIP Van */}
-          <motion.div
-            {...hoverLiftProps}
-            className="bg-white rounded-2xl overflow-hidden border border-stone-200 shadow-xl flex flex-col sm:flex-row group"
-          >
-            <div className="sm:w-1/2 relative h-56 sm:h-auto overflow-hidden">
-              <img
-                src={FLEET_IMAGES.kdhVan}
-                alt="Toyota KDH Super GL VIP Van"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-            </div>
-            <div className="sm:w-1/2 p-6 flex flex-col justify-between space-y-4">
-              <div>
-                <span className="text-[11px] font-semibold text-[#134E4A] uppercase tracking-wider">
-                  Executive VIP Group Transport
-                </span>
-                <h3 className="text-xl font-serif-luxury font-bold text-[#0B131F]">
-                  Toyota KDH Super GL VIP Van
-                </h3>
-                <p className="text-xs text-stone-600 mt-2 leading-relaxed">
-                  Dual air-conditioned luxury seating with reclining leather armchairs, onboard Wi-Fi, luggage space for 6 large bags.
-                </p>
-              </div>
-              <div className="flex items-center gap-4 text-xs text-stone-500 pt-2 border-t border-stone-100">
-                <span className="flex items-center gap-1 font-semibold text-[#0B131F]">
-                  <Users className="w-3.5 h-3.5 text-[#134E4A]" /> Up to 6 Passengers
-                </span>
-                <span className="flex items-center gap-1">
-                  <Car className="w-3.5 h-3.5 text-[#134E4A]" /> VIP Leather Interior
-                </span>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Fleet 2: Mercedes E-Class */}
-          <motion.div
-            {...hoverLiftProps}
-            className="bg-white rounded-2xl overflow-hidden border border-stone-200 shadow-xl flex flex-col sm:flex-row group"
-          >
-            <div className="sm:w-1/2 relative h-56 sm:h-auto overflow-hidden">
-              <img
-                src={FLEET_IMAGES.mercedes}
-                alt="Mercedes-Benz E-Class Sedan"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-            </div>
-            <div className="sm:w-1/2 p-6 flex flex-col justify-between space-y-4">
-              <div>
-                <span className="text-[11px] font-semibold text-[#134E4A] uppercase tracking-wider">
-                  Couple & Solo Executive Travel
-                </span>
-                <h3 className="text-xl font-serif-luxury font-bold text-[#0B131F]">
-                  Mercedes-Benz E-Class Sedan
-                </h3>
-                <p className="text-xs text-stone-600 mt-2 leading-relaxed">
-                  Superior German engineering, whisper-quiet cabin acoustics, ideal for coastal expressway transfers and romantic getaways.
-                </p>
-              </div>
-              <div className="flex items-center gap-4 text-xs text-stone-500 pt-2 border-t border-stone-100">
-                <span className="flex items-center gap-1 font-semibold text-[#0B131F]">
-                  <Users className="w-3.5 h-3.5 text-[#134E4A]" /> Up to 3 Passengers
-                </span>
-                <span className="flex items-center gap-1">
-                  <Car className="w-3.5 h-3.5 text-[#134E4A]" /> Premium Prestige
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        </div>
+        <FleetShowcaseSection layout="horizontal-cards" showTitle={true} />
 
         <div className="text-center pt-4">
           <Link to="/fleet-and-guides">
@@ -587,11 +529,11 @@ export const HomePage: React.FC = () => {
                   onClick={() => {
                     const pkgId = activeModalPackage.id;
                     setActiveModalPackage(null);
-                    navigate(`/plan-my-trip?package=${pkgId}`);
+                    navigate(`/book-journey/${pkgId}`);
                   }}
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] text-[#0B131F] font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-2"
                 >
-                  <span>Customize This Journey</span>
+                  <span>Book This Journey</span>
                   <ArrowRight className="w-4 h-4" />
                 </motion.button>
               </div>

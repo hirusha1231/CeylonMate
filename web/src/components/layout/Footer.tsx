@@ -1,17 +1,21 @@
 import React from 'react';
-import { Link } from 'react-router';
-import { Leaf, PhoneCall, MapPin, Mail, Award, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Link, useLocation } from 'react-router';
+import { Leaf, PhoneCall, MapPin, Mail, Award, ArrowRight, ShieldCheck, Cpu, Compass } from 'lucide-react';
 import { Logo } from '../common/Logo';
 
 export const Footer: React.FC = () => {
+  const location = useLocation();
+  const isHomePage = location.pathname === '/';
+
   return (
     <footer className="bg-[#0B131F] text-stone-300 border-t border-stone-800 font-sans pt-16 pb-12 relative overflow-hidden">
       {/* Background Subtle Accent */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-[#134E4A]/10 rounded-full filter blur-3xl pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-12 relative z-10">
-        {/* Top Badges Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-12 border-b border-stone-800">
+        {/* Top Badges Bar (Only visible on Home Page) */}
+        {isHomePage && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-12 border-b border-stone-800">
           <div className="flex items-start gap-4 p-5 rounded-2xl bg-[#0F1A24]/70 border border-stone-800">
             <div className="w-12 h-12 rounded-xl bg-[#134E4A]/30 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
               <Award className="w-6 h-6" />
@@ -48,6 +52,7 @@ export const Footer: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
 
         {/* Main Footer Links */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
@@ -117,7 +122,7 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <Link to="/fleet-and-guides" className="hover:text-stone-100 transition-colors">
-                  VIP Chauffeur Fleet
+                  Drivers & Guides
                 </Link>
               </li>
               <li>
@@ -141,11 +146,29 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <Link
-                  to="/agent-portal"
-                  className="text-stone-400 hover:text-emerald-400 transition-colors text-xs flex items-center gap-1 pt-1"
+                  to="/operations/destinations-safety"
+                  className="text-stone-300 hover:text-cyan-400 transition-colors text-xs flex items-center gap-1.5 font-mono pt-1"
                 >
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Agent & Staff Operations</span>
+                  <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>🗺️ Destination & Safety Hub</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/operations/capacity-dispatch"
+                  className="text-stone-300 hover:text-amber-400 transition-colors text-xs flex items-center gap-1.5 font-mono pt-1"
+                >
+                  <Compass className="w-3.5 h-3.5 text-amber-400" />
+                  <span>🚗 Capacity & Fleet Dispatch</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/operations/concierge-approval"
+                  className="text-stone-300 hover:text-emerald-400 transition-colors text-xs flex items-center gap-1.5 font-mono pt-1"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>⚖️ Concierge Governance & Approval</span>
                 </Link>
               </li>
               <li>

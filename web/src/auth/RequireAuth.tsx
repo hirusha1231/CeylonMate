@@ -1,19 +1,20 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from './AuthProvider';
-import type { StaffRole } from './types';
+import { getRoleRedirectPath } from './types';
 
-export function RequireAuth({ roles }: { roles?: StaffRole[] }) {
-  const { user, status, logout } = useAuth();
+export function RequireAuth({ roles }: { roles?: string[] }) {
+  const { user, status } = useAuth();
   const location = useLocation();
 
-  if (status === 'checking') return <main className="state"><p>Checking session…</p></main>;
-  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  if (roles && !roles.includes(user.role as StaffRole)) {
-    return <main className="state" role="alert">
-      <h1>Access denied</h1>
-      <p>Your role does not have access to this page.</p>
-      <button type="button" onClick={logout}>Log out</button>
-    </main>;
+  if (status === 'checking') return null;
+
+  if (!user) {
+    return <Navigate to="/" replace state={{ openAuth: true, from: location.pathname }} />;
   }
+
+  if (roles && !roles.map((r) => r.toUpperCase()).includes(user.role?.toUpperCase())) {
+    return <Navigate to={getRoleRedirectPath(user.role)} replace />;
+  }
+
   return <Outlet />;
 }

@@ -35,8 +35,14 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
     public DbSet<AttractionOpeningRule> AttractionOpeningRules => Set<AttractionOpeningRule>();
     public DbSet<DestinationAdvisory> DestinationAdvisories => Set<DestinationAdvisory>();
     public DbSet<LocalGuideReport> LocalGuideReports => Set<LocalGuideReport>();
+    public DbSet<SignatureJourney> SignatureJourneys => Set<SignatureJourney>();
+    public DbSet<VehicleFleetCatalog> VehicleFleetCatalogs => Set<VehicleFleetCatalog>();
+    public DbSet<TransportSeatHold> TransportSeatHolds => Set<TransportSeatHold>();
+    public DbSet<CapacityNotification> CapacityNotifications => Set<CapacityNotification>();
+    public DbSet<GuideAvailabilitySlot> GuideAvailabilitySlots => Set<GuideAvailabilitySlot>();
+    public DbSet<GuideFieldReport> GuideFieldReports => Set<GuideFieldReport>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
-    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new TravelerProfileConfiguration());
@@ -53,6 +59,7 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
         user.Property(x => x.NormalizedEmail).HasMaxLength(254).IsRequired();
         user.Property(x => x.PasswordHash).HasMaxLength(512).IsRequired();
         user.Property(x => x.Role).HasConversion<string>().HasMaxLength(32).IsRequired();
+        user.Property(x => x.IsActive).HasDefaultValue(true);
 
         // GuideProfile Configuration
         var guideProfile = modelBuilder.Entity<GuideProfile>();
@@ -117,6 +124,20 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
                      .WithMany(x => x.TransportSlots)
                      .HasForeignKey(x => x.TransportOptionId)
                      .OnDelete(DeleteBehavior.Restrict);
+        transportSlot.HasOne(x => x.VehicleCatalog)
+                     .WithMany(x => x.TransportSlots)
+                     .HasForeignKey(x => x.VehicleCatalogId)
+                     .OnDelete(DeleteBehavior.SetNull);
+
+        // TransportSeatHold Configuration
+        var seatHold = modelBuilder.Entity<TransportSeatHold>();
+        seatHold.ToTable("transport_seat_holds");
+        seatHold.HasKey(x => x.Id);
+        seatHold.Property(x => x.HoldToken).HasMaxLength(128).IsRequired();
+        seatHold.HasOne(x => x.TransportSlot)
+                .WithMany()
+                .HasForeignKey(x => x.TransportSlotId)
+                .OnDelete(DeleteBehavior.Cascade);
 
         // AttractionSlot Configuration
         var attractionSlot = modelBuilder.Entity<AttractionSlot>();
@@ -188,5 +209,47 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
                    .WithMany(x => x.GuideReports)
                    .HasForeignKey(x => x.DestinationId)
                    .OnDelete(DeleteBehavior.Cascade);
+
+        var signatureJourney = modelBuilder.Entity<SignatureJourney>();
+        signatureJourney.ToTable("signature_journeys");
+        signatureJourney.HasKey(x => x.Id);
+        signatureJourney.Property(x => x.Title).HasMaxLength(250).IsRequired();
+        signatureJourney.Property(x => x.Slug).HasMaxLength(250).IsRequired();
+        signatureJourney.Property(x => x.StartingPriceUsd).HasPrecision(18, 2);
+        signatureJourney.Property(x => x.StartingPriceLkr).HasPrecision(18, 2);
+        signatureJourney.Property(x => x.GalleryImages)
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<string>()
+            );
+        signatureJourney.Property(x => x.Highlights)
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<string>()
+            );
+
+        var fleetCatalog = modelBuilder.Entity<VehicleFleetCatalog>();
+        fleetCatalog.ToTable("vehicle_fleet_catalogs");
+        fleetCatalog.HasKey(x => x.Id);
+        fleetCatalog.Property(x => x.CategoryBadge).HasMaxLength(150).IsRequired();
+        fleetCatalog.Property(x => x.VehicleModel).HasMaxLength(200).IsRequired();
+        fleetCatalog.Property(x => x.DailyRateUsd).HasPrecision(18, 2);
+
+        var guideAvailabilitySlot = modelBuilder.Entity<GuideAvailabilitySlot>();
+        guideAvailabilitySlot.ToTable("guide_availability_slots");
+        guideAvailabilitySlot.HasKey(x => x.Id);
+        guideAvailabilitySlot.Property(x => x.DailyRateLkr).HasPrecision(18, 2);
+
+        var guideFieldReport = modelBuilder.Entity<GuideFieldReport>();
+        guideFieldReport.ToTable("guide_field_reports");
+        guideFieldReport.HasKey(x => x.Id);
+
+        var capacityNotification = modelBuilder.Entity<CapacityNotification>();
+        capacityNotification.ToTable("capacity_notifications");
+        capacityNotification.HasKey(x => x.Id);
+
+        var notification = modelBuilder.Entity<Notification>();
+        notification.ToTable("notifications");
+        notification.HasKey(x => x.Id);
     }
 }

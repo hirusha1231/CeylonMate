@@ -1,34 +1,37 @@
 import React, { createContext, useContext, useState } from 'react';
 
-export type Currency = 'USD' | 'LKR' | 'EUR' | 'GBP';
+export type Currency = 'USD' | 'LKR';
 
 interface CurrencyContextType {
   currency: Currency;
   setCurrency: (c: Currency) => void;
-  formatPrice: (usdAmount: number) => string;
+  formatPrice: (amount: number, fromCurrency?: 'USD' | 'LKR') => string;
+  convertPrice: (amount: number, fromCurrency?: 'USD' | 'LKR', toCurrency?: 'USD' | 'LKR') => number;
 }
 
-const rates: Record<Currency, { rate: number; symbol: string; prefix: boolean }> = {
-  USD: { rate: 1, symbol: '$', prefix: true },
-  LKR: { rate: 310, symbol: 'Rs. ', prefix: true },
-  EUR: { rate: 0.92, symbol: '€', prefix: true },
-  GBP: { rate: 0.79, symbol: '£', prefix: true },
-};
+const EXCHANGE_RATE = 300; // 1 USD = 300 LKR
 
 const CurrencyContext = createContext<CurrencyContextType | null>(null);
 
 export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currency, setCurrency] = useState<Currency>('USD');
 
-  const formatPrice = (usdAmount: number): string => {
-    const { rate, symbol, prefix } = rates[currency];
-    const converted = Math.round(usdAmount * rate);
-    const formatted = converted.toLocaleString();
-    return prefix ? `${symbol}${formatted}` : `${formatted} ${symbol}`;
+  const convertPrice = (amount: number, fromCurrency: 'USD' | 'LKR' = 'USD', toCurrency?: 'USD' | 'LKR'): number => {
+    const target = toCurrency || currency;
+    if (fromCurrency === target) return amount;
+    if (fromCurrency === 'USD' && target === 'LKR') return Math.round(amount * EXCHANGE_RATE);
+    if (fromCurrency === 'LKR' && target === 'USD') return Math.round(amount / EXCHANGE_RATE);
+    return amount;
+  };
+
+  const formatPrice = (amount: number, fromCurrency: 'USD' | 'LKR' = 'USD'): string => {
+    const converted = convertPrice(amount, fromCurrency, currency);
+    const formatted = Math.round(converted).toLocaleString();
+    return currency === 'USD' ? `$${formatted}` : `LKR ${formatted}`;
   };
 
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, formatPrice }}>
+    <CurrencyContext.Provider value={{ currency, setCurrency, formatPrice, convertPrice }}>
       {children}
     </CurrencyContext.Provider>
   );

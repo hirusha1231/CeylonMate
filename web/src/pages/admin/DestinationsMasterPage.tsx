@@ -51,7 +51,7 @@ export const DestinationsMasterPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const newItem = await adminService.createDestination({
+      await adminService.createDestination({
         name,
         province,
         description,
@@ -61,29 +61,13 @@ export const DestinationsMasterPage: React.FC = () => {
         openingTime,
         closingTime,
       });
-      setAttractions([newItem, ...attractions]);
       showToast('Attraction Added', `${name} registered in master database.`, 'success');
       setAddModalOpen(false);
       setName('');
       setDescription('');
+      await loadDestinations();
     } catch {
-      const newItem: DestinationDto = {
-        id: Math.random().toString(36).substring(2, 9),
-        name,
-        province,
-        basePrice: foreignerPriceUsd,
-        ticketPriceLkr: localPriceLkr,
-        dailyQuota: dailyQuotaLimit,
-        openingTime,
-        closingTime,
-        lastEntryTime: '16:30',
-        isActive: true,
-      };
-      setAttractions([newItem, ...attractions]);
-      showToast('Attraction Added', `[Verified] ${name} added to master inventory.`, 'success');
-      setAddModalOpen(false);
-      setName('');
-      setDescription('');
+      showToast('Creation Failed', 'Unable to save attraction to database.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -171,7 +155,7 @@ export const DestinationsMasterPage: React.FC = () => {
               ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-stone-500 font-mono">
-                    No attractions found matching query.
+                    No attractions cataloged. Click 'Add Attraction' to create one.
                   </td>
                 </tr>
               ) : (

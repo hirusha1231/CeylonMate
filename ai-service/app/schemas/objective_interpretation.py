@@ -50,6 +50,13 @@ class BudgetConstraint(BaseModel):
     currency: str | None
 
 
+class RecommendedDestination(BaseModel):
+    name: str
+    region: str
+    highlights: str
+    category: str
+
+
 class ObjectiveInterpretationOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -62,3 +69,4 @@ class ObjectiveInterpretationOutput(BaseModel):
     requiredSteps: list[str]
     delegatedAgentRoles: list[str]
     missingCriticalFields: list[str]
+    recommendedDestinations: list[RecommendedDestination] = Field(default_factory=list)

@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Car, Users, Luggage, ShieldCheck, Wifi, Shield, ArrowRight } from 'lucide-react';
+import { Car, UserCheck, ArrowRight, Sparkles, ShieldCheck, Compass } from 'lucide-react';
 import { Link } from 'react-router';
-import { FLEET_IMAGES } from '../utils/mediaData';
-import { fadeInVariants, hoverLiftProps, buttonPressProps } from '../utils/animations';
+import { fadeInVariants, buttonPressProps } from '../utils/animations';
+import { FleetShowcaseSection } from '../components/fleet/FleetShowcaseSection';
+import { GuideShowcaseSection } from '../components/guides/GuideShowcaseSection';
 
 export const FleetPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'all' | 'fleet' | 'guides'>('all');
+
   return (
     <motion.div
       variants={fadeInVariants}
@@ -17,173 +20,99 @@ export const FleetPage: React.FC = () => {
       <div className="max-w-7xl mx-auto space-y-12">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#134E4A]/10 border border-[#134E4A]/30 text-[#134E4A] text-xs font-semibold uppercase tracking-widest">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#134E4A]/10 border border-[#134E4A]/30 text-[#134E4A] text-xs font-semibold uppercase tracking-widest">
             <Car className="w-3.5 h-3.5 text-[#D4AF37]" />
             <span>Company-Owned VIP Fleet & Licensed Chauffeur Guides</span>
           </div>
           <h1 className="text-4xl sm:text-6xl font-serif-luxury font-bold text-[#0B131F]">
-            Unrivaled Ground Transport
+            Unrivaled Ground Transport & Guides
           </h1>
           <p className="text-stone-600 text-sm leading-relaxed">
-            Every CeylonMate journey is piloted by an SLTDA-certified chauffeur guide fluent in English, German, or French, driving company-maintained VIP vehicles.
+            Every CeylonMate journey is piloted by SLTDA-certified chauffeur guides fluent in English, German, French, or Japanese, driving company-maintained VIP vehicles.
           </p>
+
+          {/* View Filter Pill Switcher */}
+          <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'all'
+                  ? 'bg-[#0B131F] text-[#C5A880] shadow-lg shadow-[#0B131F]/20'
+                  : 'bg-white text-stone-600 hover:text-[#0B131F] border border-stone-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>All Fleet & Guides</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('fleet')}
+              className={`px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'fleet'
+                  ? 'bg-[#0B131F] text-[#C5A880] shadow-lg shadow-[#0B131F]/20'
+                  : 'bg-white text-stone-600 hover:text-[#0B131F] border border-stone-200'
+              }`}
+            >
+              <Car className="w-3.5 h-3.5 text-[#134E4A]" />
+              <span>VIP Vehicle Fleet</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('guides')}
+              className={`px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'guides'
+                  ? 'bg-[#0B131F] text-[#C5A880] shadow-lg shadow-[#0B131F]/20'
+                  : 'bg-white text-stone-600 hover:text-[#0B131F] border border-stone-200'
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Certified Local Guides</span>
+            </button>
+          </div>
         </div>
 
-        {/* Fleet Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Card 1 */}
-          <motion.div
-            {...hoverLiftProps}
-            className="bg-white rounded-2xl overflow-hidden border border-stone-200 shadow-xl flex flex-col justify-between"
-          >
-            <div>
-              <div className="relative h-64 overflow-hidden">
-                <img src={FLEET_IMAGES.kdhVan} alt="Toyota KDH VIP Van" className="w-full h-full object-cover" />
-                <div className="absolute top-3 left-3 bg-[#0B131F]/80 text-[#C5A880] text-xs font-semibold px-3 py-1 rounded-full">
-                  Executive VIP Group
-                </div>
+        {/* Fleet Showcase Section */}
+        {(activeTab === 'all' || activeTab === 'fleet') && (
+          <div className="space-y-6">
+            {activeTab === 'all' && (
+              <div className="flex items-center gap-3 border-b border-stone-200 pb-4">
+                <Car className="w-5 h-5 text-[#134E4A]" />
+                <h2 className="text-2xl font-serif-luxury font-bold text-[#0B131F]">
+                  Private VIP Transport Fleet
+                </h2>
               </div>
-              <div className="p-6 space-y-4">
-                <h3 className="text-2xl font-serif-luxury font-bold text-[#0B131F]">
-                  Toyota KDH Super GL VIP Van
-                </h3>
-                <p className="text-xs text-stone-600 leading-relaxed">
-                  Ideal for families and luxury groups. Dual climate control, plush leather reclining armchairs, high-speed onboard 5G Wi-Fi, and spacious luggage capacity.
-                </p>
+            )}
+            <FleetShowcaseSection layout="grid" showTitle={false} />
+          </div>
+        )}
 
-                <div className="grid grid-cols-2 gap-3 text-xs pt-2 border-t border-stone-100">
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <Users className="w-4 h-4 text-[#134E4A]" /> Up to 6 Passengers
-                  </span>
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <Luggage className="w-4 h-4 text-[#134E4A]" /> 6 Large Luggage
-                  </span>
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <Wifi className="w-4 h-4 text-[#134E4A]" /> Free 5G Wi-Fi
-                  </span>
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <ShieldCheck className="w-4 h-4 text-[#134E4A]" /> SLTDA Certified Chauffeur
-                  </span>
-                </div>
+        {/* Guides Showcase Section */}
+        {(activeTab === 'all' || activeTab === 'guides') && (
+          <div className="space-y-6 pt-6">
+            {activeTab === 'all' && (
+              <div className="flex items-center gap-3 border-b border-stone-200 pb-4">
+                <UserCheck className="w-5 h-5 text-[#D4AF37]" />
+                <h2 className="text-2xl font-serif-luxury font-bold text-[#0B131F]">
+                  SLTDA-Certified Local & Chauffeur Guides
+                </h2>
               </div>
-            </div>
-          </motion.div>
-
-          {/* Card 2 */}
-          <motion.div
-            {...hoverLiftProps}
-            className="bg-white rounded-2xl overflow-hidden border border-stone-200 shadow-xl flex flex-col justify-between"
-          >
-            <div>
-              <div className="relative h-64 overflow-hidden">
-                <img src={FLEET_IMAGES.mercedes} alt="Mercedes Sedan" className="w-full h-full object-cover" />
-                <div className="absolute top-3 left-3 bg-[#0B131F]/80 text-[#C5A880] text-xs font-semibold px-3 py-1 rounded-full">
-                  Prestige Executive Sedan
-                </div>
-              </div>
-              <div className="p-6 space-y-4">
-                <h3 className="text-2xl font-serif-luxury font-bold text-[#0B131F]">
-                  Mercedes-Benz E-Class Sedan
-                </h3>
-                <p className="text-xs text-stone-600 leading-relaxed">
-                  Unmatched elegance for couples and solo executive travelers. Whisper-quiet cabin acoustics, leather seating, and smooth transit along coastal expressways.
-                </p>
-
-                <div className="grid grid-cols-2 gap-3 text-xs pt-2 border-t border-stone-100">
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <Users className="w-4 h-4 text-[#134E4A]" /> Up to 3 Passengers
-                  </span>
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <Luggage className="w-4 h-4 text-[#134E4A]" /> 3 Large Luggage
-                  </span>
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <Wifi className="w-4 h-4 text-[#134E4A]" /> Free Onboard Wi-Fi
-                  </span>
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <ShieldCheck className="w-4 h-4 text-[#134E4A]" /> Senior Master Chauffeur
-                  </span>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Card 3 */}
-          <motion.div
-            {...hoverLiftProps}
-            className="bg-white rounded-2xl overflow-hidden border border-stone-200 shadow-xl flex flex-col justify-between"
-          >
-            <div>
-              <div className="relative h-64 overflow-hidden">
-                <img src={FLEET_IMAGES.landCruiser} alt="Toyota Land Cruiser V8" className="w-full h-full object-cover" />
-                <div className="absolute top-3 left-3 bg-[#0B131F]/80 text-[#C5A880] text-xs font-semibold px-3 py-1 rounded-full">
-                  4x4 Safari & Expedition
-                </div>
-              </div>
-              <div className="p-6 space-y-4">
-                <h3 className="text-2xl font-serif-luxury font-bold text-[#0B131F]">
-                  Toyota Land Cruiser V8 Safari
-                </h3>
-                <p className="text-xs text-stone-600 leading-relaxed">
-                  Heavy-duty luxury 4x4 modified for Yala and Udawalawe national park tracking. High elevation seating with pop-up roof for wildlife photography.
-                </p>
-
-                <div className="grid grid-cols-2 gap-3 text-xs pt-2 border-t border-stone-100">
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <Users className="w-4 h-4 text-[#134E4A]" /> Up to 5 Passengers
-                  </span>
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <Shield className="w-4 h-4 text-[#134E4A]" /> High-Clearance 4x4
-                  </span>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Card 4 */}
-          <motion.div
-            {...hoverLiftProps}
-            className="bg-white rounded-2xl overflow-hidden border border-stone-200 shadow-xl flex flex-col justify-between"
-          >
-            <div>
-              <div className="relative h-64 overflow-hidden">
-                <img src={FLEET_IMAGES.luxuryCoaster} alt="Luxury Coaster Minibus" className="w-full h-full object-cover" />
-                <div className="absolute top-3 left-3 bg-[#0B131F]/80 text-[#C5A880] text-xs font-semibold px-3 py-1 rounded-full">
-                  VIP Coach Transport
-                </div>
-              </div>
-              <div className="p-6 space-y-4">
-                <h3 className="text-2xl font-serif-luxury font-bold text-[#0B131F]">
-                  Toyota Coaster VIP Minibus
-                </h3>
-                <p className="text-xs text-stone-600 leading-relaxed">
-                  Ideal for private delegation groups. Equipped with dual AC, microphone, panoramic windows, and dedicated luggage compartment.
-                </p>
-
-                <div className="grid grid-cols-2 gap-3 text-xs pt-2 border-t border-stone-100">
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <Users className="w-4 h-4 text-[#134E4A]" /> Up to 14 Passengers
-                  </span>
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <Luggage className="w-4 h-4 text-[#134E4A]" /> 12 Large Luggage
-                  </span>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
+            )}
+            <GuideShowcaseSection showTitle={false} />
+          </div>
+        )}
 
         {/* CTA */}
-        <div className="p-8 bg-[#0B131F] rounded-2xl text-stone-100 text-center space-y-4">
+        <div className="p-8 bg-[#0B131F] rounded-2xl text-stone-100 text-center space-y-4 shadow-2xl">
           <h3 className="text-2xl font-serif-luxury font-bold text-[#C5A880]">
             Ready to Travel in Unrivaled Elegance?
           </h3>
-          <p className="text-xs text-stone-300 max-w-lg mx-auto">
-            Book your private transport and certified chauffeur guide today with 100% guaranteed capacity.
+          <p className="text-xs text-stone-300 max-w-lg mx-auto leading-relaxed">
+            Book your private transport and certified local chauffeur guide today with 100% guaranteed capacity and instant SLTDA verification.
           </p>
           <Link to="/plan-my-trip">
             <motion.button
               {...buttonPressProps}
-              className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] text-[#0B131F] font-bold text-xs uppercase tracking-wider shadow-lg inline-flex items-center gap-2 mt-2"
+              className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] text-[#0B131F] font-bold text-xs uppercase tracking-wider shadow-lg inline-flex items-center gap-2 mt-2 cursor-pointer"
             >
               <span>Curate Your Journey Now</span>
               <ArrowRight className="w-4 h-4" />
@@ -194,3 +123,4 @@ export const FleetPage: React.FC = () => {
     </motion.div>
   );
 };
+

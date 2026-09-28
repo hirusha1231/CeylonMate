@@ -1,21 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Phone, ChevronDown, Sparkles, User, LogOut, Menu, X } from 'lucide-react';
+import { Phone, ChevronDown, Sparkles, User, LogOut, Menu, X, Shield, Compass, Users, Cpu, ShieldCheck, MapPin } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { useCurrency, Currency } from '../../context/CurrencyContext';
+import { isStaffUserRole } from '../../auth/types';
 import { AuthModal } from '../auth/AuthModal';
 import { Logo } from '../common/Logo';
 import { buttonPressProps, sidebarDrawerVariants } from '../../utils/animations';
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { currency, setCurrency } = useCurrency();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [currencyDropdownOpen, setCurrencyDropdownOpen] = useState(false);
+
+  const handleSignOut = () => {
+    logout();
+    navigate('/');
+  };
+
+  useEffect(() => {
+    if (location.state?.openAuth && !user) {
+      setAuthModalOpen(true);
+    }
+  }, [location.state, user]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,8 +38,131 @@ export const Navbar: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const currencies: Currency[] = ['USD', 'LKR', 'EUR', 'GBP'];
+  const currencies: Currency[] = ['USD', 'LKR'];
+  const isStaff = user && isStaffUserRole(user.role);
 
+  // 1. Staff Operations Header
+  if (isStaff) {
+    const roleUpper = user.role.toUpperCase();
+
+    return (
+      <header className="sticky top-0 z-40 w-full bg-[#0F1A24]/95 backdrop-blur-xl border-b border-[#C5A880]/30 shadow-2xl px-4 md:px-8 py-3.5 font-sans text-slate-100 transition-all duration-300">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          {/* Left: Brand Logo & Role Badge */}
+          <div className="flex items-center gap-3">
+            <Logo />
+            {roleUpper === 'ADMIN' && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-semibold uppercase tracking-wider">
+                <Shield className="w-3.5 h-3.5 text-amber-400" />
+                SYSTEM ADMIN
+              </span>
+            )}
+            {roleUpper === 'CAPACITY_OFFICER' && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-semibold uppercase tracking-wider">
+                <Compass className="w-3.5 h-3.5 text-emerald-400" />
+                CAPACITY OFFICER CONSOLE
+              </span>
+            )}
+            {roleUpper === 'TRAVEL_AGENT' && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-mono font-semibold uppercase tracking-wider">
+                <Users className="w-3.5 h-3.5 text-blue-400" />
+                AGENT DESK
+              </span>
+            )}
+            {roleUpper === 'LOCAL_GUIDE' && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-semibold uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                CERTIFIED GUIDE PORTAL
+              </span>
+            )}
+          </div>
+
+          {/* Center: Quick Staff Navigation Links */}
+          <div className="hidden md:flex items-center gap-3 text-xs font-medium">
+            {roleUpper === 'CAPACITY_OFFICER' && (
+              <Link
+                to="/staff/capacity"
+                className="px-3.5 py-1.5 rounded-lg bg-[#C5A880]/10 text-[#C5A880] border border-[#C5A880]/30 hover:bg-[#C5A880]/20 transition-all font-semibold"
+              >
+                Guide & Logistics Capacity Desk
+              </Link>
+            )}
+
+
+
+            {roleUpper === 'ADMIN' && (
+              <>
+                <Link
+                  to="/admin"
+                  className="px-3 py-1.5 rounded-lg text-slate-300 hover:text-[#C5A880] transition-colors font-medium"
+                >
+                  Overview
+                </Link>
+                <Link
+                  to="/admin/users"
+                  className="px-3 py-1.5 rounded-lg text-slate-300 hover:text-[#C5A880] transition-colors font-medium"
+                >
+                  User Directory
+                </Link>
+                <Link
+                  to="/staff/capacity"
+                  className="px-3.5 py-1.5 rounded-lg bg-[#C5A880]/10 text-[#C5A880] border border-[#C5A880]/30 hover:bg-[#C5A880]/20 transition-all font-semibold"
+                >
+                  Capacity Engine
+                </Link>
+                <Link
+                  to="/admin/audit-logs"
+                  className="px-3 py-1.5 rounded-lg text-slate-300 hover:text-[#C5A880] transition-colors font-medium"
+                >
+                  Audit Logs
+                </Link>
+              </>
+            )}
+
+            {roleUpper === 'LOCAL_GUIDE' && (
+              <Link
+                to="/guide-portal"
+                className="px-3.5 py-1.5 rounded-lg bg-[#C5A880]/10 text-[#C5A880] border border-[#C5A880]/30 hover:bg-[#C5A880]/20 transition-all font-semibold"
+              >
+                Guide Portal
+              </Link>
+            )}
+          </div>
+
+          {/* Right: Staff Account Email & Sign Out */}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex flex-col text-right text-xs">
+              <span className="font-semibold text-slate-200">{user.email}</span>
+              <span className="text-[10px] text-[#C5A880] font-mono uppercase tracking-wide">
+                Role: {user.role}
+              </span>
+            </div>
+
+            <Link to="/account">
+              <button
+                title="My Account & Security Settings"
+                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-[#C5A880]/50 text-[#C5A880] hover:text-white text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <User className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span className="hidden md:inline">My Account</span>
+              </button>
+            </Link>
+
+            <button
+              onClick={handleSignOut}
+              title="Sign Out"
+              className="px-3 py-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30 text-rose-300 hover:text-white text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  // 2. Public Consumer Traveler Navbar
   return (
     <>
       <header className="sticky top-0 z-40 w-full font-sans transition-all duration-300">
@@ -54,7 +190,7 @@ export const Navbar: React.FC = () => {
             <div className="relative">
               <button
                 onClick={() => setCurrencyDropdownOpen(!currencyDropdownOpen)}
-                className="flex items-center gap-1 hover:text-[#C5A880] transition-colors font-semibold px-2.5 py-0.5 rounded bg-slate-900/60 border border-stone-700/60"
+                className="flex items-center gap-1 hover:text-[#C5A880] transition-colors font-semibold px-2.5 py-0.5 rounded bg-slate-900/60 border border-stone-700/60 cursor-pointer"
               >
                 <span>{currency}</span>
                 <ChevronDown className="w-3 h-3" />
@@ -75,7 +211,7 @@ export const Navbar: React.FC = () => {
                           setCurrency(c);
                           setCurrencyDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-1 text-xs hover:bg-[#134E4A] transition-colors ${
+                        className={`w-full text-left px-3 py-1 text-xs hover:bg-[#134E4A] transition-colors cursor-pointer ${
                           currency === c ? 'text-[#C5A880] font-bold' : 'text-stone-300'
                         }`}
                       >
@@ -98,10 +234,10 @@ export const Navbar: React.FC = () => {
           }`}
         >
           <div className="max-w-7xl mx-auto flex items-center justify-between">
-            {/* Brand Logo with Compass & Leaf SVG Emblem */}
+            {/* Brand Logo */}
             <Logo />
 
-            {/* Desktop Nav Links */}
+            {/* Desktop Nav Links (Visible to Travelers & Guests ONLY) */}
             <div className="hidden lg:flex items-center gap-7 text-sm font-medium text-stone-300">
               <Link
                 to="/"
@@ -137,7 +273,7 @@ export const Navbar: React.FC = () => {
                   location.pathname === '/fleet-and-guides' ? 'text-[#C5A880] font-semibold' : ''
                 }`}
               >
-                Chauffeurs & Fleet
+                Drivers & Guides
               </Link>
 
               <Link
@@ -157,16 +293,16 @@ export const Navbar: React.FC = () => {
                   <Link to="/my-bookings">
                     <motion.button
                       {...buttonPressProps}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-900 border border-[#C5A880]/50 text-[#C5A880] hover:text-white hover:border-[#C5A880] text-xs font-semibold tracking-wide transition-all shadow-md"
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-900 border border-[#C5A880]/50 text-[#C5A880] hover:text-white hover:border-[#C5A880] text-xs font-semibold tracking-wide transition-all shadow-md cursor-pointer"
                     >
                       <User className="w-4 h-4" />
                       <span>My Account & Bookings</span>
                     </motion.button>
                   </Link>
                   <button
-                    onClick={logout}
+                    onClick={handleSignOut}
                     title="Sign Out"
-                    className="p-2 text-stone-400 hover:text-rose-400 transition-colors rounded-lg hover:bg-white/5"
+                    className="p-2 text-stone-400 hover:text-rose-400 transition-colors rounded-lg hover:bg-white/5 cursor-pointer"
                   >
                     <LogOut className="w-4 h-4" />
                   </button>
@@ -175,7 +311,7 @@ export const Navbar: React.FC = () => {
                 <motion.button
                   {...buttonPressProps}
                   onClick={() => setAuthModalOpen(true)}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] font-semibold text-xs tracking-wider uppercase transition-all shadow-lg gold-shadow-bloom"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] font-semibold text-xs tracking-wider uppercase transition-all shadow-lg gold-shadow-bloom cursor-pointer"
                 >
                   Sign In / Register
                 </motion.button>
@@ -186,7 +322,7 @@ export const Navbar: React.FC = () => {
             <div className="lg:hidden flex items-center gap-2">
               <button
                 onClick={() => setMobileMenuOpen(true)}
-                className="p-2 text-stone-300 hover:text-white rounded-lg focus:outline-none"
+                className="p-2 text-stone-300 hover:text-white rounded-lg focus:outline-none cursor-pointer"
               >
                 <Menu className="w-6 h-6" />
               </button>
@@ -221,7 +357,7 @@ export const Navbar: React.FC = () => {
                   <Logo />
                   <button
                     onClick={() => setMobileMenuOpen(false)}
-                    className="p-2 text-stone-400 hover:text-white"
+                    className="p-2 text-stone-400 hover:text-white cursor-pointer"
                   >
                     <X className="w-6 h-6" />
                   </button>
@@ -258,7 +394,7 @@ export const Navbar: React.FC = () => {
                     onClick={() => setMobileMenuOpen(false)}
                     className="hover:text-[#C5A880] transition-colors"
                   >
-                    Chauffeurs & Fleet
+                    Drivers & Guides
                   </Link>
 
                   <Link
@@ -283,10 +419,10 @@ export const Navbar: React.FC = () => {
                     </Link>
                     <button
                       onClick={() => {
-                        logout();
+                        handleSignOut();
                         setMobileMenuOpen(false);
                       }}
-                      className="block w-full py-2.5 text-center text-rose-400 hover:bg-rose-950/20 rounded-xl text-sm"
+                      className="block w-full py-2.5 text-center text-rose-400 hover:bg-rose-950/20 rounded-xl text-sm cursor-pointer"
                     >
                       Sign Out
                     </button>
@@ -297,7 +433,7 @@ export const Navbar: React.FC = () => {
                       setMobileMenuOpen(false);
                       setAuthModalOpen(true);
                     }}
-                    className="w-full py-3 bg-gradient-to-r from-[#C5A880] to-[#D4AF37] text-[#0B131F] font-bold rounded-xl text-sm uppercase tracking-wider"
+                    className="w-full py-3 bg-gradient-to-r from-[#C5A880] to-[#D4AF37] text-[#0B131F] font-bold rounded-xl text-sm uppercase tracking-wider cursor-pointer"
                   >
                     Sign In / Register
                   </button>

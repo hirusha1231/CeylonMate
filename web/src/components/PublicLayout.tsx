@@ -8,6 +8,11 @@ import { pageTransitionVariants } from '../utils/animations';
 export const PublicLayout: React.FC = () => {
   const location = useLocation();
 
+  const isAccountPage =
+    location.pathname === '/account' ||
+    location.pathname === '/profile' ||
+    location.pathname === '/my-bookings';
+
   return (
     <div className="flex flex-col min-h-screen bg-[#FDFBF7] selection:bg-[#C5A880] selection:text-[#0B131F]">
       <Navbar />
@@ -26,7 +31,7 @@ export const PublicLayout: React.FC = () => {
         </AnimatePresence>
       </main>
 
-      <Footer />
+      {!isAccountPage && <Footer />}
     </div>
   );
 };

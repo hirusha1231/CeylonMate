@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate, useLocation } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  LayoutDashboard, Users, MapPin, FileText, ArrowLeft, LogOut, Menu, X, Shield, Server, Sparkles, Compass
+  LayoutDashboard, Users, MapPin, FileText, ArrowLeft, LogOut, Menu, X, Shield, Sparkles, Compass, User
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../context/ToastContext';
@@ -19,7 +19,7 @@ export const AdminLayout: React.FC = () => {
   const handleSignOut = () => {
     logout();
     showToast('Signed Out', 'You have been logged out of the Admin Portal.', 'info');
-    navigate('/login');
+    navigate('/');
   };
 
   const navItems = [
@@ -27,6 +27,7 @@ export const AdminLayout: React.FC = () => {
     { to: '/admin/users', label: 'Staff & User Directory', icon: Users, end: false },
     { to: '/admin/destinations', label: 'Destinations & Quotas', icon: MapPin, end: false },
     { to: '/admin/audit-logs', label: 'Audit & Concurrency Logs', icon: FileText, end: false },
+    { to: '/account', label: 'My Account & Security', icon: User, end: false },
   ];
 
   return (
@@ -47,28 +48,29 @@ export const AdminLayout: React.FC = () => {
           </span>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="hidden md:flex flex-col text-right text-xs">
-            <span className="font-semibold text-stone-200">{user?.email || 'admin@ceylonmate.lk'}</span>
-            <span className="text-[10px] text-[#C5A880] font-mono">Role: {user?.role || 'ADMIN'}</span>
+        <div className="flex items-center gap-3">
+          <div className="flex flex-col text-right text-xs">
+            <span className="font-semibold text-stone-200">{user?.email || 'admin@ceylonmate.com'}</span>
+            <span className="text-[10px] text-[#C5A880] font-mono uppercase">Role: {user?.role || 'ADMIN'}</span>
           </div>
 
-          <Link to="/">
+          <Link to="/account">
             <button
-              type="button"
-              className="px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 border border-stone-700 text-stone-300 hover:text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
+              title="My Account & Security Settings"
+              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-[#C5A880]/50 text-[#C5A880] hover:text-white text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-[#C5A880]" />
-              <span className="hidden sm:inline">Public Site</span>
+              <User className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span className="hidden md:inline">My Account</span>
             </button>
           </Link>
 
           <button
             onClick={handleSignOut}
             title="Sign Out"
-            className="p-2 text-stone-400 hover:text-rose-400 transition-colors rounded-lg hover:bg-white/5"
+            className="p-2 text-stone-400 hover:text-rose-400 transition-colors rounded-lg hover:bg-white/5 flex items-center gap-1.5 cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline text-xs font-semibold">Sign Out</span>
           </button>
         </div>
       </header>
@@ -106,14 +108,6 @@ export const AdminLayout: React.FC = () => {
             </nav>
           </div>
 
-          <div className="p-3 bg-[#0B131F] rounded-xl border border-stone-800 text-[11px] text-stone-400 space-y-1">
-            <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-              <Server className="w-3.5 h-3.5" />
-              <span>System Status: 200 OK</span>
-            </div>
-            <div className="text-[10px]">PostgreSQL OCC Active</div>
-            <div className="text-[10px]">LangGraph Multi-Agent Ready</div>
-          </div>
         </aside>
 
         {/* Main Content Viewport */}
@@ -174,12 +168,13 @@ export const AdminLayout: React.FC = () => {
               </div>
 
               <div className="pt-4 border-t border-stone-800 space-y-2">
-                <Link to="/" onClick={() => setMobileDrawerOpen(false)}>
-                  <button className="w-full py-2.5 rounded-xl bg-stone-900 border border-stone-700 text-stone-200 font-semibold text-xs flex items-center justify-center gap-2">
-                    <ArrowLeft className="w-4 h-4" />
-                    <span>Return to Public Site</span>
-                  </button>
-                </Link>
+                <button
+                  onClick={() => { setMobileDrawerOpen(false); handleSignOut(); }}
+                  className="w-full py-2.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 font-semibold text-xs flex items-center justify-center gap-2 hover:bg-rose-900/60"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </button>
               </div>
             </motion.div>
           </div>

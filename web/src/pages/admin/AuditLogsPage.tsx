@@ -42,16 +42,10 @@ export const AuditLogsPage: React.FC = () => {
     try {
       await adminService.releaseExpiredHolds();
       showToast('Holds Cleanup Invoked', 'ReleaseExpiredHoldsAsync executed successfully.', 'success');
-      // Refresh holds data
       const holdsData = await adminService.fetchActiveHolds();
       setActiveHolds(holdsData);
     } catch {
-      showToast(
-        'Holds Cleanup Executed',
-        '[Verified] Invoked ReleaseExpiredHoldsAsync. Expired reservation tokens returned to pool.',
-        'success'
-      );
-      setActiveHolds((prev) => prev.filter((h) => h.expiresInSeconds > 150));
+      showToast('Cleanup Failed', 'Unable to invoke ReleaseExpiredHoldsAsync.', 'error');
     } finally {
       setIsReleasing(false);
     }
@@ -118,25 +112,31 @@ export const AuditLogsPage: React.FC = () => {
         </div>
 
         {/* Active Holds Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {activeHolds.map((h) => {
-            const minutes = Math.floor(h.expiresInSeconds / 60);
-            const seconds = h.expiresInSeconds % 60;
-            return (
-              <div key={h.holdId} className="p-4 bg-[#0B131F] rounded-xl border border-stone-800 space-y-2">
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-[#C5A880] font-bold">{h.holdId}</span>
-                  <span className="text-amber-400 font-bold flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    {minutes}:{seconds < 10 ? `0${seconds}` : seconds} left
-                  </span>
+        {activeHolds.length === 0 ? (
+          <div className="p-6 bg-[#0B131F] rounded-xl border border-stone-800 text-center text-xs font-mono text-stone-400">
+            No active reservation holds at this moment.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {activeHolds.map((h) => {
+              const minutes = Math.floor(h.expiresInSeconds / 60);
+              const seconds = h.expiresInSeconds % 60;
+              return (
+                <div key={h.holdId} className="p-4 bg-[#0B131F] rounded-xl border border-stone-800 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="text-[#C5A880] font-bold">{h.holdId}</span>
+                    <span className="text-amber-400 font-bold flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" />
+                      {minutes}:{seconds < 10 ? `0${seconds}` : seconds} left
+                    </span>
+                  </div>
+                  <div className="text-xs font-semibold text-stone-200">{h.travelerName}</div>
+                  <div className="text-[11px] text-stone-400 truncate">{h.resourceType}</div>
                 </div>
-                <div className="text-xs font-semibold text-stone-200">{h.travelerName}</div>
-                <div className="text-[11px] text-stone-400 truncate">{h.resourceType}</div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* System Audit Logs Data Table */}

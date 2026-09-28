@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from enum import Enum
 
@@ -23,7 +23,9 @@ class ItineraryItemRequest(BaseModel):
 
 class FeasibilityCheckRequest(BaseModel):
     traveler_id: Optional[str] = None
-    items: List[ItineraryItemRequest]
+    items: List[ItineraryItemRequest] = Field(default_factory=list)
+    circuit_route: Optional[str] = None
+    pax_count: Optional[int] = None
 
 class ItemFeasibilityResult(BaseModel):
     item_id: str
@@ -32,13 +34,29 @@ class ItemFeasibilityResult(BaseModel):
     available_capacity: int
     message: str
 
+class RouteLeg(BaseModel):
+    origin: str
+    destination: str
+    distance_km: float
+    duration_minutes: float
+    formatted_duration: str
+
 class RouteSummary(BaseModel):
     total_distance_km: float
     total_duration_minutes: float
     is_fallback: bool
+    formatted_driving_time: Optional[str] = None
+    terrain_elevation_factor: Optional[str] = None
+    is_mountain_route: Optional[bool] = False
+    recommended_fleet_vehicle: Optional[str] = None
+    driver_rest_recommendation: Optional[str] = None
+    capacity_guarantee_status: Optional[str] = "100% Guaranteed Licensed Guide & Fleet Capacity Reserved"
+    legs: List[RouteLeg] = Field(default_factory=list)
 
 class FeasibilityCheckResponse(BaseModel):
     overall_feasibility: FeasibilityStatus
     items: List[ItemFeasibilityResult]
     route_summary: RouteSummary
     conflicts: List[str]
+    active_circuit: Optional[str] = None
+
