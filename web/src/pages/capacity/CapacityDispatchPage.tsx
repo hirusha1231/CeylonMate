@@ -22,7 +22,7 @@ export const CapacityDispatchPage: React.FC = () => {
   const [selectedRoute, setSelectedRoute] = useState<string>(defaultRoute);
   const [customRouteInput, setCustomRouteInput] = useState<string>(defaultRoute);
   const [paxCount, setPaxCount] = useState<number>(defaultPax);
-  const [travelDate, setTravelDate] = useState<string>('2026-11-10');
+  const [travelDate, setTravelDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [activeTab, setActiveTab] = useState<'matrix' | 'legs' | 'items' | 'json'>('matrix');
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<any>(null);

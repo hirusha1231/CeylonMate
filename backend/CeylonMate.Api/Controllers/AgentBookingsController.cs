@@ -93,27 +93,39 @@ namespace CeylonMate.Api.Controllers
                 booking.GuideResponseMessage = null;
                 booking.GuideRespondedAtUtc = null;
 
-                var guideSlot = await _context.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == dto.ReplacementGuideSlotId.Value);
-                if (guideSlot != null)
+                Guid replacementUserId = Guid.Empty;
+                var gProf = await _context.GuideProfiles.AsNoTracking()
+                    .FirstOrDefaultAsync(gp => gp.Id == dto.ReplacementGuideSlotId.Value || gp.UserId == dto.ReplacementGuideSlotId.Value);
+                if (gProf != null)
                 {
-                    guideSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
-                    _context.Notifications.Add(new Notification
-                    {
-                        Id = Guid.NewGuid(),
-                        RecipientUserId = Guid.Empty,
-                        RecipientRole = "LOCAL_GUIDE",
-                        BookingId = booking.Id,
-                        Type = "GUIDE_REQUEST_RAISED",
-                        Title = "Reassigned Expedition Request Received",
-                        Message = $"Travel Agent reassigned Booking #{booking.BookingReference} to you. Please review and respond.",
-                        IsRead = false,
-                        CreatedAt = DateTime.UtcNow
-                    });
+                    replacementUserId = gProf.UserId;
                 }
+                else
+                {
+                    var guideSlot = await _context.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == dto.ReplacementGuideSlotId.Value);
+                    if (guideSlot != null)
+                    {
+                        guideSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
+                        replacementUserId = guideSlot.LocalGuideUserId;
+                    }
+                }
+
+                _context.Notifications.Add(new Notification
+                {
+                    Id = Guid.NewGuid(),
+                    RecipientUserId = replacementUserId,
+                    RecipientRole = "LOCAL_GUIDE",
+                    BookingId = booking.Id,
+                    Type = "GUIDE_REQUEST_RAISED",
+                    Title = "Reassigned Expedition Request Received",
+                    Message = $"Travel Agent reassigned Booking #{booking.BookingReference} to you. Please review and respond.",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                });
             }
 
-            booking.FinalPriceQuoteLkr = dto.FinalPriceQuoteLkr ?? 125000m;
-            booking.FinalPriceQuoteUsd = dto.FinalPriceQuoteUsd ?? 395m;
+            booking.FinalPriceQuoteLkr = dto.FinalPriceQuoteLkr;
+            booking.FinalPriceQuoteUsd = dto.FinalPriceQuoteUsd;
             booking.AgentNotes = dto.AgentNotes;
             booking.Status = "APPROVED_PENDING_PAYMENT";
             booking.VehicleCapacityStatus = "ACKNOWLEDGED";

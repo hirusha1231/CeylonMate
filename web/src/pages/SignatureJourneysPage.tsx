@@ -5,6 +5,8 @@ import { Compass, Clock, MapPin, Sparkles, ArrowRight, CheckCircle2, Shield } fr
 import { api } from '../services/api';
 import { buttonPressProps } from '../utils/animations';
 import { useCurrency } from '../context/CurrencyContext';
+import { useAuth } from '../auth/AuthProvider';
+import { useToast } from '../context/ToastContext';
 import { CuratedBookingModal } from '../components/booking/CuratedBookingModal';
 
 export interface SignatureJourney {
@@ -26,11 +28,22 @@ export interface SignatureJourney {
 
 export const SignatureJourneysPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { showToast } = useToast();
   const [journeys, setJourneys] = useState<SignatureJourney[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJourney, setSelectedJourney] = useState<SignatureJourney | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { formatPrice } = useCurrency();
+
+  const handleBookJourney = (journeyId: string) => {
+    if (!user) {
+      showToast('Sign In Required', 'Please sign in to book a curated signature journey.', 'info');
+      navigate('/', { state: { openAuth: true, from: `/book-journey/${journeyId}` } });
+      return;
+    }
+    navigate(`/book-journey/${journeyId}`);
+  };
 
   useEffect(() => {
     const fetchJourneys = async () => {
@@ -149,9 +162,7 @@ export const SignatureJourneysPage: React.FC = () => {
 
                     <motion.button
                       {...buttonPressProps}
-                      onClick={() => {
-                        navigate(`/book-journey/${journey.id}`);
-                      }}
+                      onClick={() => handleBookJourney(journey.id)}
                       className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg cursor-pointer"
                     >
                       <span>Book This Journey</span>

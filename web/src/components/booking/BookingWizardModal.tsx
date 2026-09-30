@@ -57,7 +57,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
   const { showToast } = useToast();
 
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const [selectedDate, setSelectedDate] = useState<string>('2026-10-15');
+  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [pickupTime, setPickupTime] = useState<string>('08:00 AM');
   const [travelerNotes, setTravelerNotes] = useState<string>('');
 
@@ -89,13 +89,13 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
         setGuides(res.data.map((item: any) => ({
           id: item.id || item.userId,
           guideUserId: item.userId || item.id,
-          guideName: item.fullName || item.name || 'SLTDA Certified Guide',
-          bio: item.bio || 'SLTDA Certified Local Tourist Guide',
-          licenseNumber: item.licenseNumber || 'SLTDA Certified',
-          languages: item.languages || item.languagesSpoken || 'English',
-          priceAmount: item.dailyRate || item.defaultDailyRateLkr || 18000,
+          guideName: item.fullName || item.name || '',
+          bio: item.bio || '',
+          licenseNumber: item.licenseNumber || '',
+          languages: item.languages || item.languagesSpoken || '',
+          priceAmount: item.dailyRate ?? item.defaultDailyRateLkr ?? 0,
           currency: item.currency || 'LKR',
-          status: 'AVAILABLE'
+          status: item.status || 'AVAILABLE'
         })));
       } else {
         setGuides([]);
@@ -131,8 +131,12 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
 
     setSubmitting(true);
     try {
+      const parsedPackageId = selectedPackage?.id != null
+        ? (typeof selectedPackage.id === 'number' ? selectedPackage.id : parseInt(String(selectedPackage.id), 10) || selectedPackage.id)
+        : null;
+
       const payload = {
-        packageId: typeof selectedPackage?.id === 'number' ? selectedPackage.id : 101,
+        packageId: parsedPackageId,
         guideSlotId: selectedGuide?.id || null,
         vehicleSlotId: selectedVehicle?.id || null,
         startDate: selectedDate,
@@ -185,7 +189,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
             </div>
 
             <h2 className="text-2xl font-serif-luxury font-bold text-stone-100">
-              {selectedPackage?.title || 'Bespoke Sri Lanka Journey Booking'}
+              {selectedPackage?.title || 'Bespoke Journey Booking'}
             </h2>
 
             {/* Stepper Header Pills */}
@@ -236,16 +240,20 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                       Curated Experience Template
                     </span>
                     <h4 className="text-xl font-serif-luxury font-bold text-stone-100">
-                      {selectedPackage?.title || 'Sri Lanka Cultural & Wildlife Escapes'}
+                      {selectedPackage?.title || 'Bespoke Journey Package'}
                     </h4>
                     <p className="text-xs text-stone-400 leading-relaxed">
                       Includes luxury boutique hotel stays, private SLTDA certified guide escorts, and VIP transport.
                     </p>
                     <div className="pt-2 flex items-center justify-between text-xs font-mono border-t border-stone-800">
-                      <span className="text-stone-400">Duration: {selectedPackage?.durationDays || 7} Days</span>
-                      <span className="text-[#D4AF37] font-bold text-base font-serif">
-                        ${selectedPackage?.priceUsd || 1450} USD
-                      </span>
+                      {selectedPackage?.durationDays ? (
+                        <span className="text-stone-400">Duration: {selectedPackage.durationDays} Days</span>
+                      ) : <span />}
+                      {selectedPackage?.priceUsd != null && (
+                        <span className="text-[#D4AF37] font-bold text-base font-serif">
+                          ${selectedPackage.priceUsd} USD
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -402,7 +410,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                     <div>
                       <span className="text-stone-400 block font-mono">Package Experience</span>
                       <span className="text-stone-100 font-bold font-serif-luxury text-base">
-                        {selectedPackage?.title || 'Custom Sri Lanka Expedition'}
+                        {selectedPackage?.title || 'Bespoke Journey'}
                       </span>
                     </div>
 
@@ -416,14 +424,14 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                     <div>
                       <span className="text-stone-400 block font-mono">Assigned Chauffeur Guide</span>
                       <span className="text-stone-100 font-semibold">
-                        {selectedGuide ? selectedGuide.guideName : 'Standard Certified Guide Allocation'}
+                        {selectedGuide ? selectedGuide.guideName : 'To be assigned'}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-stone-400 block font-mono">Assigned Fleet Escort</span>
                       <span className="text-stone-100 font-semibold">
-                        {selectedVehicle ? selectedVehicle.vehicleModel : 'Standard VIP Fleet Allocation'}
+                        {selectedVehicle ? selectedVehicle.vehicleModel : 'To be assigned'}
                       </span>
                     </div>
                   </div>

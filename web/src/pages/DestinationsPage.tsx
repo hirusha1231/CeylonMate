@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router';
 import { api } from '../services/api';
 import { fadeInVariants, buttonPressProps, hoverLiftProps, staggerContainerVariants, staggerItemVariants } from '../utils/animations';
 import { useCurrency } from '../context/CurrencyContext';
+import { useAuth } from '../auth/AuthProvider';
+import { useToast } from '../context/ToastContext';
 import { CuratedBookingModal } from '../components/booking/CuratedBookingModal';
 
 export interface SignatureJourney {
@@ -118,11 +120,23 @@ const FALLBACK_JOURNEYS: SignatureJourney[] = [
 export const DestinationsPage: React.FC = () => {
   const navigate = useNavigate();
   const { currency, formatPrice } = useCurrency();
+  const { user } = useAuth();
+  const { showToast } = useToast();
   const [journeys, setJourneys] = useState<SignatureJourney[]>(FALLBACK_JOURNEYS);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedJourney, setSelectedJourney] = useState<SignatureJourney | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleBookJourney = (journey: SignatureJourney) => {
+    if (!user) {
+      showToast('Sign In Required', 'Please sign in to book a curated signature journey.', 'info');
+      navigate('/', { state: { openAuth: true, from: `/book-journey/${journey.id}` } });
+      return;
+    }
+    setSelectedJourney(journey);
+    setIsModalOpen(true);
+  };
 
   useEffect(() => {
     const fetchJourneys = async () => {
@@ -303,10 +317,7 @@ export const DestinationsPage: React.FC = () => {
 
                     <motion.button
                       {...buttonPressProps}
-                      onClick={() => {
-                        setSelectedJourney(journey);
-                        setIsModalOpen(true);
-                      }}
+                      onClick={() => handleBookJourney(journey)}
                       className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg cursor-pointer"
                     >
                       <span>Book This Journey</span>

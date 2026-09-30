@@ -39,8 +39,8 @@ export const DestinationsSafetyPage: React.FC = () => {
         tripRequestId: `CM-GEOSPATIAL-${Date.now()}`,
         regionsOrThemes: selectedThemes.length > 0 ? selectedThemes : ['Tea Estates', 'Heritage'],
         interests: selectedThemes.length > 0 ? selectedThemes : ['Tea Estates', 'Heritage'],
-        startDate: '2026-11-10',
-        endDate: '2026-11-17',
+        startDate: new Date().toISOString().slice(0, 10),
+        endDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
         accessibilityConstraints: isSimActive
           ? ['RESTRICT_HEAVY_MONSOON_FLOODING', 'HAZARD_LOCAL_GUIDE_ROADBLOCK']
           : []

@@ -297,7 +297,7 @@ export const CapacityDeskPage: React.FC = () => {
           id: 'n-1',
           bookingId: 101,
           title: 'New Vehicle Booking Request #BK-4921',
-          message: 'Toyota KDH VIP requested for 2026-10-15. Automatic approval active. No manual approval required unless vehicle must be rejected.',
+          message: `Toyota KDH VIP requested for ${new Date().toISOString().slice(0, 10)}. Automatic approval active. No manual approval required unless vehicle must be rejected.`,
           createdAt: new Date().toISOString()
         }
       ]);

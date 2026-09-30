@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../auth/AuthProvider';
 import { scaleInModalVariants, buttonPressProps } from '../../utils/animations';
 
 interface GuideOption {
@@ -62,9 +63,10 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const [startDate, setStartDate] = useState<string>('2026-10-15');
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [pickupTime, setPickupTime] = useState<string>('06:30 AM');
   const [passengerCount, setPassengerCount] = useState<number>(2);
   const [travelerNotes, setTravelerNotes] = useState<string>('');
@@ -83,11 +85,17 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      if (!user) {
+        onClose();
+        showToast('Sign In Required', 'Please sign in to book a curated signature journey.', 'info');
+        navigate('/', { state: { openAuth: true, from: selectedPackage?.id ? `/book-journey/${selectedPackage.id}` : '/' } });
+        return;
+      }
       setCurrentStep(1);
       fetchAvailableGuides();
       fetchAvailableVehicles();
     }
-  }, [isOpen, startDate]);
+  }, [isOpen, startDate, user]);
 
   const fetchAvailableGuides = async () => {
     setLoadingGuides(true);
@@ -97,15 +105,15 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
         setGuides(res.data.map((item: any) => ({
           id: item.id || item.userId,
           guideUserId: item.userId || item.id,
-          guideName: item.fullName || item.name || 'SLTDA Certified Guide',
-          bio: item.bio || 'SLTDA Certified Local Tourist Guide',
-          licenseNumber: item.licenseNumber || 'SLTDA Certified',
-          languages: item.languages || item.languagesSpoken || 'English',
-          priceAmount: item.dailyRate || item.defaultDailyRateLkr || 18000,
+          guideName: item.fullName || item.name || '',
+          bio: item.bio || '',
+          licenseNumber: item.licenseNumber || '',
+          languages: item.languages || item.languagesSpoken || '',
+          priceAmount: item.dailyRate ?? item.defaultDailyRateLkr ?? 0,
           currency: item.currency || 'LKR',
           rating: item.rating || 5.0,
-          imageUrl: item.photoUrl || item.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
-          status: 'AVAILABLE'
+          imageUrl: item.photoUrl || item.avatarUrl || '',
+          status: item.status || 'AVAILABLE'
         })));
       } else {
         setGuides([]);
@@ -141,8 +149,12 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
 
     setSubmitting(true);
     try {
+      const parsedPackageId = selectedPackage?.id != null
+        ? (typeof selectedPackage.id === 'number' ? selectedPackage.id : parseInt(String(selectedPackage.id), 10) || selectedPackage.id)
+        : null;
+
       const payload = {
-        packageId: typeof selectedPackage?.id === 'number' ? selectedPackage.id : 101,
+        packageId: parsedPackageId,
         guideSlotId: selectedGuide?.id || null,
         vehicleSlotId: selectedVehicle?.id || null,
         startDate: startDate,
@@ -198,7 +210,7 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
             </div>
 
             <h2 className="text-2xl font-serif-luxury font-bold text-stone-100">
-              {selectedPackage?.title || 'Curated Signature Collection Experience'}
+              {selectedPackage?.title || 'Curated Package Booking'}
             </h2>
 
             {/* Stepper Header Pills */}
@@ -249,7 +261,7 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
                       Curated Signature Package
                     </span>
                     <h4 className="text-xl font-serif-luxury font-bold text-stone-100">
-                      {selectedPackage?.title || 'Royal Heritage & Tea Bungalow Expedition'}
+                      {selectedPackage?.title || 'Curated Signature Package'}
                     </h4>
 
                     {selectedPackage?.destinationsCovered && (
@@ -270,12 +282,16 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
                     )}
 
                     <div className="pt-2 flex items-center justify-between text-xs font-mono border-t border-stone-800">
-                      <span className="text-stone-400">
-                        Duration: {selectedPackage?.durationDays || 7} Days / {selectedPackage?.durationNights || 6} Nights
-                      </span>
-                      <span className="text-[#D4AF37] font-bold text-base font-serif">
-                        Starting Base Price: ${selectedPackage?.priceUsd || 1450} USD
-                      </span>
+                      {selectedPackage?.durationDays ? (
+                        <span className="text-stone-400">
+                          Duration: {selectedPackage.durationDays} Days{selectedPackage?.durationNights ? ` / ${selectedPackage.durationNights} Nights` : ''}
+                        </span>
+                      ) : <span />}
+                      {selectedPackage?.priceUsd != null && (
+                        <span className="text-[#D4AF37] font-bold text-base font-serif">
+                          Starting Base Price: ${selectedPackage.priceUsd} USD
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -462,7 +478,7 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
                     <div>
                       <span className="text-stone-400 block font-mono">Curated Package</span>
                       <span className="text-stone-100 font-bold font-serif-luxury text-base">
-                        {selectedPackage?.title || 'Curated Signature Collection'}
+                        {selectedPackage?.title || 'Curated Package'}
                       </span>
                     </div>
 
@@ -476,14 +492,14 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
                     <div>
                       <span className="text-stone-400 block font-mono">Selected Certified Guide</span>
                       <span className="text-stone-100 font-semibold">
-                        {selectedGuide ? selectedGuide.guideName : 'Standard Certified Guide Allocation'}
+                        {selectedGuide ? selectedGuide.guideName : 'To be assigned'}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-stone-400 block font-mono">Selected Transport Vehicle</span>
                       <span className="text-stone-100 font-semibold">
-                        {selectedVehicle ? selectedVehicle.vehicleModel : 'Standard VIP Fleet Allocation'}
+                        {selectedVehicle ? selectedVehicle.vehicleModel : 'To be assigned'}
                       </span>
                     </div>
                   </div>

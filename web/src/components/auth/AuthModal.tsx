@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   X, Lock, Mail, User, Sparkles, ArrowRight, AlertTriangle, Eye, EyeOff, Phone, CheckCircle2
@@ -28,6 +28,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const { login, register, error: authError, clearError } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [mode, setMode] = useState<'signin' | 'register'>(initialMode);
   
@@ -87,8 +88,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         showToast('Signed In Successfully', `Welcome back to CeylonMate Journeys.`, 'success');
         onSuccess?.();
         onClose();
-        const targetPath = getRoleRedirectPath(authUser.role);
-        if (authUser.role === 'ADMIN' || targetPath !== '/') {
+        const fromPath = (location.state as any)?.from;
+        const targetPath = fromPath || getRoleRedirectPath(authUser.role);
+        if (fromPath || authUser.role === 'ADMIN' || targetPath !== '/') {
           navigate(targetPath);
         }
       }

@@ -66,8 +66,8 @@ namespace CeylonMate.Api.Controllers
                     guideAssignmentStatus = b.GuideAssignmentStatus ?? "PENDING_GUIDE_ACCEPTANCE",
                     guideResponseMessage = b.GuideResponseMessage,
                     guideRespondedAtUtc = b.GuideRespondedAtUtc,
-                    finalPriceQuoteLkr = b.FinalPriceQuoteLkr ?? 125000m,
-                    finalPriceQuoteUsd = b.FinalPriceQuoteUsd ?? 395m,
+                    finalPriceQuoteLkr = b.FinalPriceQuoteLkr,
+                    finalPriceQuoteUsd = b.FinalPriceQuoteUsd,
                     agentNotes = b.AgentNotes,
                     guideSlotId = b.GuideSlotId,
                     vehicleSlotId = b.VehicleSlotId,
@@ -161,10 +161,40 @@ namespace CeylonMate.Api.Controllers
                 await _context.SaveChangesAsync();
 
                 // Dispatch notification to assigned Local Guide
+                Guid targetGuideUserId = Guid.Empty;
+                if (guideSlotId.HasValue)
+                {
+                    var gProf = await _context.GuideProfiles.AsNoTracking()
+                        .FirstOrDefaultAsync(gp => gp.Id == guideSlotId.Value || gp.UserId == guideSlotId.Value);
+                    if (gProf != null)
+                    {
+                        targetGuideUserId = gProf.UserId;
+                    }
+                    else
+                    {
+                        var gSlot = await _context.GuideAvailabilitySlots.AsNoTracking()
+                            .FirstOrDefaultAsync(gs => gs.Id == guideSlotId.Value);
+                        if (gSlot != null)
+                        {
+                            targetGuideUserId = (await _context.GuideProfiles.AsNoTracking()
+                                .FirstOrDefaultAsync(gp => gp.Id == gSlot.GuideProfileId))?.UserId ?? Guid.Empty;
+                        }
+                        else
+                        {
+                            var gAvail = await _context.GuideAvailabilities.AsNoTracking()
+                                .FirstOrDefaultAsync(ga => ga.Id == guideSlotId.Value);
+                            if (gAvail != null)
+                            {
+                                targetGuideUserId = gAvail.LocalGuideUserId;
+                            }
+                        }
+                    }
+                }
+
                 _context.Notifications.Add(new Notification
                 {
                     Id = Guid.NewGuid(),
-                    RecipientUserId = Guid.Empty,
+                    RecipientUserId = targetGuideUserId,
                     RecipientRole = "LOCAL_GUIDE",
                     BookingId = booking.Id,
                     Type = "GUIDE_REQUEST_RAISED",

@@ -8,6 +8,8 @@ import {
 import { AnimatedCounter } from '../components/common/Counter';
 import { QuickInquiryBar } from '../components/common/QuickInquiryBar';
 import { useCurrency } from '../context/CurrencyContext';
+import { useAuth } from '../auth/AuthProvider';
+import { useToast } from '../context/ToastContext';
 import {
   fadeInVariants, slideUpVariants, staggerContainerVariants, staggerItemVariants,
   hoverLiftProps, buttonPressProps, scaleInModalVariants
@@ -19,7 +21,18 @@ import { FleetShowcaseSection } from '../components/fleet/FleetShowcaseSection';
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { formatPrice, currency } = useCurrency();
+  const { user } = useAuth();
+  const { showToast } = useToast();
   const [liveJourneys, setLiveJourneys] = useState<any[]>([]);
+
+  const handleBookJourney = (pkgId: string | number) => {
+    if (!user) {
+      showToast('Sign In Required', 'Please sign in to book a curated signature journey.', 'info');
+      navigate('/', { state: { openAuth: true, from: `/book-journey/${pkgId}` } });
+      return;
+    }
+    navigate(`/book-journey/${pkgId}`);
+  };
 
   useEffect(() => {
     const fetchSignatureJourneys = async () => {
@@ -276,11 +289,13 @@ export const HomePage: React.FC = () => {
                     </span>
                   </div>
 
-                  <Link to={`/book-journey/${pkg.id}`}>
-                    <button className="p-2.5 rounded-full bg-[#134E4A] text-white hover:bg-[#0B131F] transition-colors cursor-pointer" title="Book This Journey">
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </Link>
+                  <button
+                    onClick={() => handleBookJourney(pkg.id)}
+                    className="p-2.5 rounded-full bg-[#134E4A] text-white hover:bg-[#0B131F] transition-colors cursor-pointer"
+                    title="Book This Journey"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
                 </div>
               </motion.div>
             );
@@ -529,7 +544,7 @@ export const HomePage: React.FC = () => {
                   onClick={() => {
                     const pkgId = activeModalPackage.id;
                     setActiveModalPackage(null);
-                    navigate(`/book-journey/${pkgId}`);
+                    handleBookJourney(pkgId);
                   }}
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] text-[#0B131F] font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-2"
                 >

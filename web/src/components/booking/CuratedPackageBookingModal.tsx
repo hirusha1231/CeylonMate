@@ -59,7 +59,7 @@ export const CuratedPackageBookingModal: React.FC<CuratedPackageBookingModalProp
   const { showToast } = useToast();
 
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const [startDate, setStartDate] = useState<string>('2026-10-15');
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [pickupTime, setPickupTime] = useState<string>('06:30 AM');
   const [passengerCount, setPassengerCount] = useState<number>(2);
   const [travelerNotes, setTravelerNotes] = useState<string>('');
@@ -92,13 +92,13 @@ export const CuratedPackageBookingModal: React.FC<CuratedPackageBookingModalProp
         setGuides(res.data.map((item: any) => ({
           id: item.id || item.userId,
           guideUserId: item.userId || item.id,
-          guideName: item.fullName || item.name || 'SLTDA Certified Guide',
-          bio: item.bio || 'SLTDA Certified Local Tourist Guide',
-          licenseNumber: item.licenseNumber || 'SLTDA Certified',
-          languages: item.languages || item.languagesSpoken || 'English',
-          priceAmount: item.dailyRate || item.defaultDailyRateLkr || 18000,
+          guideName: item.fullName || item.name || '',
+          bio: item.bio || '',
+          licenseNumber: item.licenseNumber || '',
+          languages: item.languages || item.languagesSpoken || '',
+          priceAmount: item.dailyRate ?? item.defaultDailyRateLkr ?? 0,
           currency: item.currency || 'LKR',
-          status: 'AVAILABLE'
+          status: item.status || 'AVAILABLE'
         })));
       } else {
         setGuides([]);
@@ -134,8 +134,12 @@ export const CuratedPackageBookingModal: React.FC<CuratedPackageBookingModalProp
 
     setSubmitting(true);
     try {
+      const parsedPackageId = selectedPackage?.id != null
+        ? (typeof selectedPackage.id === 'number' ? selectedPackage.id : parseInt(String(selectedPackage.id), 10) || selectedPackage.id)
+        : null;
+
       const payload = {
-        packageId: typeof selectedPackage?.id === 'number' ? selectedPackage.id : 101,
+        packageId: parsedPackageId,
         guideSlotId: selectedGuide?.id || null,
         vehicleSlotId: selectedVehicle?.id || null,
         startDate: startDate,
@@ -191,7 +195,7 @@ export const CuratedPackageBookingModal: React.FC<CuratedPackageBookingModalProp
             </div>
 
             <h2 className="text-2xl font-serif-luxury font-bold text-stone-100">
-              {selectedPackage?.title || 'Curated Signature Collection Experience'}
+              {selectedPackage?.title || 'Curated Package Booking'}
             </h2>
 
             {/* Stepper Header Pills */}
@@ -242,16 +246,20 @@ export const CuratedPackageBookingModal: React.FC<CuratedPackageBookingModalProp
                       Curated Signature Package
                     </span>
                     <h4 className="text-xl font-serif-luxury font-bold text-stone-100">
-                      {selectedPackage?.title || 'Royal Heritage & Tea Bungalow Tour'}
+                      {selectedPackage?.title || 'Curated Signature Package'}
                     </h4>
                     <p className="text-xs text-stone-400 leading-relaxed">
                       Bespoke luxury itinerary complete with private chauffeur guide, tea estate bungalows, and high-altitude mountain feasibility locks.
                     </p>
                     <div className="pt-2 flex items-center justify-between text-xs font-mono border-t border-stone-800">
-                      <span className="text-stone-400">Duration: {selectedPackage?.durationDays || 7} Days</span>
-                      <span className="text-[#D4AF37] font-bold text-base font-serif">
-                        ${selectedPackage?.priceUsd || 1450} USD
-                      </span>
+                      {selectedPackage?.durationDays ? (
+                        <span className="text-stone-400">Duration: {selectedPackage.durationDays} Days</span>
+                      ) : <span />}
+                      {selectedPackage?.priceUsd != null && (
+                        <span className="text-[#D4AF37] font-bold text-base font-serif">
+                          ${selectedPackage.priceUsd} USD
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -426,7 +434,7 @@ export const CuratedPackageBookingModal: React.FC<CuratedPackageBookingModalProp
                     <div>
                       <span className="text-stone-400 block font-mono">Curated Package</span>
                       <span className="text-stone-100 font-bold font-serif-luxury text-base">
-                        {selectedPackage?.title || 'Curated Signature Collection'}
+                        {selectedPackage?.title || 'Curated Package'}
                       </span>
                     </div>
 
@@ -440,14 +448,14 @@ export const CuratedPackageBookingModal: React.FC<CuratedPackageBookingModalProp
                     <div>
                       <span className="text-stone-400 block font-mono">Selected Chauffeur Guide</span>
                       <span className="text-stone-100 font-semibold">
-                        {selectedGuide ? selectedGuide.guideName : 'Standard Certified Guide Allocation'}
+                        {selectedGuide ? selectedGuide.guideName : 'To be assigned'}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-stone-400 block font-mono">Selected Transport Vehicle</span>
                       <span className="text-stone-100 font-semibold">
-                        {selectedVehicle ? selectedVehicle.vehicleModel : 'Standard VIP Fleet Allocation'}
+                        {selectedVehicle ? selectedVehicle.vehicleModel : 'To be assigned'}
                       </span>
                     </div>
                   </div>

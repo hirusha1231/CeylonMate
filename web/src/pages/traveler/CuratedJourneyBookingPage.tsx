@@ -8,6 +8,7 @@ import {
 import { api } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import { useCurrency } from '../../context/CurrencyContext';
+import { useAuth } from '../../auth/AuthProvider';
 import { buttonPressProps } from '../../utils/animations';
 
 interface SignatureJourney {
@@ -58,13 +59,14 @@ export const CuratedJourneyBookingPage: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { currency, formatPrice } = useCurrency();
+  const { user, status } = useAuth();
 
   const [journey, setJourney] = useState<SignatureJourney | null>(null);
   const [loadingJourney, setLoadingJourney] = useState<boolean>(true);
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const [startDate, setStartDate] = useState<string>('2026-10-15');
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [pickupTime, setPickupTime] = useState<string>('06:30 AM');
   const [passengerCount, setPassengerCount] = useState<number>(2);
   const [travelerNotes, setTravelerNotes] = useState<string>('');
@@ -79,6 +81,13 @@ export const CuratedJourneyBookingPage: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleOption | null>(null);
 
   const [submitting, setSubmitting] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (status !== 'checking' && !user) {
+      showToast('Sign In Required', 'Please sign in to book a curated signature journey.', 'info');
+      navigate('/', { state: { openAuth: true, from: `/book-journey/${packageId}` } });
+    }
+  }, [status, user, packageId, navigate, showToast]);
 
   useEffect(() => {
     const fetchPackage = async () => {

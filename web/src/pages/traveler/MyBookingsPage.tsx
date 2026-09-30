@@ -123,18 +123,18 @@ export const MyBookingsPage: React.FC = () => {
         const mapped: Booking[] = rawData.map((b: any) => ({
           id: String(b.id || Math.random()),
           reference: b.bookingReference || b.reference || `CM-BK-${String(b.id).substring(0, 6).toUpperCase()}`,
-          title: b.title || b.objective || 'Bespoke Sri Lanka Journey',
-          startDate: b.startDate || (b.bookedAt ? new Date(b.bookedAt).toISOString().slice(0, 10) : '2026-11-10'),
-          endDate: b.endDate || '2026-11-18',
+          title: b.title || b.objective,
+          startDate: b.startDate || (b.bookedAt ? new Date(b.bookedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)),
+          endDate: b.endDate || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
           status: String(b.status || 'PENDING_REVIEW').toUpperCase(),
           vehicleCapacityStatus: b.vehicleCapacityStatus || 'HELD_PENDING_CONFIRMATION',
           capacityRejectionReason: b.capacityRejectionReason,
           guideAssignmentStatus: b.guideAssignmentStatus || 'PENDING_GUIDE_ACCEPTANCE',
           guideResponseMessage: b.guideResponseMessage,
           guideName: b.guideName || b.chauffeurName || 'SLTDA Certified Local Guide',
-          finalPriceQuoteLkr: b.finalPriceQuoteLkr ? Number(b.finalPriceQuoteLkr) : 125000,
-          finalPriceQuoteUsd: b.finalPriceQuoteUsd ? Number(b.finalPriceQuoteUsd) : 395,
-          totalUsd: Number(b.finalPriceQuoteUsd || b.totalUsd || b.budget || b.totalCost || 395),
+          finalPriceQuoteLkr: b.finalPriceQuoteLkr ? Number(b.finalPriceQuoteLkr) : 0,
+          finalPriceQuoteUsd: b.finalPriceQuoteUsd ? Number(b.finalPriceQuoteUsd) : 0,
+          totalUsd: Number(b.finalPriceQuoteUsd || b.totalUsd || b.budget || b.totalCost || 0),
           chauffeurName: b.chauffeurName || 'SLTDA Certified Chauffeur Guide',
           chauffeurPhone: b.chauffeurPhone || '+94 11 7311 611',
           vehicleModel: b.vehicleModel || 'Luxury VIP Chauffeur Vehicle',
@@ -214,7 +214,7 @@ export const MyBookingsPage: React.FC = () => {
             fullName: fullName.trim(),
             phoneNumber: phoneNumber.trim()
           }));
-        } catch {}
+        } catch { }
       }
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Failed to update profile information.';
@@ -324,11 +324,10 @@ export const MyBookingsPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2 bg-[#0F1A24]/90 p-2.5 rounded-2xl border border-[#C5A880]/20 backdrop-blur-xl shadow-xl w-fit">
             <button
               onClick={() => setActiveTab('bookings')}
-              className={`px-5 py-2.5 rounded-xl font-medium text-xs md:text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${
-                activeTab === 'bookings'
-                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold shadow-lg shadow-[#C5A880]/20'
-                  : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
-              }`}
+              className={`px-5 py-2.5 rounded-xl font-medium text-xs md:text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${activeTab === 'bookings'
+                ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold shadow-lg shadow-[#C5A880]/20'
+                : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
+                }`}
             >
               <Compass className="w-4 h-4" />
               <span>My Journeys & Bookings</span>
@@ -336,11 +335,10 @@ export const MyBookingsPage: React.FC = () => {
 
             <button
               onClick={() => setActiveTab('profile')}
-              className={`px-5 py-2.5 rounded-xl font-medium text-xs md:text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${
-                activeTab === 'profile'
-                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold shadow-lg shadow-[#C5A880]/20'
-                  : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
-              }`}
+              className={`px-5 py-2.5 rounded-xl font-medium text-xs md:text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${activeTab === 'profile'
+                ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold shadow-lg shadow-[#C5A880]/20'
+                : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
+                }`}
             >
               <User className="w-4 h-4" />
               <span>Profile & Security Settings</span>
@@ -389,22 +387,20 @@ export const MyBookingsPage: React.FC = () => {
                         key={b.id}
                         {...hoverLiftProps}
                         onClick={() => setSelectedBooking(b)}
-                        className={`p-5 rounded-2xl border cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-[#134E4A]/30 text-stone-100 border-[#C5A880] shadow-xl'
-                            : 'bg-[#0F1A24] text-stone-300 border-stone-800 hover:border-stone-700'
-                        }`}
+                        className={`p-5 rounded-2xl border cursor-pointer transition-all ${isSelected
+                          ? 'bg-[#134E4A]/30 text-stone-100 border-[#C5A880] shadow-xl'
+                          : 'bg-[#0F1A24] text-stone-300 border-stone-800 hover:border-stone-700'
+                          }`}
                       >
                         <div className="flex items-center justify-between text-xs font-mono mb-2">
                           <span className="text-[#C5A880] font-bold">
                             {b.reference}
                           </span>
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase border ${
-                              b.status === 'CONFIRMED'
-                                ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/30'
-                                : 'bg-amber-950/60 text-amber-300 border-amber-500/30'
-                            }`}
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase border ${b.status === 'CONFIRMED'
+                              ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/30'
+                              : 'bg-amber-950/60 text-amber-300 border-amber-500/30'
+                              }`}
                           >
                             {b.status.replace('_', ' ')}
                           </span>
@@ -420,7 +416,11 @@ export const MyBookingsPage: React.FC = () => {
                             {b.startDate}
                           </span>
                           <span className="font-bold font-serif-luxury text-sm text-[#D4AF37]">
-                            {formatPrice(b.totalUsd)}
+                            {b.finalPriceQuoteUsd && b.finalPriceQuoteUsd > 0
+                              ? formatPrice(b.finalPriceQuoteUsd)
+                              : b.totalUsd && b.totalUsd > 0
+                                ? formatPrice(b.totalUsd)
+                                : 'Quote Pending'}
                           </span>
                         </div>
                       </motion.div>
@@ -456,11 +456,10 @@ export const MyBookingsPage: React.FC = () => {
 
                           {/* Step 2 */}
                           <div className="flex items-center space-x-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${
-                              selectedBooking.vehicleCapacityStatus === 'REJECTED_BY_CAPACITY' 
-                                ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' 
-                                : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                            }`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${selectedBooking.vehicleCapacityStatus === 'REJECTED_BY_CAPACITY'
+                              ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                              : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                              }`}>
                               {selectedBooking.vehicleCapacityStatus === 'REJECTED_BY_CAPACITY' ? '!' : '✓'}
                             </div>
                             <div>
@@ -473,11 +472,10 @@ export const MyBookingsPage: React.FC = () => {
 
                           {/* Step 3 */}
                           <div className="flex items-center space-x-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${
-                              selectedBooking.status === 'APPROVED_PENDING_PAYMENT' || selectedBooking.status === 'CONFIRMED'
-                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                                : 'bg-[#C5A880]/20 text-[#C5A880] border-[#C5A880]/40 animate-pulse'
-                            }`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${selectedBooking.status === 'APPROVED_PENDING_PAYMENT' || selectedBooking.status === 'CONFIRMED'
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                              : 'bg-[#C5A880]/20 text-[#C5A880] border-[#C5A880]/40 animate-pulse'
+                              }`}>
                               3
                             </div>
                             <div>
@@ -488,13 +486,12 @@ export const MyBookingsPage: React.FC = () => {
 
                           {/* Step 4 */}
                           <div className="flex items-center space-x-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${
-                              selectedBooking.status === 'CONFIRMED'
-                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                                : selectedBooking.status === 'APPROVED_PENDING_PAYMENT'
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${selectedBooking.status === 'CONFIRMED'
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                              : selectedBooking.status === 'APPROVED_PENDING_PAYMENT'
                                 ? 'bg-[#C5A880] text-black font-bold'
                                 : 'bg-stone-800 text-stone-500 border-stone-700'
-                            }`}>
+                              }`}>
                               4
                             </div>
                             <div>
@@ -515,7 +512,7 @@ export const MyBookingsPage: React.FC = () => {
                                 Total: {formatPrice(selectedBooking.finalPriceQuoteUsd || selectedBooking.totalUsd)}
                               </p>
                             </div>
-                            <button 
+                            <button
                               onClick={() => handlePayNow(selectedBooking.id)}
                               className="px-6 py-2.5 bg-gradient-to-r from-[#D4AF37] to-[#C5A880] hover:brightness-110 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-lg cursor-pointer"
                             >

@@ -53,8 +53,8 @@ export const BespokePlannerPage: React.FC = () => {
       : ''
   );
   const [selectedInterests, setSelectedInterests] = useState<string[]>(['Tea Estates', 'Heritage']);
-  const [startDate, setStartDate] = useState('2026-11-10');
-  const [endDate, setEndDate] = useState('2026-11-18');
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState(() => new Date(Date.now() + 8 * 86400000).toISOString().slice(0, 10));
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
   const [mobilityPref, setMobilityPref] = useState('Standard VIP Escort');

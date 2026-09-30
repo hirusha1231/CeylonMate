@@ -177,12 +177,22 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
                 .ToListAsync(cancellationToken)
             : new List<Guid>();
 
+        var guideAvailabilityIds = (guideProfileId != Guid.Empty || currentUserId != Guid.Empty)
+            ? await db.GuideAvailabilities
+                .AsNoTracking()
+                .Where(g => g.LocalGuideUserId == currentUserId || (guideProfileId != Guid.Empty && g.GuideProfileId == guideProfileId))
+                .Select(g => g.Id)
+                .ToListAsync(cancellationToken)
+            : new List<Guid>();
+
         var bookings = await db.Bookings
             .AsNoTracking()
-            .Where(b => (guideProfileId != Guid.Empty && b.GuideSlotId.HasValue && guideSlotIds.Contains(b.GuideSlotId.Value))
-                     || b.GuideAssignmentStatus == "PENDING_GUIDE_ACCEPTANCE"
-                     || b.GuideAssignmentStatus == "ACCEPTED_BY_GUIDE"
-                     || b.GuideAssignmentStatus == "REJECTED_BY_GUIDE")
+            .Where(b => b.GuideSlotId.HasValue && (
+                b.GuideSlotId.Value == guideProfileId ||
+                b.GuideSlotId.Value == currentUserId ||
+                guideSlotIds.Contains(b.GuideSlotId.Value) ||
+                guideAvailabilityIds.Contains(b.GuideSlotId.Value)
+            ))
             .OrderByDescending(b => b.BookedAt)
             .ToListAsync(cancellationToken);
 
