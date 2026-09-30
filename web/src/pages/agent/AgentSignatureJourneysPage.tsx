@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Compass, Plus, Edit3, Trash2, Eye, EyeOff, Sparkles, MapPin, Clock, DollarSign, Image as ImageIcon,
-  CheckCircle2, X, Layers, ArrowRight, RefreshCw, Check, Upload, FileImage
+  CheckCircle2, X, Layers, ArrowRight, RefreshCw, Check
 } from 'lucide-react';
 import { api, apiError } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
@@ -28,16 +28,6 @@ export interface SignatureJourney {
   updatedAt?: string;
 }
 
-export const PRESET_CEYLON_PHOTOS = [
-  { name: 'Sigiriya Ancient Rock Citadel', url: 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?auto=format&fit=crop&w=1200&q=80' },
-  { name: 'Nuwara Eliya Tea Bungalow', url: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1200&q=80' },
-  { name: 'Galle Dutch Fort Lighthouse', url: 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?auto=format&fit=crop&w=1200&q=80' },
-  { name: 'Yala Wild Leopard Safari', url: 'https://images.unsplash.com/photo-1534567153574-2b12153a87f0?auto=format&fit=crop&w=1200&q=80' },
-  { name: 'Ella Nine Arch Railway Bridge', url: 'https://images.unsplash.com/photo-1578637387939-43c525550085?auto=format&fit=crop&w=1200&q=80' },
-  { name: 'Kandy Sacred Temple & Lake', url: 'https://images.unsplash.com/photo-1589308078059-be1415eab4c3?auto=format&fit=crop&w=1200&q=80' },
-  { name: 'Mirissa Southern Riviera Beach', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80' },
-  { name: 'Sigiriya Sunrise Rock', url: 'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1200&q=80' },
-];
 
 export const AgentSignatureJourneysPage: React.FC = () => {
   const { showToast } = useToast();
@@ -47,25 +37,21 @@ export const AgentSignatureJourneysPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingJourney, setEditingJourney] = useState<SignatureJourney | null>(null);
 
-  // File Upload Refs
-  const heroFileInputRef = useRef<HTMLInputElement | null>(null);
-  const galleryFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Form State
   const [title, setTitle] = useState('');
   const [tagline, setTagline] = useState('');
-  const [durationDays, setDurationDays] = useState(7);
-  const [durationNights, setDurationNights] = useState(6);
+  const [durationDays, setDurationDays] = useState<number>(7);
   const [destinationsCovered, setDestinationsCovered] = useState('');
-  const [startingPriceUsd, setStartingPriceUsd] = useState(2450);
-  const [startingPriceLkr, setStartingPriceLkr] = useState(750000);
+  const [startingPriceUsd, setStartingPriceUsd] = useState(0);
+  const [startingPriceLkr, setStartingPriceLkr] = useState(0);
   const [heroImageUrl, setHeroImageUrl] = useState('');
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [newGalleryInput, setNewGalleryInput] = useState('');
   const [highlights, setHighlights] = useState<string[]>([]);
   const [newHighlightInput, setNewHighlightInput] = useState('');
   const [description, setDescription] = useState('');
-  const [isPublished, setIsPublished] = useState(true);
+  const [isPublished, setIsPublished] = useState(false);
 
   const fetchJourneys = async () => {
     try {
@@ -88,17 +74,16 @@ export const AgentSignatureJourneysPage: React.FC = () => {
     setTitle('');
     setTagline('');
     setDurationDays(7);
-    setDurationNights(6);
     setDestinationsCovered('');
-    setStartingPriceUsd(2450);
-    setStartingPriceLkr(750000);
-    setHeroImageUrl('https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?q=80&w=1600&auto=format&fit=crop');
+    setStartingPriceUsd(0);
+    setStartingPriceLkr(0);
+    setHeroImageUrl('');
     setGalleryImages([]);
     setNewGalleryInput('');
     setHighlights([]);
     setNewHighlightInput('');
     setDescription('');
-    setIsPublished(true);
+    setIsPublished(false);
   };
 
   const openCreateModal = () => {
@@ -110,8 +95,7 @@ export const AgentSignatureJourneysPage: React.FC = () => {
     setEditingJourney(journey);
     setTitle(journey.title || '');
     setTagline(journey.tagline || '');
-    setDurationDays(journey.durationDays || 1);
-    setDurationNights(journey.durationNights || 0);
+    setDurationDays(journey.durationDays || 7);
     setDestinationsCovered(journey.destinationsCovered || '');
     setStartingPriceUsd(journey.startingPriceUsd || 0);
     setStartingPriceLkr(journey.startingPriceLkr || 0);
@@ -123,43 +107,6 @@ export const AgentSignatureJourneysPage: React.FC = () => {
     setModalOpen(true);
   };
 
-  const handleHeroFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        showToast('File Too Large', 'Please select a photo file under 5MB.', 'error');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        const dataUrl = uploadEvent.target?.result as string;
-        if (dataUrl) {
-          setHeroImageUrl(dataUrl);
-          showToast('Local Photo Loaded', 'Set photo from computer as Primary Hero Banner.', 'success');
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleGalleryFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        showToast('File Too Large', 'Please select a photo file under 5MB.', 'error');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        const dataUrl = uploadEvent.target?.result as string;
-        if (dataUrl) {
-          setGalleryImages(prev => [...prev.filter(u => u.trim().length > 0), dataUrl]);
-          showToast('Local Photo Added', 'Added photo from computer to Gallery.', 'success');
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const handleAddHighlight = () => {
     if (newHighlightInput.trim()) {
@@ -197,8 +144,8 @@ export const AgentSignatureJourneysPage: React.FC = () => {
     const payload = {
       title: title.trim(),
       tagline: tagline.trim(),
-      durationDays: Number(durationDays),
-      durationNights: Number(durationNights),
+      durationDays: Number(durationDays || 1),
+      durationNights: Math.max(0, Number(durationDays || 1) - 1),
       destinationsCovered: destinationsCovered.trim(),
       startingPriceUsd: Number(startingPriceUsd),
       startingPriceLkr: Number(startingPriceLkr),
@@ -337,11 +284,17 @@ export const AgentSignatureJourneysPage: React.FC = () => {
             >
               {/* Card Banner Image & Badges */}
               <div className="relative h-48 w-full overflow-hidden bg-slate-900">
-                <img
-                  src={journey.heroImageUrl || 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?q=80&w=800'}
-                  alt={journey.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+                {journey.heroImageUrl ? (
+                  <img
+                    src={journey.heroImageUrl}
+                    alt={journey.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                    <Compass className="w-10 h-10 text-stone-700" />
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0F1A24] via-transparent to-black/40" />
 
                 {/* Status Badge */}
@@ -359,10 +312,13 @@ export const AgentSignatureJourneysPage: React.FC = () => {
                 </div>
 
                 {/* Duration Badge */}
-                <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-slate-950/80 border border-stone-700 text-stone-200 text-[10px] font-mono flex items-center gap-1 backdrop-blur-md">
-                  <Clock className="w-3 h-3 text-[#C5A880]" />
-                  <span>{journey.durationDays}D / {journey.durationNights}N</span>
-                </div>
+                {journey.durationDays > 0 && (
+                  <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-slate-950/80 border border-stone-700 text-stone-200 text-[10px] font-mono flex items-center gap-1 backdrop-blur-md">
+                    <Clock className="w-3 h-3 text-[#C5A880]" />
+                    <span>{journey.durationDays} Days</span>
+                  </div>
+                )}
+
 
                 {/* Title Overlay */}
                 <div className="absolute bottom-3 left-3 right-3">
@@ -381,13 +337,17 @@ export const AgentSignatureJourneysPage: React.FC = () => {
               {/* Card Body */}
               <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
                 <div>
-                  <p className="text-xs text-[#C5A880] font-medium line-clamp-2 italic">
-                    "{journey.tagline || 'Bespoke expedition crafted by Travel Agent.'}"
-                  </p>
+                  {journey.tagline && (
+                    <p className="text-xs text-[#C5A880] font-medium line-clamp-2 italic">
+                      "{journey.tagline}"
+                    </p>
+                  )}
 
-                  <p className="text-xs text-stone-400 line-clamp-3 mt-2 leading-relaxed">
-                    {journey.description || 'No overview description provided.'}
-                  </p>
+                  {journey.description && (
+                    <p className="text-xs text-stone-400 line-clamp-3 mt-2 leading-relaxed">
+                      {journey.description}
+                    </p>
+                  )}
 
                   {/* Highlights Snippet */}
                   {journey.highlights && journey.highlights.length > 0 && (
@@ -407,13 +367,7 @@ export const AgentSignatureJourneysPage: React.FC = () => {
                 </div>
 
                 {/* Pricing Footer */}
-                <div className="pt-3 border-t border-stone-800/80 flex items-center justify-between text-xs">
-                  <div>
-                    <span className="text-[10px] text-stone-500 uppercase tracking-wider block font-mono">Starting From</span>
-                    <span className="text-sm font-bold text-stone-100 font-mono">${journey.startingPriceUsd?.toLocaleString()} USD</span>
-                    <span className="text-[10px] text-stone-400 block font-mono">LKR {journey.startingPriceLkr?.toLocaleString()}</span>
-                  </div>
-
+                <div className="pt-3 border-t border-stone-800/80 flex items-center justify-end text-xs">
                   {/* Quick Toggle Publish Button */}
                   <button
                     onClick={() => handleTogglePublish(journey)}
@@ -518,26 +472,16 @@ export const AgentSignatureJourneysPage: React.FC = () => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-stone-300 mb-1">Duration (Days)</label>
                       <input
                         type="number"
                         min="1"
-                        max="100"
+                        max="60"
                         value={durationDays}
                         onChange={(e) => setDurationDays(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl px-3.5 py-2 text-xs text-stone-100 focus:outline-none font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-stone-300 mb-1">Duration (Nights)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={durationNights}
-                        onChange={(e) => setDurationNights(Number(e.target.value))}
+                        placeholder="e.g. 7"
                         className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl px-3.5 py-2 text-xs text-stone-100 focus:outline-none font-mono"
                       />
                     </div>
@@ -554,41 +498,6 @@ export const AgentSignatureJourneysPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* SECTION 2: PRICING */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 border-b border-stone-800 pb-2 text-xs font-mono font-bold text-[#C5A880] uppercase tracking-wider">
-                    <DollarSign className="w-4 h-4 text-[#D4AF37]" />
-                    <span>Section 2: Pricing Setup</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-stone-300 mb-1">Starting Price (USD $)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={startingPriceUsd}
-                        onChange={(e) => setStartingPriceUsd(Number(e.target.value))}
-                        placeholder="2450"
-                        className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl px-3.5 py-2 text-xs text-stone-100 focus:outline-none font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-stone-300 mb-1">Starting Price (LKR Rs.)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={startingPriceLkr}
-                        onChange={(e) => setStartingPriceLkr(Number(e.target.value))}
-                        placeholder="750000"
-                        className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl px-3.5 py-2 text-xs text-stone-100 focus:outline-none font-mono"
-                      />
-                    </div>
-                  </div>
-                </div>
-
                 {/* SECTION 3: IMAGERY & MEDIA */}
                 <div className="space-y-5">
                   <div className="flex items-center justify-between border-b border-stone-800 pb-2">
@@ -596,31 +505,14 @@ export const AgentSignatureJourneysPage: React.FC = () => {
                       <ImageIcon className="w-4 h-4 text-[#D4AF37]" />
                       <span>Section 3: Imagery & Media</span>
                     </div>
-                    <span className="text-[10px] font-mono text-stone-400">Upload local files or pick preset Ceylon photos</span>
+                    <span className="text-[10px] font-mono text-stone-400">Direct Web Image URLs</span>
                   </div>
 
                   {/* 1. PRIMARY HERO BANNER PHOTO */}
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-semibold text-stone-300">
-                        Primary Hero Banner Image <span className="text-rose-400">*</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => heroFileInputRef.current?.click()}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-semibold hover:bg-emerald-900/60 transition-colors cursor-pointer"
-                      >
-                        <Upload className="w-3.5 h-3.5" />
-                        <span>Upload Local Photo File</span>
-                      </button>
-                      <input
-                        type="file"
-                        ref={heroFileInputRef}
-                        accept="image/*"
-                        onChange={handleHeroFileUpload}
-                        className="hidden"
-                      />
-                    </div>
+                    <label className="block text-xs font-semibold text-stone-300">
+                      Primary Hero Banner Image <span className="text-rose-400">*</span>
+                    </label>
 
                     {/* Image URL Input */}
                     <input
@@ -628,39 +520,9 @@ export const AgentSignatureJourneysPage: React.FC = () => {
                       required
                       value={heroImageUrl}
                       onChange={(e) => setHeroImageUrl(e.target.value)}
-                      placeholder="https://images.unsplash.com/photo-... or upload local photo file"
+                      placeholder="https://images.unsplash.com/photo-..."
                       className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl px-3.5 py-2 text-xs text-stone-100 focus:outline-none font-mono"
                     />
-
-                    {/* Preset Local Photos Picker Grid */}
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-mono text-[#C5A880] uppercase tracking-wider block">
-                        Select from Preset Ceylon Destination Photos:
-                      </span>
-                      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-                        {PRESET_CEYLON_PHOTOS.map((preset, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              setHeroImageUrl(preset.url);
-                              showToast('Preset Selected', `Set '${preset.name}' as Hero Banner Image.`, 'info');
-                            }}
-                            title={`Click to set: ${preset.name}`}
-                            className={`relative group h-14 rounded-lg overflow-hidden border transition-all cursor-pointer ${
-                              heroImageUrl === preset.url ? 'border-emerald-400 ring-2 ring-emerald-400/50 scale-95' : 'border-stone-800 hover:border-[#C5A880]'
-                            }`}
-                          >
-                            <img src={preset.url} alt={preset.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                            {heroImageUrl === preset.url && (
-                              <div className="absolute inset-0 bg-emerald-950/60 flex items-center justify-center">
-                                <Check className="w-4 h-4 text-emerald-300" />
-                              </div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
 
                     {/* Instant Hero Image Live Preview */}
                     {heroImageUrl && (
@@ -669,7 +531,7 @@ export const AgentSignatureJourneysPage: React.FC = () => {
                           src={heroImageUrl}
                           alt="Hero Preview"
                           className="w-full h-full object-cover"
-                          onError={(e) => { (e.target as any).src = 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?q=80&w=800'; }}
+                          onError={(e) => { (e.target as any).style.display = 'none'; }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                         <span className="absolute bottom-2 left-2 px-2.5 py-1 rounded-full bg-black/80 text-[10px] font-mono text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
@@ -682,24 +544,7 @@ export const AgentSignatureJourneysPage: React.FC = () => {
 
                   {/* 2. GALLERY IMAGES ARRAY */}
                   <div className="space-y-3 pt-2 border-t border-stone-800/80">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-semibold text-stone-300">Gallery Images</label>
-                      <button
-                        type="button"
-                        onClick={() => galleryFileInputRef.current?.click()}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-teal-950/60 border border-teal-500/40 text-teal-300 text-xs font-semibold hover:bg-teal-900/60 transition-colors cursor-pointer"
-                      >
-                        <Upload className="w-3.5 h-3.5" />
-                        <span>Upload Local Gallery Photo</span>
-                      </button>
-                      <input
-                        type="file"
-                        ref={galleryFileInputRef}
-                        accept="image/*"
-                        onChange={handleGalleryFileUpload}
-                        className="hidden"
-                      />
-                    </div>
+                    <label className="block text-xs font-semibold text-stone-300">Gallery Images</label>
 
                     {/* Add Gallery URL Input Row */}
                     <div className="flex gap-2">
@@ -707,7 +552,7 @@ export const AgentSignatureJourneysPage: React.FC = () => {
                         type="url"
                         value={newGalleryInput}
                         onChange={(e) => setNewGalleryInput(e.target.value)}
-                        placeholder="https://images.unsplash.com/photo-... or click preset below"
+                        placeholder="https://images.unsplash.com/photo-..."
                         className="flex-1 bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl px-3.5 py-2 text-xs text-stone-100 focus:outline-none font-mono"
                       />
                       <button
@@ -717,30 +562,6 @@ export const AgentSignatureJourneysPage: React.FC = () => {
                       >
                         + Add URL
                       </button>
-                    </div>
-
-                    {/* Preset Gallery Photos Quick Add */}
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-mono text-stone-400 uppercase tracking-wider block">
-                        Click preset photos to add to gallery:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {PRESET_CEYLON_PHOTOS.map((preset, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              if (!galleryImages.includes(preset.url)) {
-                                setGalleryImages([...galleryImages, preset.url]);
-                                showToast('Gallery Image Added', `Added '${preset.name}' to gallery.`, 'info');
-                              }
-                            }}
-                            className="px-2 py-1 rounded-md bg-slate-900 hover:bg-stone-800 border border-stone-700 text-[10px] text-stone-300 flex items-center gap-1 transition-colors cursor-pointer"
-                          >
-                            <span>+ {preset.name}</span>
-                          </button>
-                        ))}
-                      </div>
                     </div>
 
                     {/* Gallery Thumbnails Grid */}

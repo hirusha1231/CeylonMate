@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Compass, Clock, MapPin, Sparkles, ArrowRight, CheckCircle2, ShieldCheck, Heart } from 'lucide-react';
+import { Compass, MapPin, Sparkles, ArrowRight, CheckCircle2, ShieldCheck, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { api } from '../services/api';
 import { fadeInVariants, buttonPressProps, hoverLiftProps, staggerContainerVariants, staggerItemVariants } from '../utils/animations';
-import { useCurrency } from '../context/CurrencyContext';
 import { useAuth } from '../auth/AuthProvider';
 import { useToast } from '../context/ToastContext';
 import { CuratedBookingModal } from '../components/booking/CuratedBookingModal';
@@ -26,103 +25,12 @@ export interface SignatureJourney {
   isPublished: boolean;
 }
 
-const FALLBACK_JOURNEYS: SignatureJourney[] = [
-  {
-    id: 'cultural-triangle-royal-heritage',
-    title: 'Cultural Triangle & Royal Heritage',
-    slug: 'cultural-triangle-royal-heritage',
-    tagline: 'A 7-Day Royal Expedition Across Ancient Citadel Ruins, Sacred Relics & High Tea Slopes',
-    description: 'Ascend to the ancient clouds of Sigiriya Rock Fortress before traversing lush emerald tea slopes in Ceylon\'s luxury highlands. Experience colonial heritage luxury in private tea planter bungalows combined with exclusive private chauffeur travel.',
-    heroImageUrl: 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?q=80&w=1600&auto=format&fit=crop',
-    galleryImages: [
-      'https://images.unsplash.com/photo-1546708973-b339540b5162?q=80&w=800&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1578637387939-43c525550085?q=80&w=800&auto=format&fit=crop'
-    ],
-    durationDays: 7,
-    durationNights: 6,
-    startingPriceUsd: 2450,
-    startingPriceLkr: 750000,
-    destinationsCovered: 'Sigiriya, Kandy, Nuwara Eliya, Colombo',
-    highlights: [
-      'Private chartered helicopter option to Sigiriya Rock fortress',
-      'VIP access to Temple of the Tooth Relic sacred vault',
-      'Highland Tea Tasting Masterclass with a Senior Ceylon Planter',
-      'Private luxury chauffeur guide throughout the journey'
-    ],
-    isPublished: true
-  },
-  {
-    id: 'wild-safaris-southern-coastal',
-    title: 'Wild Safaris & Southern Coastal Sanctuary',
-    slug: 'wild-safaris-southern-coastal',
-    tagline: 'Immerse in Leopard Trackings at Yala National Park & Luxury Cliffside Ocean Living',
-    description: 'Unrivalled luxury wildlife exploration paired with pristine Indian Ocean coastline retreat. Encounter leopards, sloth bears, and blue whales under expert private guide supervision.',
-    heroImageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?q=80&w=1600&auto=format&fit=crop',
-    galleryImages: [
-      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=800&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1512100356356-de1b84283e18?q=80&w=800&auto=format&fit=crop'
-    ],
-    durationDays: 10,
-    durationNights: 9,
-    startingPriceUsd: 3800,
-    startingPriceLkr: 1150000,
-    destinationsCovered: 'Yala National Park, Weligama, Galle Fort, Mirissa',
-    highlights: [
-      'Private 4x4 Leopard Tracker Game Drives in Yala Block 1',
-      'Exclusive sunset catamaran yacht trip along Mirissa coast',
-      'Private architectural walk inside 16th-century Galle Fort',
-      'Luxury oceanfront cliffside villa accommodations'
-    ],
-    isPublished: true
-  },
-  {
-    id: 'highland-mist-railway',
-    title: 'Tea Country Mist & Scenic Highland Railway',
-    slug: 'highland-mist-railway',
-    tagline: 'Private Luxury Carriage Ride Through Misty Bamboo Forests & Century Bungalows',
-    description: 'Journey through emerald mountain gaps on Sri Lanka\'s iconic highland train line. Stay in secluded Victorian tea estate bungalows with private fireside dining.',
-    heroImageUrl: 'https://images.unsplash.com/photo-1546708973-b339540b5162?q=80&w=1600&auto=format&fit=crop',
-    galleryImages: [],
-    durationDays: 5,
-    durationNights: 4,
-    startingPriceUsd: 1950,
-    startingPriceLkr: 590000,
-    destinationsCovered: 'Nuwara Eliya, Ella, Hatton, Kandy',
-    highlights: [
-      'First-Class Private Train Carriage Booking across Nine Arch Bridge',
-      'Pekoe Trail private walking tour with waterfall tea stops',
-      'Colonial bungalow fireside gourmet 5-course dinner'
-    ],
-    isPublished: true
-  },
-  {
-    id: 'ayurvedic-coastal-sanctuary',
-    title: 'Ayurvedic Wellness & Coastal Riviera Escape',
-    slug: 'ayurvedic-coastal-sanctuary',
-    tagline: 'Holistic Mind & Body Sanctuary Surrounded by Coconut Groves & Ocean Reefs',
-    description: 'Rejuvenate under certified Ayurvedic physicians on pristine southern beaches. Includes daily custom wellness treatments, organic culinary dining, and oceanfront suites.',
-    heroImageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1600&auto=format&fit=crop',
-    galleryImages: [],
-    durationDays: 8,
-    durationNights: 7,
-    startingPriceUsd: 2850,
-    startingPriceLkr: 870000,
-    destinationsCovered: 'Bentota, Mirissa, Galle Fort, Tangalle',
-    highlights: [
-      'Personal Ayurvedic Doctor consultation & custom herbal regimen',
-      'Daily oceanfront sunset yoga & meditation sessions',
-      'Private reef snorkeling & marine safari excursion'
-    ],
-    isPublished: true
-  }
-];
 
 export const DestinationsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { currency, formatPrice } = useCurrency();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const [journeys, setJourneys] = useState<SignatureJourney[]>(FALLBACK_JOURNEYS);
+  const [journeys, setJourneys] = useState<SignatureJourney[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedJourney, setSelectedJourney] = useState<SignatureJourney | null>(null);
@@ -147,7 +55,7 @@ export const DestinationsPage: React.FC = () => {
           setJourneys(res.data);
         }
       } catch (err) {
-        console.warn('Backend signature journeys API unavailable, using curated collections:', err);
+        console.error('Failed to load signature journeys from API:', err);
       } finally {
         setLoading(false);
       }
@@ -258,16 +166,13 @@ export const DestinationsPage: React.FC = () => {
                 {/* Image Header Banner */}
                 <div className="relative h-64 w-full overflow-hidden bg-slate-900">
                   <img
-                    src={journey.heroImageUrl || 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?q=80&w=800'}
+                    src={journey.heroImageUrl}
                     alt={journey.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0F1A24] via-transparent to-black/40" />
 
-                  <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-slate-950/80 border border-[#C5A880]/50 text-[#C5A880] text-xs font-mono font-semibold flex items-center gap-1.5 backdrop-blur-md">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>{journey.durationDays} Days / {journey.durationNights} Nights</span>
-                  </div>
+
 
                   <div className="absolute bottom-4 left-4 right-4 space-y-1">
                     <h2 className="text-2xl font-serif-luxury font-bold text-stone-100 drop-shadow-md">
@@ -306,15 +211,8 @@ export const DestinationsPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Pricing & CTA */}
-                  <div className="pt-4 border-t border-stone-800 flex items-center justify-between gap-4">
-                    <div>
-                      <span className="text-[10px] text-stone-400 uppercase tracking-widest font-mono block">Starting Investment</span>
-                      <span className="text-xl font-bold font-serif-luxury text-[#D4AF37]">
-                        {formatPrice(journey.startingPriceUsd)}
-                      </span>
-                    </div>
-
+                  {/* Journey CTA */}
+                  <div className="pt-4 border-t border-stone-800 flex items-center justify-end gap-4">
                     <motion.button
                       {...buttonPressProps}
                       onClick={() => handleBookJourney(journey)}

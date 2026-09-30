@@ -26,6 +26,7 @@ public sealed class DevelopmentUserSeeder(
             {
                 Email = email,
                 NormalizedEmail = normalizedEmail,
+                FullName = role == UserRole.LOCAL_GUIDE ? "Kavinda Fernando" : role.ToString(),
                 PasswordHash = string.Empty,
                 Role = role
             };
@@ -35,12 +36,38 @@ public sealed class DevelopmentUserSeeder(
 
         await db.SaveChangesAsync(cancellationToken);
 
+        // Update any existing guide users and profiles whose FullName is empty or contains email address
+        var existingGuideUsers = await db.Users.Where(u => u.Role == UserRole.LOCAL_GUIDE).ToListAsync(cancellationToken);
+        foreach (var gu in existingGuideUsers)
+        {
+            if (string.IsNullOrWhiteSpace(gu.FullName) || gu.FullName.Contains("@"))
+            {
+                gu.FullName = gu.Email == "guide2@local.ceylonmate" ? "Dilshan Jayawardena" :
+                              gu.Email == "guide3@local.ceylonmate" ? "Nirosha Bandara" :
+                              gu.Email == "guide4@local.ceylonmate" ? "Tariq Mansoor" : "Kavinda Fernando";
+                db.Users.Update(gu);
+            }
+        }
+
+        var existingGuideProfiles = await db.GuideProfiles.Include(p => p.User).ToListAsync(cancellationToken);
+        foreach (var gp in existingGuideProfiles)
+        {
+            if (string.IsNullOrWhiteSpace(gp.FullName) || gp.FullName.Contains("@"))
+            {
+                gp.FullName = !string.IsNullOrWhiteSpace(gp.User?.FullName) && !gp.User.FullName.Contains("@")
+                    ? gp.User.FullName
+                    : "Kavinda Fernando";
+                db.GuideProfiles.Update(gp);
+            }
+        }
+        await db.SaveChangesAsync(cancellationToken);
+
         // Seed additional local guide accounts if missing
         var additionalGuides = new[]
         {
-            new { Email = "guide2@local.ceylonmate", FullName = "Dilshan Jayawardena", LicenseNumber = "SLTDA/CG/2023/1102", LicenseType = "Chauffeur Guide Lecturer", Bio = "Licensed Chauffeur Guide specializing in high-end private group expeditions, coastal transfers, and colonial hill country railway history.", Languages = "English, French, Spanish", Specialties = "Highland Tea Trails, Colonial Architecture & Gastronomy", IsChauffeur = true, DrivingClass = "Class B & C (Luxury Minibus)", Rating = 4.9m, Reviews = 52, Rate = 20000m, Photo = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400" },
-            new { Email = "guide3@local.ceylonmate", FullName = "Nirosha Bandara", LicenseNumber = "SLTDA/NTG/2022/0789", LicenseType = "National Tourist Guide Lecturer", Bio = "Eco-tourism and botany specialist guide leading botanical garden excursions, Pekoe Trail trekking, and wildlife photography tours.", Languages = "English, Japanese, Sinhala", Specialties = "Botanical Excursions, Pekoe Trail Trekking & Birding", IsChauffeur = false, DrivingClass = "N/A", Rating = 5.0m, Reviews = 38, Rate = 16500m, Photo = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=400" },
-            new { Email = "guide4@local.ceylonmate", FullName = "Tariq Mansoor", LicenseNumber = "SLTDA/CG/2024/0931", LicenseType = "Chauffeur Guide Lecturer", Bio = "Certified wildlife tracker and marine biology escort for Yala leopard safaris, Mirissa blue whale expeditions, and coastal riviera tours.", Languages = "English, Arabic, Sinhala", Specialties = "Wild Leopard Tracking, Marine Mammal Conservation & Safaris", IsChauffeur = true, DrivingClass = "Class B (4x4 Expedition)", Rating = 4.9m, Reviews = 47, Rate = 19000m, Photo = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400" }
+            new { Email = "guide2@local.ceylonmate", FullName = "Dilshan Jayawardena" },
+            new { Email = "guide3@local.ceylonmate", FullName = "Nirosha Bandara" },
+            new { Email = "guide4@local.ceylonmate", FullName = "Tariq Mansoor" }
         };
 
         foreach (var item in additionalGuides)
@@ -68,18 +95,6 @@ public sealed class DevelopmentUserSeeder(
                 {
                     UserId = gUser.Id,
                     FullName = item.FullName,
-                    PhotoUrl = item.Photo,
-                    Bio = item.Bio,
-                    LanguagesSpoken = item.Languages,
-                    Specialties = item.Specialties,
-                    LicenseNumber = item.LicenseNumber,
-                    LicenseType = item.LicenseType,
-                    IsChauffeur = item.IsChauffeur,
-                    DrivingLicenseClass = item.DrivingClass,
-                    Rating = item.Rating,
-                    ReviewCount = item.Reviews,
-                    DefaultDailyRateLkr = item.Rate,
-                    DailyRate = item.Rate,
                     Currency = "LKR",
                     IsActive = true
                 });
@@ -97,19 +112,7 @@ public sealed class DevelopmentUserSeeder(
                 profile = new GuideProfile
                 {
                     UserId = guideUser.Id,
-                    FullName = !string.IsNullOrWhiteSpace(guideUser.FullName) ? guideUser.FullName : "Anura Wickramasinghe",
-                    PhotoUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
-                    Bio = "Senior SLTDA National Tourist Guide Lecturer with 15+ years experience guiding high-profile archeological, cultural triangle, and highland tea estate expeditions.",
-                    LanguagesSpoken = "English, German, Sinhala",
-                    Specialties = "Cultural Heritage & Ancient Kingdoms",
-                    LicenseNumber = "SLTDA/NTG/2024/0842",
-                    LicenseType = "National Tourist Guide Lecturer",
-                    IsChauffeur = true,
-                    DrivingLicenseClass = "Class B (VIP Dual/Van)",
-                    Rating = 5.0m,
-                    ReviewCount = 64,
-                    DefaultDailyRateLkr = 18000m,
-                    DailyRate = 18000m,
+                    FullName = !string.IsNullOrWhiteSpace(guideUser.FullName) && !guideUser.FullName.Contains("@") ? guideUser.FullName : "Kavinda Fernando",
                     Currency = "LKR",
                     IsActive = true
                 };
@@ -117,7 +120,7 @@ public sealed class DevelopmentUserSeeder(
                 await db.SaveChangesAsync(cancellationToken);
             }
 
-            if (!await db.GuideAvailabilities.AnyAsync(cancellationToken))
+            if (!await db.GuideAvailabilities.AnyAsync(a => a.LocalGuideUserId == guideUser.Id, cancellationToken))
             {
                 var now = DateTimeOffset.UtcNow;
                 db.GuideAvailabilities.AddRange(
@@ -140,57 +143,156 @@ public sealed class DevelopmentUserSeeder(
             }
         }
 
-        // Seed TransportOption and TransportSlots if empty
-        if (!await db.TransportSlots.AnyAsync(cancellationToken))
+        // Seed availability slots for additional guides (guide2/3/4) if they don't already have one
+        var additionalGuideSeeds = new[]
         {
-            var transportOptionId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-            var transportOption = await db.TransportOptions.SingleOrDefaultAsync(x => x.Id == transportOptionId, cancellationToken);
-            if (transportOption == null)
+            new { Email = "guide2@local.ceylonmate", Rate = 15000m, Note = "Sigiriya & Cultural Triangle Expert" },
+            new { Email = "guide3@local.ceylonmate", Rate = 12000m, Note = "Southern Coast & Beach Safari Guide" },
+            new { Email = "guide4@local.ceylonmate", Rate = 20000m, Note = "Hill Country & Tea Estate Specialist" }
+        };
+
+        foreach (var seed in additionalGuideSeeds)
+        {
+            var normEmail = seed.Email.ToUpperInvariant();
+            var gUser = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normEmail, cancellationToken);
+            if (gUser == null) continue;
+
+            var gProfile = await db.GuideProfiles.FirstOrDefaultAsync(p => p.UserId == gUser.Id, cancellationToken);
+            if (gProfile == null) continue;
+
+            if (!await db.GuideAvailabilities.AnyAsync(a => a.LocalGuideUserId == gUser.Id, cancellationToken))
             {
-                transportOption = new TransportOption
+                var now2 = DateTimeOffset.UtcNow;
+                db.GuideAvailabilities.Add(new GuideAvailability
                 {
-                    Id = transportOptionId,
-                    Title = "Luxury Tourist Van Fleet - CeylonMate Express",
-                    VehicleType = VehicleType.VAN,
-                    VehicleModel = "Toyota KDH High Roof 2023",
-                    LicensePlate = "WP NC-8492",
-                    PassengerCapacity = 12,
-                    LuggageCapacity = 8,
-                    IsActive = true
-                };
-                db.TransportOptions.Add(transportOption);
+                    LocalGuideUserId = gUser.Id,
+                    GuideProfileId = gProfile.Id,
+                    StartTimeUtc = now2.AddDays(1).Date.AddHours(8),
+                    EndTimeUtc = now2.AddDays(1).Date.AddHours(17),
+                    SlotType = SlotType.FULL_DAY,
+                    Status = AvailabilityStatus.AVAILABLE,
+                    MaxCapacity = 1,
+                    BookedCapacity = 0,
+                    PriceAmount = seed.Rate,
+                    Currency = "LKR",
+                    Notes = seed.Note
+                });
                 await db.SaveChangesAsync(cancellationToken);
             }
-
-            var now = DateTimeOffset.UtcNow;
-            db.TransportSlots.AddRange(
-                new TransportSlot
-                {
-                    TransportOptionId = transportOption.Id,
-                    StartTimeUtc = now.AddDays(1).Date.AddHours(6),
-                    EndTimeUtc = now.AddDays(1).Date.AddHours(20),
-                    VehicleType = VehicleType.VAN,
-                    Status = SlotStatus.AVAILABLE,
-                    TotalSeats = 12,
-                    AvailableSeats = 12,
-                    PricePerSeat = 4500,
-                    Currency = "LKR"
-                },
-                new TransportSlot
-                {
-                    TransportOptionId = transportOption.Id,
-                    StartTimeUtc = now.AddDays(2).Date.AddHours(6),
-                    EndTimeUtc = now.AddDays(2).Date.AddHours(20),
-                    VehicleType = VehicleType.VAN,
-                    Status = SlotStatus.AVAILABLE,
-                    TotalSeats = 12,
-                    AvailableSeats = 12,
-                    PricePerSeat = 4500,
-                    Currency = "LKR"
-                }
-            );
-            await db.SaveChangesAsync(cancellationToken);
         }
+
+        // Seed & Sync 6 VehicleFleetCatalog items and their corresponding TransportSlots
+        var fleetCatalogSeeds = new[]
+        {
+            new
+            {
+                CategoryBadge = "EXECUTIVE VIP GROUP TRANSPORT",
+                VehicleModel = "Toyota KDH Super GL VIP Van",
+                Description = "Ideal for families and luxury groups. Dual climate control, plush leather reclining armchairs, high-speed onboard 5G Wi-Fi, and spacious luggage capacity.",
+                ImageUrl = "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80",
+                MaxPassengers = 6,
+                FeatureHighlight = "VIP Leather Interior & 5G Wi-Fi",
+                LuggageCapacity = "6 Large Luggage",
+                DailyRateUsd = 120.00m,
+                DisplayOrder = 1,
+                VehicleType = VehicleType.VAN
+            },
+            new
+            {
+                CategoryBadge = "PRESTIGE EXECUTIVE SEDAN",
+                VehicleModel = "Mercedes-Benz E-Class Sedan",
+                Description = "Unmatched elegance for couples and solo executive travelers. Whisper-quiet cabin acoustics, leather seating, and smooth transit along coastal expressways.",
+                ImageUrl = "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&w=1000&q=80",
+                MaxPassengers = 3,
+                FeatureHighlight = "Prestige Leather Comfort",
+                LuggageCapacity = "3 Large Luggage",
+                DailyRateUsd = 150.00m,
+                DisplayOrder = 2,
+                VehicleType = VehicleType.SEDAN
+            },
+            new
+            {
+                CategoryBadge = "4X4 SAFARI & EXPEDITION",
+                VehicleModel = "Toyota Land Cruiser V8 Safari",
+                Description = "Heavy-duty luxury 4x4 modified for Yala and Udawalawe national park tracking. High elevation seating with pop-up roof for wildlife photography.",
+                ImageUrl = "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80",
+                MaxPassengers = 5,
+                FeatureHighlight = "High-Clearance 4x4",
+                LuggageCapacity = "4 Large Luggage",
+                DailyRateUsd = 180.00m,
+                DisplayOrder = 3,
+                VehicleType = VehicleType.SUV
+            },
+            new
+            {
+                CategoryBadge = "VIP COACH TRANSPORT",
+                VehicleModel = "Toyota Coaster VIP Minibus",
+                Description = "Ideal for private delegation groups. Equipped with dual AC, microphone, panoramic windows, and dedicated luggage compartment.",
+                ImageUrl = "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=1000&q=80",
+                MaxPassengers = 14,
+                FeatureHighlight = "Panoramic VIP Coach",
+                LuggageCapacity = "12 Large Luggage",
+                DailyRateUsd = 250.00m,
+                DisplayOrder = 4,
+                VehicleType = VehicleType.MINIBUS
+            },
+            new
+            {
+                CategoryBadge = "PREMIUM LUXURY SUV",
+                VehicleModel = "Range Rover Autobiography V8 SUV",
+                Description = "Supreme luxury for executive VIPs. All-wheel drive terrain response, massage executive seating, and ultra-quiet ride.",
+                ImageUrl = "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=1000&q=80",
+                MaxPassengers = 4,
+                FeatureHighlight = "Executive Lounge Seating",
+                LuggageCapacity = "4 Large Luggage",
+                DailyRateUsd = 220.00m,
+                DisplayOrder = 5,
+                VehicleType = VehicleType.SUV
+            },
+            new
+            {
+                CategoryBadge = "LUXURY DELEGATION BUS",
+                VehicleModel = "Volvo B11R Super VIP Coach",
+                Description = "Ultra-capacity luxury coach for large tour delegations with reclining leather seats, onboard lavatory, and climate zones.",
+                ImageUrl = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1000&q=80",
+                MaxPassengers = 30,
+                FeatureHighlight = "Air Suspension & Sky Lounge",
+                LuggageCapacity = "25 Large Luggage",
+                DailyRateUsd = 350.00m,
+                DisplayOrder = 6,
+                VehicleType = VehicleType.BUS
+            }
+        };
+
+        var nowTime = DateTimeOffset.UtcNow;
+        var defaultTransportOptionId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+        foreach (var item in fleetCatalogSeeds)
+        {
+            var catalogItem = await db.VehicleFleetCatalogs.FirstOrDefaultAsync(x => x.VehicleModel == item.VehicleModel, cancellationToken);
+            if (catalogItem == null)
+            {
+                catalogItem = new VehicleFleetCatalog
+                {
+                    Id = Guid.NewGuid(),
+                    CategoryBadge = item.CategoryBadge,
+                    VehicleModel = item.VehicleModel,
+                    Description = item.Description,
+                    ImageUrl = item.ImageUrl,
+                    MaxPassengers = item.MaxPassengers,
+                    FeatureHighlight = item.FeatureHighlight,
+                    LuggageCapacity = item.LuggageCapacity,
+                    DailyRateUsd = item.DailyRateUsd,
+                    IsActive = true,
+                    DisplayOrder = item.DisplayOrder,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                db.VehicleFleetCatalogs.Add(catalogItem);
+                await db.SaveChangesAsync(cancellationToken);
+            }
+        }
+
 
         // Seed AttractionSlots if empty
         if (!await db.AttractionSlots.AnyAsync(cancellationToken))

@@ -72,7 +72,15 @@ export function apiError(error: unknown): string {
     if (error.response?.status === 403) {
       return 'Access Denied: Requires ADMIN or privileged role.';
     }
-    const dataMessage = (error.response?.data as any)?.detail || (error.response?.data as any)?.message || (error.response?.data as any)?.title || (typeof error.response?.data === 'string' ? error.response.data : null);
+    const responseData = error.response?.data as any;
+    if (responseData?.errors && typeof responseData.errors === 'object') {
+      const errorList = Object.entries(responseData.errors)
+        .flatMap(([field, msgs]) => Array.isArray(msgs) ? msgs.map(m => `${field}: ${m}`) : [`${field}: ${msgs}`]);
+      if (errorList.length > 0) {
+        return errorList.join('; ');
+      }
+    }
+    const dataMessage = responseData?.detail || responseData?.message || responseData?.title || (typeof responseData === 'string' ? responseData : null);
     if (error.response?.status === 400) {
       return dataMessage || "Invalid registration details. Please check the fields.";
     }

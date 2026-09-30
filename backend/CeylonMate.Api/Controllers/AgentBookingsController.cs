@@ -50,6 +50,7 @@ namespace CeylonMate.Api.Controllers
                     guideSlotId = b.GuideSlotId,
                     vehicleSlotId = b.VehicleSlotId,
                     packageId = b.PackageId,
+                    tripDurationDays = b.TripDurationDays,
                     startDate = b.StartDate,
                     pickupTime = b.PickupTime,
                     travelerNotes = b.TravelerNotes,
@@ -138,6 +139,33 @@ namespace CeylonMate.Api.Controllers
                 booking
             });
         }
+
+        // POST /api/agent/bookings/{bookingId}/reject
+        [HttpPost("bookings/{bookingId}/reject")]
+        public async Task<IActionResult> RejectBooking(
+            int bookingId,
+            [FromBody] RejectBookingRequestDto? dto)
+        {
+            var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId);
+            if (booking == null)
+            {
+                return NotFound(new { message = "Booking inquiry not found." });
+            }
+
+            booking.Status = "REJECTED";
+            if (!string.IsNullOrWhiteSpace(dto?.Reason))
+            {
+                booking.AgentNotes = dto.Reason;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Booking proposal rejected.",
+                booking
+            });
+        }
     }
 
     public record ApproveBookingRequestDto(
@@ -146,5 +174,9 @@ namespace CeylonMate.Api.Controllers
         decimal? FinalPriceQuoteLkr,
         decimal? FinalPriceQuoteUsd,
         string? AgentNotes
+    );
+
+    public record RejectBookingRequestDto(
+        string? Reason
     );
 }

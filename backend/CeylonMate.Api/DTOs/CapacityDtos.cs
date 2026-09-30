@@ -37,9 +37,8 @@ public record TransportSlotDto(
     DateTimeOffset StartTimeUtc,
     DateTimeOffset EndTimeUtc,
     SlotStatus Status,
-    int TotalSeats,
-    int AvailableSeats,
-    decimal PricePerSeat,
+    int MaxPassengers,
+    decimal DailyRate,
     string Currency,
     byte[] RowVersion,
     DateTimeOffset? HeldUntilUtc = null
@@ -114,10 +113,8 @@ public record CreateTransportSlotRequestDto(
     DateTimeOffset? DepartureTimeUtc = null,
     DateTimeOffset? ArrivalTimeUtc = null,
     VehicleType VehicleType = VehicleType.SEDAN,
-    int? TotalSeats = null,
-    int? AvailableSeats = null,
-    decimal? PricePerSeat = null,
-    decimal? PriceLkr = null,
+    int? MaxPassengers = null,
+    decimal DailyRate = 0,
     string Currency = "LKR",
     Guid? OriginDestinationId = null,
     Guid? DestinationId = null
@@ -125,8 +122,6 @@ public record CreateTransportSlotRequestDto(
 {
     public DateTimeOffset EffectiveStartTime => StartTimeUtc ?? DepartureTimeUtc ?? DateTimeOffset.UtcNow;
     public DateTimeOffset EffectiveEndTime => EndTimeUtc ?? ArrivalTimeUtc ?? EffectiveStartTime.AddHours(2);
-    public int EffectiveTotalSeats => TotalSeats ?? AvailableSeats ?? 4;
-    public decimal EffectivePrice => PricePerSeat ?? PriceLkr ?? 0;
 }
 
 public record CreateAttractionSlotRequestDto(
@@ -155,9 +150,8 @@ public record UpdateTransportSlotRequestDto(
     DateTimeOffset EndTimeUtc,
     VehicleType VehicleType = VehicleType.SEDAN,
     SlotStatus Status = SlotStatus.AVAILABLE,
-    int TotalSeats = 4,
-    int AvailableSeats = 4,
-    decimal PricePerSeat = 0,
+    int? MaxPassengers = null,
+    decimal DailyRate = 0,
     string Currency = "LKR",
     Guid? OriginDestinationId = null,
     Guid? DestinationId = null,

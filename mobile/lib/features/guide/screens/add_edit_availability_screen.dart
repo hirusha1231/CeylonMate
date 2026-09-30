@@ -245,81 +245,18 @@ class _AddEditAvailabilityScreenState extends State<AddEditAvailabilityScreen> {
               const SizedBox(height: 24),
 
               // Slot Type Segmented Toggle
-              Text('Slot Type', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+              Text('Slot Duration Type', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               SegmentedButton<String>(
                 segments: const [
                   ButtonSegment(value: 'FULL_DAY', label: Text('Full Day'), icon: Icon(Icons.wb_sunny)),
                   ButtonSegment(value: 'HALF_DAY_MORNING', label: Text('Morning'), icon: Icon(Icons.wb_twilight)),
                   ButtonSegment(value: 'HALF_DAY_AFTERNOON', label: Text('Afternoon'), icon: Icon(Icons.wb_cloudy)),
-                  ButtonSegment(value: 'HOURLY', label: Text('Hourly'), icon: Icon(Icons.access_time)),
                 ],
                 selected: {_selectedSlotType},
                 onSelectionChanged: (set) {
                   if (set.isNotEmpty) _onSlotTypeChanged(set.first);
                 },
-              ),
-              const SizedBox(height: 24),
-
-              // Time Pickers Row
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Start Time', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: _pickStartTime,
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade400),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.schedule, size: 20, color: Colors.teal),
-                                const SizedBox(width: 8),
-                                Text(_startTime.format(context), style: const TextStyle(fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('End Time', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: _pickEndTime,
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade400),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.schedule, size: 20, color: Colors.teal),
-                                const SizedBox(width: 8),
-                                Text(_endTime.format(context), style: const TextStyle(fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
               const SizedBox(height: 24),
 

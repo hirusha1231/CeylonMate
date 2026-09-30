@@ -15,7 +15,6 @@ import {
 import { Link } from 'react-router';
 import { api, apiError } from '../../api/client';
 import { hoverLiftProps } from '../../utils/animations';
-import { useCurrency } from '../../context/CurrencyContext';
 
 export interface PublicGuideItem {
   id: string;
@@ -34,8 +33,6 @@ export interface PublicGuideItem {
   chauffeurLicenseClass?: string;
   rating: number;
   reviewCount: number;
-  dailyRate: number;
-  currency: string;
 }
 
 interface GuideShowcaseSectionProps {
@@ -43,7 +40,6 @@ interface GuideShowcaseSectionProps {
 }
 
 export const GuideShowcaseSection: React.FC<GuideShowcaseSectionProps> = ({ showTitle = true }) => {
-  const { formatPrice } = useCurrency();
   const [guides, setGuides] = useState<PublicGuideItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,8 +82,6 @@ export const GuideShowcaseSection: React.FC<GuideShowcaseSectionProps> = ({ show
             chauffeurLicenseClass: drivingClass,
             rating: Number(item.rating) || 5.0,
             reviewCount: Number(item.reviewCount) || 0,
-            dailyRate: Number(item.dailyRate || item.defaultDailyRateLkr || 18000),
-            currency: item.currency || 'LKR',
           };
         });
         setGuides(mapped);
@@ -251,16 +245,8 @@ export const GuideShowcaseSection: React.FC<GuideShowcaseSectionProps> = ({ show
                 </div>
               </div>
 
-              {/* Bottom Footer: Price & Book Action */}
-              <div className="px-6 py-4 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-mono text-stone-400 uppercase tracking-wider block">Daily Guide Rate</span>
-                  <span className="text-lg font-serif-luxury font-bold text-[#134E4A]">
-                    {formatPrice(guide.dailyRate, 'LKR')}
-                    <span className="text-xs text-stone-500 font-sans font-normal"> / day</span>
-                  </span>
-                </div>
-
+              {/* Bottom Footer: Book Action */}
+              <div className="px-6 py-4 bg-stone-50 border-t border-stone-100 flex items-center justify-end">
                 <Link to="/plan-my-trip">
                   <button className="px-4 py-2 rounded-xl bg-[#0B131F] hover:bg-[#134E4A] text-[#C5A880] hover:text-white text-xs font-bold transition-all shadow flex items-center gap-1.5 cursor-pointer">
                     <span>Book with Trip</span>

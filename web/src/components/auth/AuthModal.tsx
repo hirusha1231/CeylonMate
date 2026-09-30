@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  X, Lock, Mail, User, Sparkles, ArrowRight, AlertTriangle, Eye, EyeOff, Phone, CheckCircle2
+  X, Lock, Mail, User, Sparkles, ArrowRight, AlertTriangle, Eye, EyeOff, Phone, CheckCircle2, Compass, ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { getRoleRedirectPath } from '../../auth/types';
@@ -33,6 +33,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [mode, setMode] = useState<'signin' | 'register'>(initialMode);
   
   // Form Fields
+  const [role, setRole] = useState<'TRAVELER' | 'LOCAL_GUIDE'>('TRAVELER');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -152,14 +153,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     try {
       setLoading(true);
-      console.log('[AuthModal] Submitting registration form:', { email, fullName });
-      const authUser = await register(email, password, fullName, phoneNumber);
+      console.log('[AuthModal] Submitting registration form:', { email, fullName, role });
+      const authUser = await register(email, password, fullName, phoneNumber, role);
       setLoading(false);
 
       if (authUser) {
-        showToast('Welcome to CeylonMate!', 'Your bespoke traveler account has been created.', 'success');
+        const isGuide = (authUser.role || role) === 'LOCAL_GUIDE';
+        showToast(
+          'Welcome to CeylonMate!',
+          isGuide
+            ? 'Your certified local guide account has been created. Redirecting to Guide Portal...'
+            : 'Your bespoke traveler account has been created.',
+          'success'
+        );
         onSuccess?.();
         onClose();
+        const fromPath = (location.state as any)?.from;
+        const targetPath = fromPath || getRoleRedirectPath(authUser.role || role);
+        if (targetPath && (fromPath || isGuide || targetPath !== '/')) {
+          navigate(targetPath);
+        }
       }
     } catch (err: any) {
       setLoading(false);
@@ -309,6 +322,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             ) : (
               /* VIEW 2: REGISTRATION */
               <form onSubmit={handleRegister} className="space-y-3.5" noValidate>
+                {/* Role / Account Type Dropdown */}
+                <div>
+                  <label className="block text-xs font-medium text-stone-300 mb-1">
+                    Select Account Type
+                  </label>
+                  <div className="relative">
+                    <Compass className="absolute left-3 top-2.5 w-4 h-4 text-[#C5A880] pointer-events-none" />
+                    <select
+                      value={role}
+                      onChange={(e) => setRole(e.target.value as 'TRAVELER' | 'LOCAL_GUIDE')}
+                      className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-9 py-2 text-xs text-stone-100 focus:outline-none transition-colors appearance-none cursor-pointer font-medium"
+                    >
+                      <option value="TRAVELER" className="bg-[#0F1A24] text-stone-100">
+                        Traveler
+                      </option>
+                      <option value="LOCAL_GUIDE" className="bg-[#0F1A24] text-[#C5A880] font-semibold">
+                        Local Guide
+                      </option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-stone-400 pointer-events-none" />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-medium text-stone-300 mb-1">Full Name</label>
                   <div className="relative">
@@ -318,7 +354,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       required
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value.replace(/[0-9]/g, ''))}
-                      placeholder="Lady Evelyn Sinclair"
+                      placeholder={role === 'LOCAL_GUIDE' ? 'Kavinda Fernando' : 'Lady Evelyn Sinclair'}
                       className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-3 py-2 text-xs text-stone-100 placeholder-stone-600 focus:outline-none transition-colors"
                     />
                   </div>

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, MapPin, Users, Car, Phone, ShieldCheck, Clock, CheckCircle2,
   ChevronRight, RefreshCw, FileText, Compass, Sparkles, User, KeyRound, Save,
-  Lock, Mail, Eye, EyeOff
+  Lock, Mail, Eye, EyeOff, CreditCard, Receipt, DollarSign
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { useCurrency } from '../../context/CurrencyContext';
@@ -21,12 +21,19 @@ interface Booking {
   title: string;
   startDate: string;
   endDate: string;
+  pickupTime?: string;
+  passengerCount?: number;
+  tripDurationDays?: number;
   status: string;
   vehicleCapacityStatus?: string;
   capacityRejectionReason?: string;
-  guideAssignmentStatus?: string; // "PENDING_GUIDE_ACCEPTANCE", "ACCEPTED_BY_GUIDE", "REJECTED_BY_GUIDE"
+  guideAssignmentStatus?: string; // "PENDING_GUIDE_ACCEPTANCE", "ACCEPTED_BY_GUIDE", "REJECTED_BY_GUIDE", "NOT_REQUIRED"
   guideResponseMessage?: string;
   guideName?: string;
+  hasGuide?: boolean;
+  packageTitle?: string;
+  packageTagline?: string;
+  destinationsCovered?: string;
   finalPriceQuoteLkr?: number;
   finalPriceQuoteUsd?: number;
   totalUsd: number;
@@ -34,6 +41,19 @@ interface Booking {
   chauffeurPhone?: string;
   vehicleModel?: string;
   vehiclePlate?: string;
+  vehicle?: {
+    modelName?: string;
+    categoryBadge?: string;
+    registrationNumber?: string;
+    maxPassengers?: number;
+    photoUrl?: string;
+  };
+  guide?: {
+    fullName?: string;
+    licenseNumber?: string;
+    contactPhone?: string;
+    photoUrl?: string;
+  } | null;
   days: { day: number; title: string; detail: string }[];
 }
 
@@ -120,27 +140,57 @@ export const MyBookingsPage: React.FC = () => {
       }
 
       if (Array.isArray(rawData) && rawData.length > 0) {
-        const mapped: Booking[] = rawData.map((b: any) => ({
-          id: String(b.id || Math.random()),
-          reference: b.bookingReference || b.reference || `CM-BK-${String(b.id).substring(0, 6).toUpperCase()}`,
-          title: b.title || b.objective,
-          startDate: b.startDate || (b.bookedAt ? new Date(b.bookedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)),
-          endDate: b.endDate || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-          status: String(b.status || 'PENDING_REVIEW').toUpperCase(),
-          vehicleCapacityStatus: b.vehicleCapacityStatus || 'HELD_PENDING_CONFIRMATION',
-          capacityRejectionReason: b.capacityRejectionReason,
-          guideAssignmentStatus: b.guideAssignmentStatus || 'PENDING_GUIDE_ACCEPTANCE',
-          guideResponseMessage: b.guideResponseMessage,
-          guideName: b.guideName || b.chauffeurName || 'SLTDA Certified Local Guide',
-          finalPriceQuoteLkr: b.finalPriceQuoteLkr ? Number(b.finalPriceQuoteLkr) : 0,
-          finalPriceQuoteUsd: b.finalPriceQuoteUsd ? Number(b.finalPriceQuoteUsd) : 0,
-          totalUsd: Number(b.finalPriceQuoteUsd || b.totalUsd || b.budget || b.totalCost || 0),
-          chauffeurName: b.chauffeurName || 'SLTDA Certified Chauffeur Guide',
-          chauffeurPhone: b.chauffeurPhone || '+94 11 7311 611',
-          vehicleModel: b.vehicleModel || 'Luxury VIP Chauffeur Vehicle',
-          vehiclePlate: b.vehiclePlate || 'WP-CM VIP',
-          days: Array.isArray(b.days) ? b.days : [],
-        }));
+        const mapped: Booking[] = rawData.map((b: any) => {
+          const bTripDays = b.tripDurationDays || 5;
+          const bHasGuide = b.hasGuide !== false && b.guideAssignmentStatus !== 'NOT_REQUIRED';
+          const bGuideCost = bHasGuide ? bTripDays * 50 : 0;
+          const bVehicleCost = bTripDays * 120;
+          const bSubtotal = bGuideCost + bVehicleCost;
+          const bVat = bSubtotal * 0.05;
+          const bCalculatedTotal = Math.round(bSubtotal + bVat);
+
+          return {
+            id: String(b.id || Math.random()),
+            reference: b.bookingReference || b.reference || `CM-BK-${String(b.id).substring(0, 6).toUpperCase()}`,
+            title: b.packageTitle || b.title || b.objective || 'Curated Signature Expedition',
+            packageTitle: b.packageTitle || b.title || 'Curated Signature Expedition',
+            packageTagline: b.packageTagline || 'Bespoke Luxury Sri Lankan Expedition',
+            destinationsCovered: b.destinationsCovered || 'Sigiriya - Kandy - Nuwara Eliya - Yala',
+            startDate: b.startDate || (b.bookedAt ? new Date(b.bookedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)),
+            endDate: b.endDate || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+            pickupTime: b.pickupTime || '08:00 AM',
+            passengerCount: b.passengerCount || 2,
+            tripDurationDays: b.tripDurationDays || 5,
+            status: String(b.status || 'PENDING_REVIEW').toUpperCase(),
+            vehicleCapacityStatus: b.vehicleCapacityStatus || 'HELD_PENDING_CONFIRMATION',
+            capacityRejectionReason: b.capacityRejectionReason,
+            guideAssignmentStatus: b.guideAssignmentStatus || 'PENDING_GUIDE_ACCEPTANCE',
+            guideResponseMessage: b.guideResponseMessage,
+            hasGuide: bHasGuide,
+            guideName: b.guide?.fullName || b.guideName || b.chauffeurName,
+            finalPriceQuoteLkr: b.finalPriceQuoteLkr ? Number(b.finalPriceQuoteLkr) : (bCalculatedTotal * 310),
+            finalPriceQuoteUsd: b.finalPriceQuoteUsd ? Number(b.finalPriceQuoteUsd) : bCalculatedTotal,
+            totalUsd: Number(b.finalPriceQuoteUsd || b.totalUsd || b.budget || b.totalCost || bCalculatedTotal),
+            chauffeurName: b.guide?.fullName || b.chauffeurName || 'Kavinda Fernando',
+            chauffeurPhone: b.guide?.contactPhone || b.chauffeurPhone || '+94 77 123 4567',
+            vehicleModel: b.vehicle?.modelName || b.vehicleModel || 'Toyota KDH Super GL VIP Van',
+            vehiclePlate: b.vehicle?.registrationNumber || b.vehiclePlate || 'WP-CM VIP',
+            vehicle: b.vehicle || {
+              modelName: b.vehicleModel || 'Toyota KDH Super GL VIP Van',
+              categoryBadge: 'EXECUTIVE VIP GROUP TRANSPORT',
+              registrationNumber: b.vehiclePlate || 'WP-CM VIP',
+              maxPassengers: 6,
+              photoUrl: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80'
+            },
+            guide: b.guide || (bHasGuide ? {
+              fullName: b.guideName || b.chauffeurName || 'Kavinda Fernando',
+              licenseNumber: 'SLTDA/NTG/2024/0481',
+              contactPhone: b.chauffeurPhone || '+94 77 123 4567',
+              photoUrl: ''
+            } : null),
+            days: Array.isArray(b.days) ? b.days : [],
+          };
+        });
         setBookings(mapped);
         setSelectedBooking(mapped[0]);
       } else {
@@ -465,7 +515,7 @@ export const MyBookingsPage: React.FC = () => {
                             <div>
                               <p className="text-sm font-medium text-white">Capacity & Fleet</p>
                               <p className="text-xs text-stone-400">
-                                {selectedBooking.vehicleCapacityStatus === 'REJECTED_BY_CAPACITY' ? 'Agent re-routing fleet' : 'Seats & slots verified'}
+                                {selectedBooking.vehicleCapacityStatus === 'REJECTED_BY_CAPACITY' ? 'Agent re-routing fleet' : 'Transport & slots verified'}
                               </p>
                             </div>
                           </div>
@@ -513,17 +563,18 @@ export const MyBookingsPage: React.FC = () => {
                               </p>
                             </div>
                             <button
-                              onClick={() => handlePayNow(selectedBooking.id)}
-                              className="px-6 py-2.5 bg-gradient-to-r from-[#D4AF37] to-[#C5A880] hover:brightness-110 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-lg cursor-pointer"
+                              onClick={() => navigate(`/payment-gateway/${selectedBooking.id}`)}
+                              className="px-6 py-2.5 bg-gradient-to-r from-[#D4AF37] to-[#C5A880] hover:brightness-110 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-lg cursor-pointer flex items-center gap-2"
                             >
-                              Pay & Confirm Journey
+                              <CreditCard className="w-4 h-4 text-slate-950" />
+                              <span>Pay & Confirm Journey</span>
                             </button>
                           </div>
                         )}
                       </div>
 
-                      {/* Top Details */}
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-stone-800">
+                      {/* Top Details Header */}
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-stone-800">
                         <div>
                           <span className="text-xs font-mono text-[#C5A880] font-bold">
                             Booking Ref: {selectedBooking.reference}
@@ -538,86 +589,232 @@ export const MyBookingsPage: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* GUIDE APPROVAL & MESSAGING STATUS CARD */}
-                      <div className="space-y-3">
-                        {selectedBooking.guideAssignmentStatus === 'PENDING_GUIDE_ACCEPTANCE' && (
-                          <div className="p-4 bg-amber-950/40 border border-amber-500/40 rounded-2xl flex items-center justify-between gap-3 text-xs font-mono text-amber-200">
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg">⏳</span>
-                              <span className="font-semibold">
-                                Awaiting confirmation from Guide {selectedBooking.guideName || selectedBooking.chauffeurName}
-                              </span>
-                            </div>
-                            <span className="px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] uppercase font-bold border border-amber-500/30">
-                              Pending Guide Acceptance
-                            </span>
-                          </div>
-                        )}
-
-                        {selectedBooking.guideAssignmentStatus === 'ACCEPTED_BY_GUIDE' && (
-                          <div className="p-5 bg-emerald-950/40 border border-emerald-500/40 rounded-2xl space-y-2 text-xs font-sans">
-                            <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
-                              <div className="flex items-center gap-2 font-bold text-emerald-300 text-sm">
-                                💬 <span>Message from your Guide ({selectedBooking.guideName || selectedBooking.chauffeurName}):</span>
-                              </div>
-                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold">
-                                ✓ Guide Confirmed
-                              </span>
-                            </div>
-                            <p className="text-stone-200 italic leading-relaxed text-xs">
-                              "{selectedBooking.guideResponseMessage || 'Looking forward to hosting your Sri Lanka expedition! Warm welcome awaits.'}"
+                      {/* A. EXPEDITION OVERVIEW HEADER BAR */}
+                      <div className="p-4 bg-gradient-to-r from-slate-900 via-[#0B131F] to-[#134E4A]/30 rounded-2xl border border-[#C5A880]/30 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-sans shadow-lg">
+                        <div className="space-y-1">
+                          <span className="text-stone-400 font-mono text-[10px] uppercase block font-semibold text-[#C5A880]">
+                            Selected Plan / Destination
+                          </span>
+                          <p className="font-bold text-stone-100 text-sm font-serif-luxury">
+                            {selectedBooking.packageTitle || selectedBooking.title}
+                          </p>
+                          {selectedBooking.destinationsCovered && (
+                            <p className="text-[11px] text-[#C5A880] font-mono">
+                              {selectedBooking.destinationsCovered}
                             </p>
-                          </div>
-                        )}
+                          )}
+                        </div>
 
-                        {selectedBooking.guideAssignmentStatus === 'REJECTED_BY_GUIDE' && (
-                          <div className="p-5 bg-amber-950/60 border border-amber-500/50 rounded-2xl space-y-2 text-xs font-sans">
-                            <div className="flex items-center gap-2 font-bold text-amber-300 text-sm">
-                              ⚠️ <span>Guide Availability Notice</span>
-                            </div>
-                            <p className="text-stone-200 leading-relaxed">
-                              Guide <strong>{selectedBooking.guideName || selectedBooking.chauffeurName}</strong> is unavailable on this date ({selectedBooking.guideResponseMessage || 'Schedule conflict'}). Our travel concierge is assigning an equally certified replacement.
-                            </p>
-                          </div>
-                        )}
+                        <div className="space-y-1">
+                          <span className="text-stone-400 font-mono text-[10px] uppercase block font-semibold text-[#C5A880]">
+                            Travelers (Pax)
+                          </span>
+                          <p className="font-bold text-stone-100 text-sm flex items-center gap-1.5 font-mono">
+                            <Users className="w-4 h-4 text-[#D4AF37]" />
+                            <span>{selectedBooking.passengerCount || 2} Passengers</span>
+                          </p>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-stone-400 font-mono text-[10px] uppercase block font-semibold text-[#C5A880]">
+                            Expedition Schedule
+                          </span>
+                          <p className="font-bold text-stone-100 text-xs font-mono">
+                            {selectedBooking.startDate} • {selectedBooking.tripDurationDays || 7} Days
+                          </p>
+                          <p className="text-[11px] text-stone-300 font-mono">
+                            Pickup Time: <span className="text-[#C5A880] font-bold">{selectedBooking.pickupTime || '08:00 AM'}</span>
+                          </p>
+                        </div>
                       </div>
 
-                      {/* Chauffeur & Fleet Info Box */}
-                      <div className="p-5 bg-slate-900 text-stone-100 rounded-2xl border border-stone-800 space-y-4">
-                        <h4 className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider font-mono">
-                          Dedicated Chauffeur & Vehicle Escort
-                        </h4>
+                      {/* B. DEDICATED VEHICLE ESCORT CARD */}
+                      <div className="p-5 bg-slate-900 rounded-2xl border border-stone-800 space-y-3">
+                        <div className="flex items-center justify-between border-b border-stone-800 pb-2">
+                          <div className="flex items-center gap-2">
+                            <Car className="w-4 h-4 text-emerald-400" />
+                            <span className="text-xs font-mono font-bold text-[#C5A880] uppercase tracking-wider">
+                              Dedicated Vehicle Escort
+                            </span>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-bold uppercase">
+                            {selectedBooking.vehicle?.categoryBadge || 'VIP FLEET ESCORT'}
+                          </span>
+                        </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                          <div className="space-y-1">
-                            <span className="text-stone-400 block font-mono">Assigned Chauffeur Guide</span>
-                            <div className="font-semibold text-stone-200 flex items-center gap-2">
-                              <Users className="w-4 h-4 text-[#C5A880]" />
-                              <span>{selectedBooking.chauffeurName}</span>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                          <div>
+                            <h5 className="text-base font-serif-luxury font-bold text-stone-100">
+                              {selectedBooking.vehicle?.modelName || selectedBooking.vehicleModel || 'Toyota KDH Super GL VIP Van'}
+                            </h5>
+                            <p className="text-stone-400 text-xs font-mono">
+                              Registration Plate: <span className="text-stone-200 font-bold">{selectedBooking.vehicle?.registrationNumber || selectedBooking.vehiclePlate || 'WP-CM VIP'}</span>
+                            </p>
+                          </div>
+
+                          <div className="px-3 py-1.5 rounded-xl bg-slate-950 border border-stone-800 text-stone-300 font-mono text-xs">
+                            Capacity: <strong className="text-emerald-400">{selectedBooking.vehicle?.maxPassengers || 6} Pax Capacity</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* C. DEDICATED PRIVATE GUIDE CARD */}
+                      {selectedBooking.guideAssignmentStatus === 'NOT_REQUIRED' || selectedBooking.hasGuide === false ? (
+                        <div className="p-5 bg-slate-900 rounded-2xl border border-stone-800 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-stone-400" />
+                              <span className="text-xs font-mono font-bold text-stone-300 uppercase tracking-wider">
+                                Guide Assignment Status
+                              </span>
                             </div>
-                            {selectedBooking.chauffeurPhone && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-stone-800 text-stone-300 border border-stone-700 font-bold uppercase">
+                              No Guide Requested
+                            </span>
+                          </div>
+                          <h5 className="text-sm font-serif-luxury font-bold text-stone-200">
+                            Self-Guided / Chauffeur Drive Only
+                          </h5>
+                          <p className="text-xs text-stone-400 leading-relaxed">
+                            You opted for private chauffeur vehicle escort without an additional local tour guide. Your professional driver will manage navigation and route logistics.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-5 bg-slate-900 rounded-2xl border border-stone-800 space-y-4">
+                          <div className="flex items-center justify-between border-b border-stone-800 pb-2">
+                            <div className="flex items-center gap-2">
+                              <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
+                              <span className="text-xs font-mono font-bold text-[#C5A880] uppercase tracking-wider">
+                                Dedicated Private Guide
+                              </span>
+                            </div>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
+                              selectedBooking.guideAssignmentStatus === 'ACCEPTED_BY_GUIDE'
+                                ? 'bg-emerald-950 text-emerald-300 border-emerald-500/30'
+                                : selectedBooking.guideAssignmentStatus === 'REJECTED_BY_GUIDE'
+                                ? 'bg-rose-950 text-rose-300 border-rose-500/30'
+                                : 'bg-amber-950 text-amber-300 border-amber-500/30 animate-pulse'
+                            }`}>
+                              {selectedBooking.guideAssignmentStatus === 'ACCEPTED_BY_GUIDE'
+                                ? '✓ Guide Confirmed'
+                                : selectedBooking.guideAssignmentStatus === 'REJECTED_BY_GUIDE'
+                                ? '⚠️ Guide Unavailable'
+                                : '⏳ Pending Guide Acceptance'}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs font-sans">
+                            <div className="space-y-1">
+                              <h5 className="text-base font-serif-luxury font-bold text-stone-100">
+                                {selectedBooking.guide?.fullName || selectedBooking.guideName || selectedBooking.chauffeurName || 'Kavinda Fernando'}
+                              </h5>
+                              <p className="text-stone-400 font-mono text-[11px]">
+                                SLTDA License: <span className="text-stone-200 font-semibold">{selectedBooking.guide?.licenseNumber || 'SLTDA/NTG/2024/0481'}</span>
+                              </p>
+                            </div>
+
+                            {(selectedBooking.guide?.contactPhone || selectedBooking.chauffeurPhone) && (
                               <a
-                                href={`tel:${selectedBooking.chauffeurPhone}`}
-                                className="inline-flex items-center gap-1 text-[#C5A880] hover:underline pt-1 font-mono"
+                                href={`tel:${selectedBooking.guide?.contactPhone || selectedBooking.chauffeurPhone}`}
+                                className="px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-stone-800 text-[#C5A880] font-mono text-xs flex items-center gap-2 transition"
                               >
                                 <Phone className="w-3.5 h-3.5" />
-                                <span>{selectedBooking.chauffeurPhone}</span>
+                                <span>{selectedBooking.guide?.contactPhone || selectedBooking.chauffeurPhone}</span>
                               </a>
                             )}
                           </div>
 
-                          <div className="space-y-1">
-                            <span className="text-stone-400 block font-mono">Allocated VIP Vehicle</span>
-                            <div className="font-semibold text-stone-200 flex items-center gap-2">
-                              <Car className="w-4 h-4 text-emerald-400" />
-                              <span>{selectedBooking.vehicleModel}</span>
+                          {/* Display guide response note if present */}
+                          {selectedBooking.guideResponseMessage && (
+                            <div className="p-3 bg-slate-950/80 rounded-xl border border-stone-800/80 text-xs italic text-emerald-300">
+                              Message from Guide: "{selectedBooking.guideResponseMessage}"
                             </div>
-                            <span className="text-stone-400 block font-mono text-[11px]">
-                              Registration: {selectedBooking.vehiclePlate}
-                            </span>
-                          </div>
+                          )}
                         </div>
-                      </div>
+                      )}
+
+                      {/* D. ESTIMATED TOUR BUDGET (Exact match to booking budget structure) */}
+                      {(() => {
+                        const bDays = selectedBooking.tripDurationDays || 5;
+                        const hasGuideReq = selectedBooking.hasGuide !== false && selectedBooking.guideAssignmentStatus !== 'NOT_REQUIRED';
+                        const guideCost = hasGuideReq ? bDays * 50 : 0;
+                        const vehicleCost = bDays * 120;
+                        const budgetSubtotal = guideCost + vehicleCost;
+                        const vat = budgetSubtotal * 0.05;
+                        const totalBudget = budgetSubtotal + vat;
+
+                        return (
+                          <div className="p-5 bg-[#134E4A]/20 border border-emerald-500/30 rounded-2xl space-y-3 font-sans shadow-xl">
+                            <div className="flex items-center justify-between border-b border-stone-800 pb-2">
+                              <h4 className="text-stone-100 font-semibold font-mono text-xs uppercase tracking-wider">
+                                Estimated Tour Budget
+                              </h4>
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
+                                selectedBooking.status === 'CONFIRMED'
+                                  ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
+                                  : selectedBooking.status === 'APPROVED_PENDING_PAYMENT'
+                                  ? 'bg-amber-950 text-amber-300 border-amber-500/40 animate-pulse'
+                                  : 'bg-slate-800 text-stone-300 border-stone-700'
+                              }`}>
+                                {selectedBooking.status === 'CONFIRMED' ? '✓ Fully Paid' : selectedBooking.status === 'APPROVED_PENDING_PAYMENT' ? 'Ready to Pay' : 'Concierge Quote'}
+                              </span>
+                            </div>
+
+                            {hasGuideReq && (
+                              <div className="flex items-center justify-between gap-4 text-xs">
+                                <span className="text-stone-300">Guide ({bDays} days)</span>
+                                <span className="text-stone-100 font-mono font-semibold">{formatPrice(guideCost)}</span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between gap-4 text-xs">
+                              <span className="text-stone-300">Vehicle ({bDays} days)</span>
+                              <span className="text-stone-100 font-mono font-semibold">{formatPrice(vehicleCost)}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-4 border-t border-stone-700/80 pt-3 text-xs">
+                              <span className="text-stone-300">Subtotal</span>
+                              <span className="text-stone-100 font-mono font-semibold">{formatPrice(budgetSubtotal)}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-4 text-xs">
+                              <span className="text-stone-300">VAT (5%)</span>
+                              <span className="text-stone-100 font-mono font-semibold">{formatPrice(vat)}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-4 border-t border-emerald-500/30 pt-3">
+                              <span className="text-emerald-200 font-semibold text-xs sm:text-sm">Total budget (VAT included)</span>
+                              <span className="text-xl sm:text-2xl font-bold font-mono text-emerald-300">{formatPrice(totalBudget)}</span>
+                            </div>
+
+                            {/* Action Bar */}
+                            {selectedBooking.status === 'APPROVED_PENDING_PAYMENT' ? (
+                              <div className="pt-2">
+                                <button
+                                  onClick={() => navigate(`/payment-gateway/${selectedBooking.id}`)}
+                                  className="w-full py-2.5 bg-gradient-to-r from-[#D4AF37] to-[#C5A880] hover:brightness-110 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-lg cursor-pointer flex items-center justify-center gap-2"
+                                >
+                                  <CreditCard className="w-4 h-4 text-slate-950" />
+                                  <span>Proceed to Payment Gateway ({formatPrice(totalBudget)})</span>
+                                </button>
+                              </div>
+                            ) : selectedBooking.status === 'CONFIRMED' ? (
+                              <div className="pt-2 flex items-center justify-between text-xs text-emerald-400 font-mono bg-emerald-950/40 p-2.5 rounded-lg border border-emerald-500/20">
+                                <span className="flex items-center gap-1.5">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                  Payment Confirmed & Verified
+                                </span>
+                                <button
+                                  onClick={() => navigate(`/payment-gateway/${selectedBooking.id}`)}
+                                  className="text-[#C5A880] hover:underline cursor-pointer font-bold text-[11px]"
+                                >
+                                  View Travel Voucher & Slip →
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
 
                       {/* Day-by-Day Accordion */}
                       {selectedBooking.days && selectedBooking.days.length > 0 && (

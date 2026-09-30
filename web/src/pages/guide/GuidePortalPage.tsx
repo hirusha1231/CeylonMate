@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Compass, User, ShieldCheck, Star, Calendar, Clock, MapPin,
   Send, RefreshCw, CheckCircle2, CloudRain, Sun, AlertTriangle,
-  Globe, Phone, Mail, Award, Edit3, Sparkles, Check, Users, FileText, Upload, Image as ImageIcon
+  Globe, Phone, Mail, Award, Edit3, Sparkles, Check, Users, FileText
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
@@ -58,6 +58,13 @@ interface AssignedTour {
   travelerPhone: string;
   travelerNotes?: string;
   packageTitle: string;
+  packageTagline?: string;
+  packageDescription?: string;
+  packageHeroImageUrl?: string;
+  durationDays?: number;
+  durationNights?: number;
+  destinationsCovered?: string;
+  highlights?: string[];
   routeHighlights: string;
   assignedVehicle: string;
 }
@@ -99,13 +106,10 @@ export const GuidePortalPage: React.FC = () => {
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
   const [editName, setEditName] = useState<string>('');
   const [editBio, setEditBio] = useState<string>('');
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(['English', 'German', 'Sinhala']);
-  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([
-    'Cultural Heritage & Ancient Ruins',
-    'Wildlife Tracking & Yala Safaris'
-  ]);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
   const [editPhoto, setEditPhoto] = useState<string>('');
-  const [editRate, setEditRate] = useState<number>(18000);
+  const [editRate, setEditRate] = useState<number>(0);
   const [editCurrency, setEditCurrency] = useState<string>('LKR');
   const [savingProfile, setSavingProfile] = useState<boolean>(false);
 
@@ -137,16 +141,16 @@ export const GuidePortalPage: React.FC = () => {
       
       const langs = profData?.languagesSpoken
         ? profData.languagesSpoken.split(',').map((l: string) => l.trim()).filter((l: string) => l.length > 0)
-        : ['English', 'German', 'Sinhala'];
+        : [];
       setSelectedLanguages(langs);
 
       const specs = profData?.specialties
         ? profData.specialties.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0)
-        : ['Cultural Heritage & Ancient Ruins', 'Wildlife Tracking & Yala Safaris'];
+        : [];
       setSelectedSpecialties(specs);
 
       setEditPhoto(profData?.photoUrl || '');
-      setEditRate(profData?.defaultDailyRateLkr || 18000);
+      setEditRate(profData?.defaultDailyRateLkr || 0);
       setEditCurrency(profData?.currency || 'LKR');
 
       setTours(myTours);
@@ -241,36 +245,8 @@ export const GuidePortalPage: React.FC = () => {
     }
   };
 
-  const handleLocalPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        showToast('File Too Large', 'Please select an image smaller than 5MB.', 'error');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setEditPhoto(reader.result);
-          showToast('Photo Loaded', 'Local image loaded successfully. Preview updated.', 'info');
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (selectedLanguages.length === 0) {
-      showToast('Validation Error', 'Please select at least one language.', 'error');
-      return;
-    }
-
-    if (selectedSpecialties.length === 0) {
-      showToast('Validation Error', 'Please select at least one specialty.', 'error');
-      return;
-    }
 
     setSavingProfile(true);
     try {
@@ -354,15 +330,21 @@ export const GuidePortalPage: React.FC = () => {
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="flex items-center gap-5">
-              <div className="relative w-20 h-20 rounded-2xl bg-slate-900 border-2 border-[#C5A880] overflow-hidden shrink-0 shadow-2xl">
-                <img
-                  src={profile?.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400'}
-                  alt={profile?.fullName}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute bottom-0 right-0 p-1 bg-emerald-500 rounded-tl-lg text-slate-950" title="Active Certified Chauffeur">
-                  <Check className="w-3 h-3 font-bold" />
-                </div>
+              <div className="relative w-20 h-20 rounded-2xl bg-slate-900 border-2 border-[#C5A880] overflow-hidden shrink-0 shadow-2xl flex items-center justify-center">
+                {profile?.photoUrl ? (
+                  <img
+                    src={profile.photoUrl}
+                    alt={profile.fullName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="w-10 h-10 text-[#C5A880]" />
+                )}
+                {profile?.isActive && (
+                  <div className="absolute bottom-0 right-0 p-1 bg-emerald-500 rounded-tl-lg text-slate-950" title="Active Certified Guide">
+                    <Check className="w-3 h-3 font-bold" />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -372,7 +354,7 @@ export const GuidePortalPage: React.FC = () => {
                   </span>
                   <span className="text-xs font-mono text-[#D4AF37] flex items-center gap-1 font-bold">
                     <Star className="w-3.5 h-3.5 fill-current" />
-                    <span>{profile?.rating} Rating ({profile?.reviewCount} Reviews)</span>
+                    <span>{profile?.rating && profile.rating > 0 ? profile.rating.toFixed(1) : '0.0'} Rating ({profile?.reviewCount ?? 0} Reviews)</span>
                   </span>
                 </div>
 
@@ -381,13 +363,13 @@ export const GuidePortalPage: React.FC = () => {
                 </h1>
 
                 <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-stone-400">
-                  <span>License: <strong className="text-stone-200">{profile?.licenseNumber}</strong></span>
+                  <span>License: <strong className="text-stone-200">{profile?.licenseNumber || 'Pending verification'}</strong></span>
                   <span>•</span>
-                  <span>Languages: <strong className="text-stone-200">{profile?.languagesSpoken}</strong></span>
+                  <span>Languages: <strong className="text-stone-200">{profile?.languagesSpoken || 'Not specified'}</strong></span>
                   <span>•</span>
-                  <span>Specialties: <strong className="text-stone-200">{profile?.specialties || 'Cultural Heritage & Ancient Kingdoms'}</strong></span>
+                  <span>Specialties: <strong className="text-stone-200">{profile?.specialties || 'Not specified'}</strong></span>
                   <span>•</span>
-                  <span>Daily Rate: <strong className="text-[#C5A880]">{formatPrice(profile?.defaultDailyRateLkr || 18000, (profile?.currency as any) || 'LKR')}/day</strong></span>
+                  <span>Daily Rate: <strong className="text-[#C5A880]">{profile?.defaultDailyRateLkr && profile.defaultDailyRateLkr > 0 ? `${formatPrice(profile.defaultDailyRateLkr, (profile?.currency as any) || 'LKR')}/day` : 'Not configured'}</strong></span>
                 </div>
 
                 {profile?.specialties && (
@@ -507,44 +489,107 @@ export const GuidePortalPage: React.FC = () => {
                           </div>
                         </div>
 
+                        {/* SELECTED CURATED SIGNATURE COLLECTION PACKAGE CARD */}
+                        <div className="p-4 bg-gradient-to-r from-slate-900/90 via-[#0B131F] to-[#134E4A]/30 rounded-xl border border-[#C5A880]/30 space-y-3 shadow-inner">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-800/80 pb-2">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                              <span className="text-xs font-mono font-bold text-[#C5A880] uppercase tracking-wider">
+                                Selected Package: Curated Signature Collection
+                              </span>
+                            </div>
+                            {t.durationDays && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-semibold">
+                                <Clock className="w-3 h-3 text-[#D4AF37]" />
+                                {t.durationDays} Days {t.durationNights ? `/ ${t.durationNights} Nights` : ''}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex flex-col md:flex-row gap-4">
+                            {t.packageHeroImageUrl && (
+                              <img
+                                src={t.packageHeroImageUrl}
+                                alt={t.packageTitle}
+                                className="w-full md:w-36 h-24 object-cover rounded-lg border border-stone-800 shrink-0 shadow-md"
+                              />
+                            )}
+
+                            <div className="space-y-1.5 flex-1">
+                              <h5 className="text-base font-serif-luxury font-bold text-stone-100 leading-snug">
+                                {t.packageTitle}
+                              </h5>
+                              {t.packageTagline && (
+                                <p className="text-xs text-amber-200/90 font-sans italic">
+                                  "{t.packageTagline}"
+                                </p>
+                              )}
+
+                              <div className="flex items-start gap-1.5 text-xs text-stone-300 font-mono pt-1">
+                                <MapPin className="w-3.5 h-3.5 text-[#C5A880] shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="text-stone-400 text-[10px] uppercase block">Destinations & Expedition Route:</span>
+                                  <span className="text-stone-200 font-semibold">{t.destinationsCovered || t.routeHighlights}</span>
+                                </div>
+                              </div>
+
+                              {t.highlights && t.highlights.length > 0 && (
+                                <div className="pt-2 border-t border-stone-800/60">
+                                  <span className="text-[10px] font-mono uppercase text-[#C5A880] font-semibold block mb-1">
+                                    Curated Expedition Inclusions:
+                                  </span>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-[11px] text-stone-300">
+                                    {t.highlights.map((item, idx) => (
+                                      <div key={idx} className="flex items-center gap-1.5">
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                                        <span>{item}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs font-sans">
                           {/* Traveler Name & Pax count */}
                           <div className="p-4 bg-slate-900/80 rounded-xl border border-stone-800 space-y-2">
                             <span className="text-stone-400 font-mono text-[10px] uppercase block font-semibold text-[#C5A880]">
                               Traveler & Guest Details
                             </span>
-                            <p className="font-bold text-stone-100 text-sm">{t.travelerName}</p>
+                            <p className="font-bold text-stone-100 text-sm">{t.travelerName || 'Registered Traveler'}</p>
                             <div className="space-y-1 text-stone-300 font-mono text-[11px]">
                               <div className="flex items-center gap-2">
-                                <Users className="w-3.5 h-3.5 text-[#C5A880] shrink-0" />
-                                <span>{t.passengerCount} Guest(s) / Passengers</span>
-                              </div>
-                              <div className="flex items-center gap-2">
                                 <Mail className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                                <span>{t.travelerEmail}</span>
+                                <span>{t.travelerEmail || 'traveler@ceylonmate.com'}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Phone className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                                <span>{t.travelerPhone}</span>
+                                <span>{t.travelerPhone || '+94 77 123 4567'}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Users className="w-3.5 h-3.5 text-[#C5A880] shrink-0" />
+                                <span>{t.passengerCount || 2} Guest(s) / Passengers</span>
                               </div>
                             </div>
                           </div>
 
-                          {/* Package Name & Route summary */}
+                          {/* Escort Vehicle */}
                           <div className="p-4 bg-slate-900/80 rounded-xl border border-stone-800 space-y-2">
                             <span className="text-stone-400 font-mono text-[10px] uppercase block font-semibold text-[#C5A880]">
-                              Route Summary & Vehicle
+                              Escort Vehicle
                             </span>
-                            <p className="font-bold text-stone-100 text-xs font-mono">{t.routeHighlights}</p>
-                            <p className="text-stone-400 text-[11px] pt-1 border-t border-stone-800">
-                              Escort Vehicle: <strong className="text-stone-200">{t.assignedVehicle}</strong>
+                            <p className="font-bold text-stone-100 text-sm">{t.assignedVehicle}</p>
+                            <p className="text-stone-400 text-[11px] leading-relaxed">
+                              Whole-day private escort with dual AC, reclining seats, and safety equipment.
                             </p>
                           </div>
 
-                          {/* Traveler instructions / luggage notes */}
+                          {/* Traveler instructions / notes */}
                           <div className="p-4 bg-slate-900/80 rounded-xl border border-stone-800 space-y-2">
                             <span className="text-stone-400 font-mono text-[10px] uppercase block font-semibold text-[#C5A880]">
-                              Special Instructions & Notes
+                              Traveler Special Requests
                             </span>
                             <p className="text-stone-300 italic text-xs leading-relaxed">
                               "{t.travelerNotes || 'No special requirements specified by traveler.'}"
@@ -591,7 +636,7 @@ export const GuidePortalPage: React.FC = () => {
                 </div>
 
                 <span className="px-3 py-1 rounded-full text-xs font-mono bg-slate-900 border border-stone-800 text-[#C5A880]">
-                  Total Completed Tours: <strong>{profile?.completedToursCount || 142}</strong>
+                  Total Completed Tours: <strong>{profile?.completedToursCount ?? 0}</strong>
                 </span>
               </div>
 
@@ -644,25 +689,88 @@ export const GuidePortalPage: React.FC = () => {
                           </div>
                         </div>
 
+                        {/* SELECTED CURATED SIGNATURE COLLECTION PACKAGE CARD */}
+                        <div className="p-4 bg-gradient-to-r from-slate-900/90 via-[#0B131F] to-[#134E4A]/30 rounded-xl border border-[#C5A880]/30 space-y-3 shadow-inner">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-800/80 pb-2">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                              <span className="text-xs font-mono font-bold text-[#C5A880] uppercase tracking-wider">
+                                Selected Package: Curated Signature Collection
+                              </span>
+                            </div>
+                            {t.durationDays && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-semibold">
+                                <Clock className="w-3 h-3 text-[#D4AF37]" />
+                                {t.durationDays} Days {t.durationNights ? `/ ${t.durationNights} Nights` : ''}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex flex-col md:flex-row gap-4">
+                            {t.packageHeroImageUrl && (
+                              <img
+                                src={t.packageHeroImageUrl}
+                                alt={t.packageTitle}
+                                className="w-full md:w-36 h-24 object-cover rounded-lg border border-stone-800 shrink-0 shadow-md"
+                              />
+                            )}
+
+                            <div className="space-y-1.5 flex-1">
+                              <h5 className="text-base font-serif-luxury font-bold text-stone-100 leading-snug">
+                                {t.packageTitle}
+                              </h5>
+                              {t.packageTagline && (
+                                <p className="text-xs text-amber-200/90 font-sans italic">
+                                  "{t.packageTagline}"
+                                </p>
+                              )}
+
+                              <div className="flex items-start gap-1.5 text-xs text-stone-300 font-mono pt-1">
+                                <MapPin className="w-3.5 h-3.5 text-[#C5A880] shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="text-stone-400 text-[10px] uppercase block">Destinations & Expedition Route:</span>
+                                  <span className="text-stone-200 font-semibold">{t.destinationsCovered || t.routeHighlights}</span>
+                                </div>
+                              </div>
+
+                              {t.highlights && t.highlights.length > 0 && (
+                                <div className="pt-2 border-t border-stone-800/60">
+                                  <span className="text-[10px] font-mono uppercase text-[#C5A880] font-semibold block mb-1">
+                                    Curated Expedition Inclusions:
+                                  </span>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 text-[11px] text-stone-300">
+                                    {t.highlights.map((item, idx) => (
+                                      <div key={idx} className="flex items-center gap-1.5">
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                                        <span>{item}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs font-sans">
                           {/* Traveler Contact */}
                           <div className="p-4 bg-slate-900/80 rounded-xl border border-stone-800 space-y-2">
                             <span className="text-stone-400 font-mono text-[10px] uppercase block font-semibold text-[#C5A880]">
                               Traveler Contact Info
                             </span>
-                            <p className="font-bold text-stone-100 text-sm">{t.travelerName}</p>
+                            <p className="font-bold text-stone-100 text-sm">{t.travelerName || 'Registered Traveler'}</p>
                             <div className="space-y-1 text-stone-300 font-mono text-[11px]">
                               <div className="flex items-center gap-2">
                                 <Mail className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                                <span>{t.travelerEmail}</span>
+                                <span>{t.travelerEmail || 'traveler@ceylonmate.com'}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Phone className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                                <span>{t.travelerPhone}</span>
+                                <span>{t.travelerPhone || '+94 77 123 4567'}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Users className="w-3.5 h-3.5 text-[#C5A880] shrink-0" />
-                                <span>{t.passengerCount} Guest(s) / Passengers</span>
+                                <span>{t.passengerCount || 2} Guest(s) / Passengers</span>
                               </div>
                             </div>
                           </div>
@@ -681,13 +789,14 @@ export const GuidePortalPage: React.FC = () => {
                           {/* Route Highlights & Response Message */}
                           <div className="p-4 bg-slate-900/80 rounded-xl border border-stone-800 space-y-2">
                             <span className="text-stone-400 font-mono text-[10px] uppercase block font-semibold text-[#C5A880]">
-                              Route & Your Note
+                              Your Decision Note
                             </span>
-                            <p className="text-stone-200 text-xs font-mono">{t.routeHighlights}</p>
-                            {t.guideResponseMessage && (
-                              <p className="text-[11px] text-emerald-300 italic pt-1 border-t border-stone-800">
+                            {t.guideResponseMessage ? (
+                              <p className="text-[11px] text-emerald-300 italic pt-1">
                                 Your Note: "{t.guideResponseMessage}"
                               </p>
+                            ) : (
+                              <p className="text-stone-400 italic text-xs">No response note attached.</p>
                             )}
                           </div>
                         </div>
@@ -958,9 +1067,9 @@ export const GuidePortalPage: React.FC = () => {
                   </span>
                 </div>
 
-                {/* 4. Photo (Local File Upload & Web URL) */}
+                {/* 4. Photo (Web URL) */}
                 <div className="space-y-2 pt-2 border-t border-stone-800">
-                  <label className="block text-stone-300 font-semibold">Guide Photo (Local Upload or URL)</label>
+                  <label className="block text-stone-300 font-semibold">Guide Photo URL</label>
                   
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-stone-700 overflow-hidden shrink-0 flex items-center justify-center text-[#C5A880]">
@@ -971,31 +1080,17 @@ export const GuidePortalPage: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleLocalPhotoUpload}
-                          className="hidden"
-                          id="guide-local-photo-input"
-                        />
-                        <label
-                          htmlFor="guide-local-photo-input"
-                          className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-stone-700 text-stone-200 rounded-xl text-xs font-mono cursor-pointer flex items-center gap-1.5 transition"
-                        >
-                          <Upload className="w-3.5 h-3.5 text-[#C5A880]" />
-                          <span>Choose Local Image File</span>
-                        </label>
-                      </div>
-
+                    <div className="flex-1 space-y-1">
                       <input
                         type="text"
                         value={editPhoto}
                         onChange={(e) => setEditPhoto(e.target.value)}
-                        placeholder="Or paste web image URL..."
-                        className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3 py-1.5 text-stone-100 focus:border-[#C5A880] outline-none text-xs font-mono"
+                        placeholder="https://images.example.com/guide-photo.jpg"
+                        className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] outline-none text-xs font-mono"
                       />
+                      <span className="text-[10px] text-stone-500 font-mono block">
+                        Enter a direct image link (HTTPS) or leave empty for default avatar.
+                      </span>
                     </div>
                   </div>
                 </div>

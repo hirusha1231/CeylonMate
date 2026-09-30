@@ -10,7 +10,7 @@ interface AuthContextValue {
   status: AuthStatus;
   error: string | null;
   login(email: string, password: string): Promise<AuthUser | null>;
-  register(email: string, password: string, fullName?: string, phoneNumber?: string): Promise<AuthUser | null>;
+  register(email: string, password: string, fullName?: string, phoneNumber?: string, role?: string): Promise<AuthUser | null>;
   logout(): void;
   clearError(): void;
 }
@@ -130,17 +130,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (email: string, password: string, fullName?: string, phoneNumber?: string): Promise<AuthUser | null> => {
+  const register = useCallback(async (email: string, password: string, fullName?: string, phoneNumber?: string, role: string = 'TRAVELER'): Promise<AuthUser | null> => {
     setError(null);
     setStatus('checking');
     try {
-      console.log('[AuthProvider] Registering user:', { email: email.trim(), fullName, phoneNumber });
+      const selectedRole = role?.trim() || 'TRAVELER';
+      console.log('[AuthProvider] Registering user:', { email: email.trim(), fullName, phoneNumber, role: selectedRole });
       const response = await api.post<any>('/api/auth/register', {
         email: email.trim(),
         password,
         fullName: fullName?.trim() || undefined,
         phoneNumber: phoneNumber?.trim() || '',
-        role: 'TRAVELER',
+        role: selectedRole,
       });
       console.log('[AuthProvider] Registration successful. Status:', response.status, 'Payload:', response.data);
 
@@ -155,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const registeredUser: AuthUser = {
         id: String(data.user?.id || 'usr-reg'),
         email: data.user?.email || email.trim(),
-        role: String(data.user?.role || 'TRAVELER').toUpperCase(),
+        role: String(data.user?.role || selectedRole).toUpperCase(),
         fullName: data.user?.fullName || fullName,
       };
 

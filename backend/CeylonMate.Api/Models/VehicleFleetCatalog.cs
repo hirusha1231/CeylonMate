@@ -20,5 +20,6 @@ public class VehicleFleetCatalog
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public ICollection<TransportSlot> TransportSlots { get; set; } = new List<TransportSlot>();
 }

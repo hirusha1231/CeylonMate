@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { Compass, Clock, MapPin, Sparkles, ArrowRight, CheckCircle2, Shield } from 'lucide-react';
 import { api } from '../services/api';
 import { buttonPressProps } from '../utils/animations';
-import { useCurrency } from '../context/CurrencyContext';
 import { useAuth } from '../auth/AuthProvider';
 import { useToast } from '../context/ToastContext';
 import { CuratedBookingModal } from '../components/booking/CuratedBookingModal';
@@ -34,7 +33,6 @@ export const SignatureJourneysPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedJourney, setSelectedJourney] = useState<SignatureJourney | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { formatPrice } = useCurrency();
 
   const handleBookJourney = (journeyId: string) => {
     if (!user) {
@@ -110,10 +108,14 @@ export const SignatureJourneysPage: React.FC = () => {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0F1A24] via-transparent to-black/30" />
 
-                  <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-slate-950/80 border border-[#C5A880]/40 text-[#C5A880] text-xs font-mono font-semibold flex items-center gap-1.5 backdrop-blur-md">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>{journey.durationDays} Days / {journey.durationNights} Nights</span>
-                  </div>
+                  {journey.durationDays > 0 && (
+                    <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-slate-950/80 border border-stone-700 text-stone-200 text-xs font-mono font-semibold flex items-center gap-1.5 backdrop-blur-md">
+                      <Clock className="w-3.5 h-3.5 text-[#C5A880]" />
+                      <span>{journey.durationDays} Days</span>
+                    </div>
+                  )}
+
+
 
                   <div className="absolute bottom-4 left-4 right-4 space-y-1">
                     <h2 className="text-2xl font-serif-luxury font-bold text-stone-100 drop-shadow-md">
@@ -151,15 +153,8 @@ export const SignatureJourneysPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Pricing & CTA */}
-                  <div className="pt-4 border-t border-stone-800 flex items-center justify-between gap-4">
-                    <div>
-                      <span className="text-[10px] text-stone-400 uppercase tracking-widest font-mono block">Starting Price</span>
-                      <span className="text-lg font-bold font-mono text-[#D4AF37]">
-                        {formatPrice(journey.startingPriceUsd)}
-                      </span>
-                    </div>
-
+                  {/* Journey CTA */}
+                  <div className="pt-4 border-t border-stone-800 flex items-center justify-end gap-4">
                     <motion.button
                       {...buttonPressProps}
                       onClick={() => handleBookJourney(journey.id)}

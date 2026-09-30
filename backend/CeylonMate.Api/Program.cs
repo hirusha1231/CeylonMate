@@ -162,11 +162,8 @@ if (app.Environment.IsDevelopment())
     {
         try
         {
-            await db.Database.MigrateAsync();
-            try
-            {
-                await db.Database.ExecuteSqlRawAsync(@"
-                    ALTER TABLE IF EXISTS public.guide_availabilities ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE IF EXISTS public.guide_availabilities ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
                     ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""FullName"" text NULL;
                     ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""PhotoUrl"" text NULL;
                     ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""Bio"" text NULL;
@@ -175,18 +172,15 @@ if (app.Environment.IsDevelopment())
                     ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""LicenseType"" text NULL;
                     ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""IsChauffeur"" boolean NOT NULL DEFAULT false;
                     ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""DrivingLicenseClass"" text NULL;
-                    ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""Rating"" numeric(18,2) NOT NULL DEFAULT 4.9;
-                    ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""ReviewCount"" integer NOT NULL DEFAULT 12;
-                    ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""DefaultDailyRateLkr"" numeric(18,2) NOT NULL DEFAULT 18000;
-                    ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""DailyRate"" numeric(18,2) NOT NULL DEFAULT 18000;
+                    ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""Rating"" numeric(18,2) NOT NULL DEFAULT 0;
+                    ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""ReviewCount"" integer NOT NULL DEFAULT 0;
+                    ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""DefaultDailyRateLkr"" numeric(18,2) NOT NULL DEFAULT 0;
+                    ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""DailyRate"" numeric(18,2) NOT NULL DEFAULT 0;
                     ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""Currency"" character varying(10) NOT NULL DEFAULT 'LKR';
                     ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""IsActive"" boolean NOT NULL DEFAULT true;
                     ALTER TABLE IF EXISTS public.transport_slots ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
                     ALTER TABLE IF EXISTS public.transport_slots ADD COLUMN IF NOT EXISTS ""VehicleCatalogId"" uuid NULL;
                     ALTER TABLE IF EXISTS public.transport_slots ADD COLUMN IF NOT EXISTS ""RouteDescription"" text NULL;
-                    ALTER TABLE IF EXISTS public.transport_slots ADD COLUMN IF NOT EXISTS ""BookedSeats"" integer NOT NULL DEFAULT 0;
-                    ALTER TABLE IF EXISTS public.transport_slots ADD COLUMN IF NOT EXISTS ""HeldSeats"" integer NOT NULL DEFAULT 0;
-                    ALTER TABLE IF EXISTS public.transport_slots ADD COLUMN IF NOT EXISTS ""RatePerSeatLkr"" numeric(18,2) NULL;
                     ALTER TABLE IF EXISTS public.attraction_slots ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
                     
                     CREATE TABLE IF NOT EXISTS public.signature_journeys (
@@ -227,17 +221,6 @@ if (app.Environment.IsDevelopment())
                         ""UpdatedAt"" timestamp with time zone NOT NULL
                     );
 
-                    CREATE TABLE IF NOT EXISTS public.transport_seat_holds (
-                        ""Id"" uuid NOT NULL PRIMARY KEY,
-                        ""TransportSlotId"" uuid NOT NULL,
-                        ""TravelerId"" uuid NULL,
-                        ""HoldToken"" character varying(128) NOT NULL,
-                        ""SeatCount"" integer NOT NULL,
-                        ""ExpiresAtUtc"" timestamp with time zone NOT NULL,
-                        ""IsReleasedOrConsumed"" boolean NOT NULL DEFAULT false,
-                        ""CreatedAt"" timestamp with time zone NOT NULL
-                    );
-
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""VehicleCapacityStatus"" text NULL;
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""CapacityRejectionReason"" text NULL;
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""CapacityRejectedByUserId"" uuid NULL;
@@ -247,13 +230,36 @@ if (app.Environment.IsDevelopment())
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""FinalPriceQuoteUsd"" numeric(18,2) NULL;
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""GuideSlotId"" uuid NULL;
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""VehicleSlotId"" uuid NULL;
+                    ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""VehicleCatalogId"" uuid NULL;
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""PackageId"" integer NULL;
+                    ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""TripDurationDays"" integer NULL;
+                    ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""PassengerCount"" integer NULL;
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""StartDate"" text NULL;
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""PickupTime"" text NULL;
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""TravelerNotes"" text NULL;
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""GuideAssignmentStatus"" text NOT NULL DEFAULT 'PENDING_GUIDE_ACCEPTANCE';
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""GuideResponseMessage"" text NULL;
                     ALTER TABLE IF EXISTS public.""Bookings"" ADD COLUMN IF NOT EXISTS ""GuideRespondedAtUtc"" timestamp with time zone NULL;
+
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""VehicleCapacityStatus"" text NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""CapacityRejectionReason"" text NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""CapacityRejectedByUserId"" uuid NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""CapacityRejectedAtUtc"" timestamp with time zone NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""AgentNotes"" text NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""FinalPriceQuoteLkr"" numeric(18,2) NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""FinalPriceQuoteUsd"" numeric(18,2) NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""GuideSlotId"" uuid NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""VehicleSlotId"" uuid NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""VehicleCatalogId"" uuid NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""PackageId"" integer NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""TripDurationDays"" integer NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""PassengerCount"" integer NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""StartDate"" text NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""PickupTime"" text NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""TravelerNotes"" text NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""GuideAssignmentStatus"" text NOT NULL DEFAULT 'PENDING_GUIDE_ACCEPTANCE';
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""GuideResponseMessage"" text NULL;
+                    ALTER TABLE IF EXISTS public.bookings ADD COLUMN IF NOT EXISTS ""GuideRespondedAtUtc"" timestamp with time zone NULL;
 
                     CREATE TABLE IF NOT EXISTS public.guide_availability_slots (
                         ""Id"" uuid NOT NULL PRIMARY KEY,
@@ -299,12 +305,8 @@ if (app.Environment.IsDevelopment())
                         ""IsRead"" boolean NOT NULL DEFAULT false,
                         ""CreatedAt"" timestamp with time zone NOT NULL
                     );
+                    ALTER TABLE public.""Bookings"" ADD COLUMN IF NOT EXISTS ""TravelerUserId"" text;
                 ");
-            }
-            catch
-            {
-                // Ignore if tables do not exist yet
-            }
         }
         catch (Npgsql.PostgresException pex)
         {
@@ -319,6 +321,12 @@ if (app.Environment.IsDevelopment())
     {
         await db.Database.EnsureCreatedAsync();
     }
+
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Bookings\" ADD COLUMN IF NOT EXISTS \"TravelerUserId\" text;");
+    }
+    catch { }
 
     // Seed Initial Signature Journeys if empty
     try
@@ -460,6 +468,38 @@ if (app.Environment.IsDevelopment())
                     DailyRateUsd = 250.00m,
                     IsActive = true,
                     DisplayOrder = 4,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new CeylonMate.Api.Models.VehicleFleetCatalog
+                {
+                    Id = Guid.NewGuid(),
+                    CategoryBadge = "PREMIUM LUXURY SUV",
+                    VehicleModel = "Range Rover Autobiography V8 SUV",
+                    Description = "Supreme luxury for executive VIPs. All-wheel drive terrain response, massage executive seating, and ultra-quiet ride.",
+                    ImageUrl = "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=1000&q=80",
+                    MaxPassengers = 4,
+                    FeatureHighlight = "Executive Lounge Seating",
+                    LuggageCapacity = "4 Large Luggage",
+                    DailyRateUsd = 220.00m,
+                    IsActive = true,
+                    DisplayOrder = 5,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new CeylonMate.Api.Models.VehicleFleetCatalog
+                {
+                    Id = Guid.NewGuid(),
+                    CategoryBadge = "LUXURY DELEGATION BUS",
+                    VehicleModel = "Volvo B11R Super VIP Coach",
+                    Description = "Ultra-capacity luxury coach for large tour delegations with reclining leather seats, onboard lavatory, and climate zones.",
+                    ImageUrl = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1000&q=80",
+                    MaxPassengers = 30,
+                    FeatureHighlight = "Air Suspension & Sky Lounge",
+                    LuggageCapacity = "25 Large Luggage",
+                    DailyRateUsd = 350.00m,
+                    IsActive = true,
+                    DisplayOrder = 6,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 }

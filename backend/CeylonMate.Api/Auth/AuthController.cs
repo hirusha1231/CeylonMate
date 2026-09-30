@@ -94,6 +94,28 @@ public sealed class AuthController(
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
         db.Users.Add(user);
 
+        if (user.Role == UserRole.LOCAL_GUIDE)
+        {
+            var guideProfile = new Models.GuideProfile
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                FullName = user.FullName ?? user.Email,
+                PhotoUrl = null,
+                LicenseNumber = null,
+                Bio = null,
+                LanguagesSpoken = null,
+                Specialties = null,
+                DailyRate = 0m,
+                DefaultDailyRateLkr = 0m,
+                Rating = 0m,
+                ReviewCount = 0,
+                Currency = "LKR",
+                IsActive = true
+            };
+            db.GuideProfiles.Add(guideProfile);
+        }
+
         try
         {
             await db.SaveChangesAsync(cancellationToken);

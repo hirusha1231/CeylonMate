@@ -2,7 +2,9 @@ using CeylonMate.Api.Data;
 using CeylonMate.Api.DTOs;
 using CeylonMate.Api.Models;
 using CeylonMate.Api.Services;
+using CeylonMate.Api.Controllers;
 using FluentAssertions;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -15,6 +17,73 @@ public class CapacityReservationServiceTests
         return new DbContextOptionsBuilder<CeylonMateDbContext>()
             .UseInMemoryDatabase(dbName)
             .Options;
+    }
+
+    [Fact]
+    public async Task HoldVehicle_ReservesTheWholeSlotForFifteenMinutes()
+    {
+        var options = CreateInMemoryOptions(Guid.NewGuid().ToString("N"));
+        await using var db = new CeylonMateDbContext(options);
+        var transportOption = new TransportOption
+        {
+            Id = Guid.NewGuid(),
+            Title = "Executive Van",
+            VehicleType = VehicleType.VAN,
+            PassengerCapacity = 6
+        };
+        var slot = new TransportSlot
+        {
+            Id = Guid.NewGuid(),
+            TransportOptionId = transportOption.Id,
+            TransportOption = transportOption,
+            StartTimeUtc = DateTimeOffset.UtcNow.AddDays(1),
+            EndTimeUtc = DateTimeOffset.UtcNow.AddDays(1).AddHours(8),
+            VehicleType = VehicleType.VAN,
+            Status = SlotStatus.AVAILABLE,
+            DailyRate = 45000,
+            Currency = "LKR"
+        };
+        db.TransportOptions.Add(transportOption);
+        db.TransportSlots.Add(slot);
+        await db.SaveChangesAsync();
+
+        var controller = new TransportBookingController(db);
+        var startedAt = DateTimeOffset.UtcNow;
+        var result = await controller.HoldVehicle(slot.Id);
+
+        result.Should().BeOfType<OkObjectResult>();
+        slot.Status.Should().Be(SlotStatus.RESERVED);
+        slot.HeldUntilUtc.Should().BeAfter(startedAt.AddMinutes(14));
+        slot.DailyRate.Should().Be(45000);
+
+        var secondHold = await controller.HoldVehicle(slot.Id);
+        secondHold.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task SearchCapacity_UsesPassengerLimitAndVehicleDailyRate()
+    {
+        var options = CreateInMemoryOptions(Guid.NewGuid().ToString("N"));
+        await using var db = new CeylonMateDbContext(options);
+        var service = new CapacityReservationService(db);
+        var optionId = Guid.NewGuid();
+        var startTime = DateTimeOffset.UtcNow.AddDays(1);
+        var slot = await service.AddTransportSlotAsync(optionId, new CreateTransportSlotRequestDto(
+            StartTimeUtc: startTime,
+            EndTimeUtc: startTime.AddHours(8),
+            VehicleType: VehicleType.VAN,
+            MaxPassengers: 4,
+            DailyRate: 45000,
+            Currency: "LKR"
+        ));
+
+        var fittingSearch = await service.SearchCapacityAsync(new CapacitySearchQueryDto(null, PartySize: 4));
+        var oversizedSearch = await service.SearchCapacityAsync(new CapacitySearchQueryDto(null, PartySize: 5));
+
+        fittingSearch.AvailableTransport.Should().ContainSingle().Which.Id.Should().Be(slot.Id);
+        fittingSearch.AvailableTransport.Single().MaxPassengers.Should().Be(4);
+        fittingSearch.AvailableTransport.Single().DailyRate.Should().Be(45000);
+        oversizedSearch.AvailableTransport.Should().BeEmpty();
     }
 
     [Fact]

@@ -37,7 +37,6 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
     public DbSet<LocalGuideReport> LocalGuideReports => Set<LocalGuideReport>();
     public DbSet<SignatureJourney> SignatureJourneys => Set<SignatureJourney>();
     public DbSet<VehicleFleetCatalog> VehicleFleetCatalogs => Set<VehicleFleetCatalog>();
-    public DbSet<TransportSeatHold> TransportSeatHolds => Set<TransportSeatHold>();
     public DbSet<CapacityNotification> CapacityNotifications => Set<CapacityNotification>();
     public DbSet<GuideAvailabilitySlot> GuideAvailabilitySlots => Set<GuideAvailabilitySlot>();
     public DbSet<GuideFieldReport> GuideFieldReports => Set<GuideFieldReport>();
@@ -117,27 +116,13 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
         transportSlot.HasIndex(x => new { x.TransportOptionId, x.StartTimeUtc, x.EndTimeUtc });
         transportSlot.Property(x => x.VehicleType).HasConversion<string>().HasMaxLength(32).IsRequired();
         transportSlot.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
-        transportSlot.Property(x => x.PricePerSeat).HasPrecision(18, 2);
+        transportSlot.Property(x => x.DailyRate).HasPrecision(18, 2);
         transportSlot.Property(x => x.Currency).HasMaxLength(3).IsRequired();
         transportSlot.Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
         transportSlot.HasOne(x => x.TransportOption)
                      .WithMany(x => x.TransportSlots)
                      .HasForeignKey(x => x.TransportOptionId)
                      .OnDelete(DeleteBehavior.Restrict);
-        transportSlot.HasOne(x => x.VehicleCatalog)
-                     .WithMany(x => x.TransportSlots)
-                     .HasForeignKey(x => x.VehicleCatalogId)
-                     .OnDelete(DeleteBehavior.SetNull);
-
-        // TransportSeatHold Configuration
-        var seatHold = modelBuilder.Entity<TransportSeatHold>();
-        seatHold.ToTable("transport_seat_holds");
-        seatHold.HasKey(x => x.Id);
-        seatHold.Property(x => x.HoldToken).HasMaxLength(128).IsRequired();
-        seatHold.HasOne(x => x.TransportSlot)
-                .WithMany()
-                .HasForeignKey(x => x.TransportSlotId)
-                .OnDelete(DeleteBehavior.Cascade);
 
         // AttractionSlot Configuration
         var attractionSlot = modelBuilder.Entity<AttractionSlot>();

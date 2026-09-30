@@ -18,10 +18,10 @@ public class GuideProfile
     public string? LicenseType { get; set; } = "National Tourist Guide Lecturer";
     public bool IsChauffeur { get; set; } = false;
     public string? DrivingLicenseClass { get; set; }
-    public decimal Rating { get; set; } = 5.0m;
+    public decimal Rating { get; set; } = 0m;
     public int ReviewCount { get; set; } = 0;
-    public decimal DefaultDailyRateLkr { get; set; } = 18000m;
-    public decimal DailyRate { get; set; } = 18000m;
+    public decimal DefaultDailyRateLkr { get; set; } = 0m;
+    public decimal DailyRate { get; set; } = 0m;
     public string Currency { get; set; } = "LKR";
     public bool IsActive { get; set; } = true;
 

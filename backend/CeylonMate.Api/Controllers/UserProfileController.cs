@@ -110,6 +110,17 @@ namespace CeylonMate.Api.Controllers
                 user.PhoneNumber = string.Empty;
             }
 
+            // If the user is a guide, keep the GuideProfile name in sync automatically
+            if (user.Role == CeylonMate.Api.Auth.UserRole.LOCAL_GUIDE && !string.IsNullOrWhiteSpace(user.FullName))
+            {
+                var guideProfile = await _dbContext.GuideProfiles.FirstOrDefaultAsync(g => g.UserId == userId);
+                if (guideProfile != null)
+                {
+                    guideProfile.FullName = user.FullName;
+                    guideProfile.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                }
+            }
+
             await _dbContext.SaveChangesAsync();
 
             _logger.LogInformation("Profile updated for user {Email} (ID: {UserId})", user.Email, user.Id);

@@ -42,16 +42,16 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
                 UserId = userId,
                 FullName = user != null && !string.IsNullOrWhiteSpace(user.FullName) 
                     ? user.FullName 
-                    : (user?.Email?.Split('@')[0] ?? "SLTDA Certified Guide"),
-                PhotoUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
-                Bio = "Senior SLTDA Chauffeur Guide (15+ years experience in Cultural Triangle & Highlands)",
-                LicenseNumber = "SLTDA-CG-0491",
-                LanguagesSpoken = "English, German, Sinhala",
-                Specialties = "Cultural Heritage & Ancient Ruins",
-                Rating = 4.9m,
-                ReviewCount = 18,
-                DefaultDailyRateLkr = 18000m,
-                DailyRate = 18000m,
+                    : (user?.Email ?? ""),
+                PhotoUrl = null,
+                Bio = null,
+                LicenseNumber = null,
+                LanguagesSpoken = null,
+                Specialties = null,
+                Rating = 0m,
+                ReviewCount = 0,
+                DefaultDailyRateLkr = 0m,
+                DailyRate = 0m,
                 Currency = "LKR",
                 IsActive = true
             };
@@ -59,22 +59,24 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
             await db.SaveChangesAsync(cancellationToken);
         }
 
-        var completedToursCount = await db.Bookings.CountAsync(b => b.Status == "CONFIRMED", cancellationToken);
+        var completedToursCount = await db.Bookings.CountAsync(
+            b => (b.GuideSlotId == profile.Id || b.GuideSlotId == profile.UserId) && b.Status == "CONFIRMED",
+            cancellationToken);
 
         return Ok(new
         {
             id = profile.Id,
             userId = profile.UserId,
-            fullName = !string.IsNullOrWhiteSpace(profile.FullName) ? profile.FullName : profile.User?.FullName ?? "SLTDA Certified Guide",
+            fullName = !string.IsNullOrWhiteSpace(profile.FullName) ? profile.FullName : (profile.User?.FullName ?? profile.User?.Email ?? ""),
             email = profile.User?.Email ?? "",
-            photoUrl = profile.PhotoUrl ?? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
+            photoUrl = profile.PhotoUrl ?? "",
             bio = profile.Bio ?? "",
-            licenseNumber = profile.LicenseNumber ?? "SLTDA-CG-0491",
-            languagesSpoken = profile.LanguagesSpoken ?? "English, Sinhala",
-            specialties = profile.Specialties ?? "Cultural Heritage & Ancient Ruins",
-            rating = profile.Rating > 0 ? profile.Rating : 4.9m,
-            reviewCount = profile.ReviewCount > 0 ? profile.ReviewCount : 18,
-            defaultDailyRateLkr = profile.DefaultDailyRateLkr > 0 ? profile.DefaultDailyRateLkr : 18000m,
+            licenseNumber = profile.LicenseNumber ?? "",
+            languagesSpoken = profile.LanguagesSpoken ?? "",
+            specialties = profile.Specialties ?? "",
+            rating = profile.Rating,
+            reviewCount = profile.ReviewCount,
+            defaultDailyRateLkr = profile.DefaultDailyRateLkr,
             currency = string.IsNullOrWhiteSpace(profile.Currency) ? "LKR" : profile.Currency,
             isActive = profile.IsActive,
             completedToursCount
@@ -96,23 +98,31 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
-                FullName = user != null && !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : "SLTDA Certified Guide",
-                PhotoUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
-                Bio = "Senior SLTDA Chauffeur Guide",
-                LicenseNumber = "SLTDA-CG-0491",
-                LanguagesSpoken = "English, German, Sinhala",
-                Specialties = "Cultural Heritage & Ancient Ruins",
-                Rating = 4.9m,
-                ReviewCount = 18,
-                DefaultDailyRateLkr = 18000m,
-                DailyRate = 18000m,
+                FullName = user != null && !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : (user?.Email ?? ""),
+                PhotoUrl = null,
+                Bio = null,
+                LicenseNumber = null,
+                LanguagesSpoken = null,
+                Specialties = null,
+                Rating = 0m,
+                ReviewCount = 0,
+                DefaultDailyRateLkr = 0m,
+                DailyRate = 0m,
                 Currency = "LKR",
                 IsActive = true
             };
             db.GuideProfiles.Add(profile);
         }
 
-        if (!string.IsNullOrWhiteSpace(dto.FullName)) profile.FullName = dto.FullName.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.FullName))
+        {
+            var trimmedName = dto.FullName.Trim();
+            profile.FullName = trimmedName;
+            if (profile.User != null)
+            {
+                profile.User.FullName = trimmedName;
+            }
+        }
         if (dto.Bio != null) profile.Bio = dto.Bio.Trim();
         if (dto.LanguagesSpoken != null) profile.LanguagesSpoken = dto.LanguagesSpoken.Trim();
         if (dto.Specialties != null) profile.Specialties = dto.Specialties.Trim();
@@ -131,26 +141,28 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
         profile.UpdatedAtUtc = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
 
-        var completedToursCount = await db.Bookings.CountAsync(b => b.Status == "CONFIRMED", cancellationToken);
+        var completedToursCount = await db.Bookings.CountAsync(
+            b => (b.GuideSlotId == profile.Id || b.GuideSlotId == profile.UserId) && b.Status == "CONFIRMED",
+            cancellationToken);
 
         logger.LogInformation("Guide {UserId} updated profile details.", userId);
         return Ok(new
         {
             id = profile.Id,
             userId = profile.UserId,
-            fullName = !string.IsNullOrWhiteSpace(profile.FullName) ? profile.FullName : profile.User?.FullName ?? "SLTDA Certified Guide",
+            fullName = !string.IsNullOrWhiteSpace(profile.FullName) ? profile.FullName : (profile.User?.FullName ?? profile.User?.Email ?? ""),
             email = profile.User?.Email ?? "",
-            photoUrl = profile.PhotoUrl ?? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
+            photoUrl = profile.PhotoUrl ?? "",
             bio = profile.Bio ?? "",
-            licenseNumber = profile.LicenseNumber ?? "SLTDA-CG-0491",
-            licenseType = profile.LicenseType ?? "National Tourist Guide Lecturer",
-            languagesSpoken = profile.LanguagesSpoken ?? "English, Sinhala",
-            specialties = profile.Specialties ?? "Cultural Heritage & Ancient Ruins",
+            licenseNumber = profile.LicenseNumber ?? "",
+            licenseType = profile.LicenseType ?? "",
+            languagesSpoken = profile.LanguagesSpoken ?? "",
+            specialties = profile.Specialties ?? "",
             isChauffeur = profile.IsChauffeur,
             drivingLicenseClass = profile.DrivingLicenseClass,
-            rating = profile.Rating > 0 ? profile.Rating : 5.0m,
+            rating = profile.Rating,
             reviewCount = profile.ReviewCount,
-            defaultDailyRateLkr = profile.DefaultDailyRateLkr > 0 ? profile.DefaultDailyRateLkr : 18000m,
+            defaultDailyRateLkr = profile.DefaultDailyRateLkr,
             currency = string.IsNullOrWhiteSpace(profile.Currency) ? "LKR" : profile.Currency,
             isActive = profile.IsActive,
             completedToursCount
@@ -202,23 +214,69 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
         var gSlots = await db.GuideAvailabilitySlots.AsNoTracking().ToListAsync(cancellationToken);
 
         var tourDtos = bookings.Select(b => {
-            var user = users.FirstOrDefault(u => u.Id.ToString() == b.TravelerId.ToString() || u.Id.GetHashCode() == b.TravelerId);
-            var travelerName = !string.IsNullOrWhiteSpace(user?.FullName) ? user.FullName : "Registered Traveler";
-            var travelerEmail = user?.Email ?? "traveler@ceylonmate.com";
-            var travelerPhone = user?.PhoneNumber ?? "+94 77 123 4567";
+            var user = users.FirstOrDefault(u =>
+                (!string.IsNullOrWhiteSpace(b.TravelerUserId) && u.Id.ToString().Equals(b.TravelerUserId, StringComparison.OrdinalIgnoreCase)) ||
+                u.Id.ToString() == b.TravelerId.ToString() ||
+                u.Id.GetHashCode() == b.TravelerId
+            );
 
-            var journey = journeys.FirstOrDefault(j => j.Id.GetHashCode() == b.PackageId || j.Id.ToString() == b.PackageId?.ToString());
-            var packageTitle = journey?.Title ?? "Bespoke Signature Expedition";
-            var routeHighlights = !string.IsNullOrWhiteSpace(journey?.DestinationsCovered) ? journey.DestinationsCovered : "Colombo -> Sigiriya -> Kandy -> Nuwara Eliya -> Bentota";
+            var travelerName = !string.IsNullOrWhiteSpace(user?.FullName) ? user.FullName : (!string.IsNullOrWhiteSpace(user?.Email) ? user.Email : "Registered Traveler");
+            var travelerEmail = !string.IsNullOrWhiteSpace(user?.Email) ? user.Email : (b.TravelerUserId != null ? $"{b.TravelerUserId}@ceylonmate.com" : "traveler@ceylonmate.com");
+            var travelerPhone = !string.IsNullOrWhiteSpace(user?.PhoneNumber) ? user.PhoneNumber : "+94 77 123 4567";
+
+            SignatureJourney? journey = null;
+            if (b.PackageId.HasValue)
+            {
+                journey = journeys.FirstOrDefault(j => j.Id.ToString().Equals(b.PackageId.Value.ToString(), StringComparison.OrdinalIgnoreCase) || j.Id.GetHashCode() == b.PackageId.Value);
+                if (journey == null)
+                {
+                    int pId = b.PackageId.Value;
+                    int idx = pId >= 101 ? pId - 101 : pId - 1;
+                    if (idx >= 0 && idx < journeys.Count)
+                    {
+                        journey = journeys[idx];
+                    }
+                }
+            }
+            if (journey == null && journeys.Count > 0)
+            {
+                journey = journeys[0];
+            }
+
+            var packageTitle = !string.IsNullOrWhiteSpace(journey?.Title) ? journey.Title : "Curated Signature Expedition";
+            var packageTagline = !string.IsNullOrWhiteSpace(journey?.Tagline) ? journey.Tagline : "Bespoke Luxury Sri Lankan Expedition";
+            var packageDescription = !string.IsNullOrWhiteSpace(journey?.Description) ? journey.Description : "Handcrafted luxury itinerary with private chauffeur transport and handpicked heritage accommodations.";
+            var packageHeroImageUrl = !string.IsNullOrWhiteSpace(journey?.HeroImageUrl) ? journey.HeroImageUrl : "https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?q=80&w=1600&auto=format&fit=crop";
+            var durationDays = journey?.DurationDays > 0 ? journey.DurationDays : (b.TripDurationDays ?? 7);
+            var durationNights = journey?.DurationNights > 0 ? journey.DurationNights : Math.Max(1, durationDays - 1);
+            var destinationsCovered = !string.IsNullOrWhiteSpace(journey?.DestinationsCovered) ? journey.DestinationsCovered : "Colombo - Kandy - Nuwara Eliya - Yala";
+            var highlights = (journey?.Highlights != null && journey.Highlights.Count > 0) ? journey.Highlights : new List<string>
+            {
+                "Private 4x4 Wildlife & Nature Safaris",
+                "VIP Access to Cultural Relic Monuments",
+                "Highland Tea Tasting Masterclass with Senior Ceylon Planter",
+                "Dedicated Private Chauffeur & Escort Service"
+            };
 
             var vSlot = b.VehicleSlotId.HasValue ? vSlots.FirstOrDefault(s => s.Id == b.VehicleSlotId.Value) : null;
-            var vehicleModel = vSlot?.VehicleCatalog?.VehicleModel ?? "Luxury VIP Chauffeur Escort Vehicle";
-            var vehicleReg = vSlot?.VehicleCatalog?.CategoryBadge ?? "WP-CM VIP";
-            var vehicleMaxPass = vSlot?.VehicleCatalog?.MaxPassengers > 0 ? vSlot.VehicleCatalog.MaxPassengers : 4;
-            var vehiclePhoto = !string.IsNullOrWhiteSpace(vSlot?.VehicleCatalog?.ImageUrl) ? vSlot.VehicleCatalog.ImageUrl : "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=400";
+            var vehicleModel = vSlot?.VehicleCatalog?.VehicleModel;
+            if (string.IsNullOrWhiteSpace(vehicleModel) && b.VehicleCatalogId.HasValue)
+            {
+                var cat = db.VehicleFleetCatalogs.AsNoTracking().FirstOrDefault(c => c.Id == b.VehicleCatalogId.Value);
+                if (cat != null) vehicleModel = cat.VehicleModel;
+            }
+            if (string.IsNullOrWhiteSpace(vehicleModel)) vehicleModel = "Executive VIP Fleet Escort";
+
+            var vehicleReg = vSlot?.VehicleCatalog?.CategoryBadge ?? "EXECUTIVE VIP FLEET";
+            var vehicleMaxPass = vSlot?.VehicleCatalog?.MaxPassengers ?? 6;
+            var vehiclePhoto = vSlot?.VehicleCatalog?.ImageUrl ?? "";
 
             var gSlot = b.GuideSlotId.HasValue ? gSlots.FirstOrDefault(s => s.Id == b.GuideSlotId.Value) : null;
-            var dailyRate = gSlot?.DailyRateLkr > 0 ? gSlot.DailyRateLkr : (guideProfile?.DefaultDailyRateLkr > 0 ? guideProfile.DefaultDailyRateLkr : 18000m);
+            var dailyRate = gSlot?.DailyRateLkr ?? (guideProfile?.DefaultDailyRateLkr ?? 18000m);
+
+            int passengerCount = b.PassengerCount.HasValue && b.PassengerCount.Value > 0
+                ? b.PassengerCount.Value
+                : (b.Reservations.Count > 0 ? b.Reservations.Count : 2);
 
             return new
             {
@@ -226,14 +284,21 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
                 id = b.Id,
                 bookingReference = !string.IsNullOrWhiteSpace(b.BookingReference) ? b.BookingReference : $"CM-2026-{b.Id:D4}",
                 packageTitle = packageTitle,
+                packageTagline = packageTagline,
+                packageDescription = packageDescription,
+                packageHeroImageUrl = packageHeroImageUrl,
+                durationDays = durationDays,
+                durationNights = durationNights,
+                destinationsCovered = destinationsCovered,
+                highlights = highlights,
                 startDate = !string.IsNullOrWhiteSpace(b.StartDate) ? b.StartDate : b.BookedAt.ToString("yyyy-MM-dd"),
-                pickupTime = !string.IsNullOrWhiteSpace(b.PickupTime) ? b.PickupTime : "06:30 AM",
+                pickupTime = !string.IsNullOrWhiteSpace(b.PickupTime) ? b.PickupTime : "07:00 AM",
                 bookingStatus = b.Status,
                 status = b.Status,
-                guideAssignmentStatus = !string.IsNullOrWhiteSpace(b.GuideAssignmentStatus) ? b.GuideAssignmentStatus : "PENDING_GUIDE_ACCEPTANCE",
+                guideAssignmentStatus = b.GuideAssignmentStatus ?? "PENDING_GUIDE_ACCEPTANCE",
                 guideResponseMessage = b.GuideResponseMessage,
                 guideRespondedAtUtc = b.GuideRespondedAtUtc,
-                passengerCount = 2,
+                passengerCount = passengerCount,
                 specialNotes = b.TravelerNotes,
                 travelerNotes = b.TravelerNotes,
                 travelerName = travelerName,
@@ -246,7 +311,7 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
                     phoneNumber = travelerPhone
                 },
                 assignedVehicle = vehicleModel,
-                routeHighlights = routeHighlights,
+                routeHighlights = destinationsCovered,
                 vehicle = new
                 {
                     model = vehicleModel,
@@ -278,16 +343,16 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
             {
                 Id = Guid.NewGuid(),
                 UserId = userId != Guid.Empty ? userId : Guid.NewGuid(),
-                FullName = user != null && !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : "SLTDA Certified Guide",
-                PhotoUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
-                Bio = "Senior SLTDA Chauffeur Guide",
-                LicenseNumber = "SLTDA-CG-0491",
-                LanguagesSpoken = "English, German, Sinhala",
-                Specialties = "Cultural Heritage & Ancient Ruins",
-                Rating = 5.0m,
+                FullName = user != null && !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : (user?.Email ?? ""),
+                PhotoUrl = null,
+                Bio = null,
+                LicenseNumber = null,
+                LanguagesSpoken = null,
+                Specialties = null,
+                Rating = 0m,
                 ReviewCount = 0,
-                DefaultDailyRateLkr = 18000m,
-                DailyRate = 18000m,
+                DefaultDailyRateLkr = 0m,
+                DailyRate = 0m,
                 Currency = "LKR",
                 IsActive = true
             };
@@ -395,7 +460,7 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
 
         var userId = GetUserId();
         var profile = await db.GuideProfiles.FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
-        var guideName = !string.IsNullOrWhiteSpace(profile?.FullName) ? profile.FullName : "SLTDA Certified Guide";
+        var guideName = !string.IsNullOrWhiteSpace(profile?.FullName) ? profile.FullName : (profile?.User?.FullName ?? profile?.User?.Email ?? "");
 
         var decisionUpper = dto.Decision.Trim().ToUpper();
         if (decisionUpper == "ACCEPT")

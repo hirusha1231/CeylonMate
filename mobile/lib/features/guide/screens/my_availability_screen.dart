@@ -347,18 +347,13 @@ class _MyAvailabilityScreenState extends State<MyAvailabilityScreen> {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          '${timeFormat.format(slot.startTime)} - ${timeFormat.format(slot.endTime)}',
-                          style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-                        ),
-                        const SizedBox(height: 6),
                         Row(
                           children: [
                             Icon(Icons.badge, size: 14, color: Colors.teal.shade700),
                             const SizedBox(width: 4),
                             Text(
                               _formatSlotType(slot.slotType),
-                              style: TextStyle(fontSize: 12, color: Colors.teal.shade800),
+                              style: TextStyle(fontSize: 12, color: Colors.teal.shade800, fontWeight: FontWeight.w600),
                             ),
                             const SizedBox(width: 12),
                             Icon(Icons.attach_money, size: 14, color: Colors.green.shade700),

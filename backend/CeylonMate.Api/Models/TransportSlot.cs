@@ -9,7 +9,9 @@ public class TransportSlot
     public Guid TransportOptionId { get; set; }
     public TransportOption? TransportOption { get; set; }
 
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public Guid? VehicleCatalogId { get; set; }
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public VehicleFleetCatalog? VehicleCatalog { get; set; }
 
     public string? RouteDescription { get; set; }
@@ -26,28 +28,7 @@ public class TransportSlot
     public VehicleType VehicleType { get; set; } = VehicleType.SEDAN;
     public SlotStatus Status { get; set; } = SlotStatus.AVAILABLE;
 
-    public int TotalSeats { get; set; }
-    public int BookedSeats { get; set; } = 0;
-    public int HeldSeats { get; set; } = 0;
-
-    public int AvailableSeats
-    {
-        get => Math.Max(0, TotalSeats - BookedSeats - HeldSeats);
-        set
-        {
-            // Allowed for legacy direct setters if needed
-        }
-    }
-
-    public decimal PricePerSeat { get; set; }
-
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-    public decimal RatePerSeatLkr
-    {
-        get => PricePerSeat;
-        set => PricePerSeat = value;
-    }
-
+    public decimal DailyRate { get; set; }
     public string? Currency { get; set; } = "LKR";
 
     public DateTimeOffset? HeldUntilUtc { get; set; }

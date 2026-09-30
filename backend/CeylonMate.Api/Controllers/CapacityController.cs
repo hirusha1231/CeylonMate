@@ -31,53 +31,245 @@ public sealed class CapacityController(
             .Include(g => g.LocalGuideUser)
             .Include(g => g.GuideProfile)
             .Where(g => g.Status == AvailabilityStatus.AVAILABLE)
+            .OrderBy(g => g.StartTimeUtc)
             .ToListAsync(cancellationToken);
 
-        var response = slots.Select(g => new
-        {
-            id = g.Id,
-            guideUserId = g.LocalGuideUserId,
-            guideName = g.LocalGuideUser != null
-                ? (string.IsNullOrWhiteSpace(g.LocalGuideUser.FullName) ? g.LocalGuideUser.Email : g.LocalGuideUser.FullName)
-                : "Certified Chauffeur Guide",
-            bio = g.GuideProfile?.Bio ?? "Certified SLTDA Licensed Chauffeur Guide with extensive knowledge of Sri Lankan cultural sites.",
-            licenseNumber = g.GuideProfile?.LicenseNumber ?? "SLTDA-CG-0491",
-            languages = g.GuideProfile?.LanguagesSpoken ?? "English, Sinhala, Tamil",
-            priceAmount = g.PriceAmount > 0 ? g.PriceAmount : 15000,
-            currency = string.IsNullOrWhiteSpace(g.Currency) ? "LKR" : g.Currency,
-            status = g.Status.ToString(),
-            notes = g.Notes ?? "Certified VIP Tour Escort"
-        }).ToList();
+        // Group by guide user so each guide appears only ONCE regardless of how many slots they have
+        var response = slots
+            .GroupBy(g => g.LocalGuideUserId)
+            .Select(grp =>
+            {
+                var first = grp.First();
+                var guideName = !string.IsNullOrWhiteSpace(first.GuideProfile?.FullName) && !first.GuideProfile.FullName.Contains("@")
+                    ? first.GuideProfile.FullName
+                    : (!string.IsNullOrWhiteSpace(first.LocalGuideUser?.FullName) && !first.LocalGuideUser.FullName.Contains("@")
+                        ? first.LocalGuideUser.FullName
+                        : null);
+
+                return new
+                {
+                    id = first.Id,
+                    guideUserId = first.LocalGuideUserId,
+                    guideName,
+                    bio = first.GuideProfile != null && !string.IsNullOrWhiteSpace(first.GuideProfile.Bio) ? first.GuideProfile.Bio : null,
+                    licenseNumber = first.GuideProfile != null && !string.IsNullOrWhiteSpace(first.GuideProfile.LicenseNumber) ? first.GuideProfile.LicenseNumber : null,
+                    languages = first.GuideProfile != null && !string.IsNullOrWhiteSpace(first.GuideProfile.LanguagesSpoken) ? first.GuideProfile.LanguagesSpoken : null,
+                    priceAmount = grp.Min(s => s.PriceAmount),
+                    currency = string.IsNullOrWhiteSpace(first.Currency) ? "LKR" : first.Currency,
+                    status = first.Status.ToString(),
+                    notes = first.Notes
+                };
+            })
+            .ToList();
 
         return Ok(response);
     }
 
+
     [HttpGet("available-vehicles-slots")]
+    [HttpGet("available-vehicles")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetAvailableVehicles([FromQuery] string? date, [FromQuery] string? status, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAvailableVehicles(
+        [FromQuery] string? date,
+        [FromQuery] string? startDate,
+        [FromQuery] int? durationDays,
+        [FromQuery] string? status,
+        [FromQuery] int? passengerCount,
+        [FromQuery] int? pax,
+        CancellationToken cancellationToken)
     {
-        var slots = await db.TransportSlots
-            .AsNoTracking()
-            .Include(t => t.VehicleCatalog)
-            .Where(t => t.Status == SlotStatus.AVAILABLE || (t.HeldUntilUtc.HasValue && t.HeldUntilUtc.Value > DateTimeOffset.UtcNow))
-            .ToListAsync(cancellationToken);
-
-        var response = slots.Select(t => new
+        try
         {
-            id = t.Id,
-            vehicleCatalogId = t.VehicleCatalogId,
-            vehicleModel = t.VehicleCatalog != null ? t.VehicleCatalog.VehicleModel : $"{t.VehicleType} VIP Escort",
-            categoryBadge = t.VehicleCatalog?.CategoryBadge ?? "Luxury Fleet",
-            imageUrl = t.VehicleCatalog?.ImageUrl ?? "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=800",
-            maxPassengers = t.VehicleCatalog?.MaxPassengers ?? t.TotalSeats,
-            featureHighlight = t.VehicleCatalog?.FeatureHighlight ?? "Leather Interior, Air-Conditioned, High-Speed WiFi",
-            dailyRateUsd = t.VehicleCatalog?.DailyRateUsd ?? (t.PricePerSeat > 0 ? t.PricePerSeat / 300m : 120m),
-            pricePerSeatLkr = t.PricePerSeat,
-            currency = string.IsNullOrWhiteSpace(t.Currency) ? "LKR" : t.Currency,
-            status = t.Status.ToString()
-        }).ToList();
+            // 1. Get all active vehicles from Master Fleet Catalog
+            var allVehicles = await db.VehicleFleetCatalogs
+                .AsNoTracking()
+                .Where(v => v.IsActive)
+                .OrderBy(v => v.DisplayOrder)
+                .ToListAsync(cancellationToken);
 
-        return Ok(response);
+            // If no active vehicles in DB, seed fallback
+            if (!allVehicles.Any())
+            {
+                var seedFleet = new List<VehicleFleetCatalog>
+                {
+                    new()
+                    {
+                        Id = Guid.NewGuid(),
+                        CategoryBadge = "EXECUTIVE VIP GROUP TRANSPORT",
+                        VehicleModel = "Toyota KDH Super GL VIP Van",
+                        Description = "Ideal for families and luxury groups. Dual climate control, plush leather reclining armchairs, 5G Wi-Fi.",
+                        ImageUrl = "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80",
+                        MaxPassengers = 6,
+                        FeatureHighlight = "VIP Leather Interior & 5G Wi-Fi",
+                        LuggageCapacity = "6 Large Luggage",
+                        DailyRateUsd = 120.00m,
+                        IsActive = true,
+                        DisplayOrder = 1
+                    },
+                    new()
+                    {
+                        Id = Guid.NewGuid(),
+                        CategoryBadge = "PRESTIGE EXECUTIVE SEDAN",
+                        VehicleModel = "Mercedes-Benz E-Class Sedan",
+                        Description = "Unmatched elegance for couples and solo executive travelers. Whisper-quiet cabin acoustics, leather seating.",
+                        ImageUrl = "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&w=1000&q=80",
+                        MaxPassengers = 3,
+                        FeatureHighlight = "Prestige Leather Comfort",
+                        LuggageCapacity = "3 Large Luggage",
+                        DailyRateUsd = 150.00m,
+                        IsActive = true,
+                        DisplayOrder = 2
+                    },
+                    new()
+                    {
+                        Id = Guid.NewGuid(),
+                        CategoryBadge = "4X4 SAFARI & EXPEDITION",
+                        VehicleModel = "Toyota Land Cruiser V8 Safari",
+                        Description = "Heavy-duty luxury 4x4 modified for Yala and Udawalawe national park tracking. High elevation seating.",
+                        ImageUrl = "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80",
+                        MaxPassengers = 5,
+                        FeatureHighlight = "High-Clearance 4x4",
+                        LuggageCapacity = "4 Large Luggage",
+                        DailyRateUsd = 180.00m,
+                        IsActive = true,
+                        DisplayOrder = 3
+                    },
+                    new()
+                    {
+                        Id = Guid.NewGuid(),
+                        CategoryBadge = "VIP COACH TRANSPORT",
+                        VehicleModel = "Toyota Coaster VIP Minibus",
+                        Description = "Ideal for private delegation groups. Equipped with dual AC, microphone, panoramic windows.",
+                        ImageUrl = "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=1000&q=80",
+                        MaxPassengers = 14,
+                        FeatureHighlight = "Panoramic VIP Coach",
+                        LuggageCapacity = "12 Large Luggage",
+                        DailyRateUsd = 250.00m,
+                        IsActive = true,
+                        DisplayOrder = 4
+                    },
+                    new()
+                    {
+                        Id = Guid.NewGuid(),
+                        CategoryBadge = "PREMIUM LUXURY SUV",
+                        VehicleModel = "Range Rover Autobiography V8 SUV",
+                        Description = "Supreme luxury for executive VIPs. All-wheel drive terrain response, massage executive seating.",
+                        ImageUrl = "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=1000&q=80",
+                        MaxPassengers = 4,
+                        FeatureHighlight = "Executive Lounge Seating",
+                        LuggageCapacity = "4 Large Luggage",
+                        DailyRateUsd = 220.00m,
+                        IsActive = true,
+                        DisplayOrder = 5
+                    },
+                    new()
+                    {
+                        Id = Guid.NewGuid(),
+                        CategoryBadge = "LUXURY DELEGATION BUS",
+                        VehicleModel = "Volvo B11R Super VIP Coach",
+                        Description = "Ultra-capacity luxury coach for large tour delegations with reclining leather seats, climate zones.",
+                        ImageUrl = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1000&q=80",
+                        MaxPassengers = 30,
+                        FeatureHighlight = "Air Suspension & Sky Lounge",
+                        LuggageCapacity = "25 Large Luggage",
+                        DailyRateUsd = 350.00m,
+                        IsActive = true,
+                        DisplayOrder = 6
+                    }
+                };
+
+                db.VehicleFleetCatalogs.AddRange(seedFleet);
+                await db.SaveChangesAsync(cancellationToken);
+                allVehicles = seedFleet;
+            }
+
+            // 2. Filter by Passenger Capacity
+            int reqPax = passengerCount ?? pax ?? 1;
+            var suitableVehicles = allVehicles;
+            if (reqPax > 1)
+            {
+                suitableVehicles = allVehicles.Where(v => v.MaxPassengers >= reqPax).ToList();
+                // If filtering by pax yields none, fallback to all vehicles so traveler sees them
+                if (!suitableVehicles.Any())
+                {
+                    suitableVehicles = allVehicles;
+                }
+            }
+
+            // 3. Date-based booking overlap check
+            string? effectiveStartDateStr = !string.IsNullOrWhiteSpace(startDate) ? startDate : date;
+            if (!string.IsNullOrWhiteSpace(effectiveStartDateStr) && DateTime.TryParse(effectiveStartDateStr, out var parsedStart))
+            {
+                var tripStart = parsedStart.Date;
+                var days = (durationDays.HasValue && durationDays.Value > 0) ? durationDays.Value : 1;
+                var tripEnd = tripStart.AddDays(days);
+
+                // Find active bookings with an explicit StartDate that overlaps with requested window
+                var activeBookings = await db.Bookings
+                    .AsNoTracking()
+                    .Where(b => b.Status != "CANCELLED" && b.Status != "REJECTED" && b.Status != "CAPACITY_FLAGGED_REJECTED")
+                    .Where(b => b.VehicleCatalogId != null || b.VehicleSlotId != null)
+                    .ToListAsync(cancellationToken);
+
+                var bookedVehicleIds = new HashSet<Guid>();
+
+                foreach (var b in activeBookings)
+                {
+                    // Only consider bookings with an explicitly assigned StartDate
+                    if (!string.IsNullOrWhiteSpace(b.StartDate) && DateTime.TryParse(b.StartDate, out var bStartParsed))
+                    {
+                        var bStart = bStartParsed.Date;
+                        var bDays = (b.TripDurationDays.HasValue && b.TripDurationDays.Value > 0) ? b.TripDurationDays.Value : 1;
+                        var bEnd = bStart.AddDays(bDays);
+
+                        // Overlap condition: bStart < tripEnd && bEnd > tripStart
+                        if (bStart < tripEnd && bEnd > tripStart)
+                        {
+                            if (b.VehicleCatalogId.HasValue)
+                            {
+                                bookedVehicleIds.Add(b.VehicleCatalogId.Value);
+                            }
+                            if (b.VehicleSlotId.HasValue)
+                            {
+                                bookedVehicleIds.Add(b.VehicleSlotId.Value);
+                            }
+                        }
+                    }
+                }
+
+                if (bookedVehicleIds.Any())
+                {
+                    suitableVehicles = suitableVehicles
+                        .Where(v => !bookedVehicleIds.Contains(v.Id))
+                        .ToList();
+                }
+            }
+
+            // 4. Return available fleet models directly
+            var response = suitableVehicles.Select(v => new
+            {
+                id = v.Id,
+                vehicleCatalogId = (Guid?)v.Id,
+                vehicleModel = v.VehicleModel,
+                modelName = v.VehicleModel,
+                categoryBadge = v.CategoryBadge,
+                imageUrl = v.ImageUrl,
+                maxPassengers = v.MaxPassengers,
+                featureHighlight = v.FeatureHighlight,
+                luggageCapacity = v.LuggageCapacity,
+                dailyRateUsd = v.DailyRateUsd ?? 0,
+                dailyRate = v.DailyRateUsd ?? 0,
+                currency = string.IsNullOrWhiteSpace(v.Currency) ? "USD" : v.Currency,
+                isAvailable = true,
+                status = "AVAILABLE"
+            }).ToList();
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error fetching vehicles", error = ex.Message });
+        }
     }
 
     [HttpGet("notifications")]
@@ -171,7 +363,7 @@ public sealed class CapacityController(
             if (vSlot != null)
             {
                 vSlot.Status = SlotStatus.BOOKED;
-                vSlot.BookedSeats = Math.Min(vSlot.TotalSeats, vSlot.BookedSeats + 1);
+                vSlot.HeldUntilUtc = null;
             }
         }
 
@@ -224,7 +416,6 @@ public sealed class CapacityController(
             var vSlot = await db.TransportSlots.FirstOrDefaultAsync(t => t.Id == booking.VehicleSlotId.Value, cancellationToken);
             if (vSlot != null)
             {
-                vSlot.HeldSeats = Math.Max(0, vSlot.HeldSeats - 1);
                 vSlot.HeldUntilUtc = null;
                 vSlot.Status = SlotStatus.AVAILABLE;
             }
@@ -351,6 +542,10 @@ public sealed class CapacityController(
             .ToListAsync(cancellationToken);
         foreach (var slot in expiredTransportSlots)
         {
+            if (slot.Status == SlotStatus.RESERVED)
+            {
+                slot.Status = SlotStatus.AVAILABLE;
+            }
             slot.HeldUntilUtc = null;
         }
 
@@ -394,11 +589,11 @@ public sealed class CapacityController(
             {
                 id = g.Id,
                 localGuideUserId = g.LocalGuideUserId,
-                guideName = g.GuideProfile != null && !string.IsNullOrWhiteSpace(g.GuideProfile.FullName)
+                guideName = g.GuideProfile != null && !string.IsNullOrWhiteSpace(g.GuideProfile.FullName) && !g.GuideProfile.FullName.Contains("@")
                     ? g.GuideProfile.FullName
-                    : (g.LocalGuideUser != null && !string.IsNullOrWhiteSpace(g.LocalGuideUser.FullName)
+                    : (g.LocalGuideUser != null && !string.IsNullOrWhiteSpace(g.LocalGuideUser.FullName) && !g.LocalGuideUser.FullName.Contains("@")
                         ? g.LocalGuideUser.FullName
-                        : (g.LocalGuideUser != null ? g.LocalGuideUser.Email : "Certified Guide")),
+                        : "Kavinda Fernando"),
                 licenseNumber = g.GuideProfile != null ? g.GuideProfile.LicenseNumber : "N/A",
                 guideEmail = g.LocalGuideUser != null ? g.LocalGuideUser.Email : "",
                 startTimeUtc = g.StartTimeUtc,
@@ -435,6 +630,11 @@ public sealed class CapacityController(
             return BadRequest(new { message = "The selected guide does not exist in the system." });
         }
 
+        if (!string.IsNullOrWhiteSpace(request.Notes) && System.Text.RegularExpressions.Regex.IsMatch(request.Notes, @"\d"))
+        {
+            return BadRequest(new { message = "Tour Excerpt / Notes must contain letters only. Numbers are not allowed." });
+        }
+
         var slotType = Enum.TryParse<SlotType>(request.SlotType, true, out var parsedType) ? parsedType : SlotType.FULL_DAY;
 
         var slot = new GuideAvailability
@@ -449,7 +649,7 @@ public sealed class CapacityController(
             MaxCapacity = request.MaxCapacity > 0 ? request.MaxCapacity : 1,
             BookedCapacity = 0,
             Currency = string.IsNullOrWhiteSpace(request.Currency) ? "LKR" : request.Currency,
-            Notes = request.Notes,
+            Notes = request.Notes?.Trim(),
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
@@ -489,6 +689,16 @@ public sealed class CapacityController(
             return NotFound(new { message = "Guide availability slot not found." });
         }
 
+        if (slot.Status == AvailabilityStatus.BOOKED || slot.BookedCapacity > 0)
+        {
+            return BadRequest(new { message = "Cannot update an active booked slot. Cancel or reassign the booking first." });
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Notes) && System.Text.RegularExpressions.Regex.IsMatch(request.Notes, @"\d"))
+        {
+            return BadRequest(new { message = "Tour Excerpt / Notes must contain letters only. Numbers are not allowed." });
+        }
+
         slot.StartTimeUtc = request.StartTimeUtc;
         slot.EndTimeUtc = request.EndTimeUtc;
         if (Enum.TryParse<SlotType>(request.SlotType, true, out var parsedType))
@@ -501,7 +711,7 @@ public sealed class CapacityController(
         }
         slot.PriceAmount = request.PriceAmount;
         slot.MaxCapacity = request.MaxCapacity;
-        slot.Notes = request.Notes;
+        slot.Notes = request.Notes?.Trim();
         slot.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
@@ -523,6 +733,11 @@ public sealed class CapacityController(
             return NotFound(new { message = "Guide availability slot not found." });
         }
 
+        if (slot.Status == AvailabilityStatus.BOOKED)
+        {
+            return BadRequest(new { message = "Cannot change the status of an active booked slot." });
+        }
+
         if (Enum.TryParse<AvailabilityStatus>(request.Status, true, out var parsedStatus))
         {
             slot.Status = parsedStatus;
@@ -536,25 +751,40 @@ public sealed class CapacityController(
     }
 
     [HttpDelete("guides/slots/{id}")]
-    [Authorize(Roles = "CAPACITY_OFFICER,ADMIN")]
+    [Authorize(Roles = "CAPACITY_OFFICER,ADMIN,LOCAL_GUIDE")]
     public async Task<IActionResult> DeleteGuideSlot(Guid id, CancellationToken cancellationToken)
     {
         var slot = await db.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
-        if (slot == null)
+        if (slot != null)
         {
-            return NotFound(new { message = "Guide availability slot not found." });
+            if (slot.Status == AvailabilityStatus.BOOKED || slot.Status == AvailabilityStatus.RESERVED || slot.BookedCapacity > 0)
+            {
+                return BadRequest(new { message = "Cannot delete an active booked slot. Please block it instead." });
+            }
+
+            db.GuideAvailabilities.Remove(slot);
+            await db.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Deleted guide slot {SlotId}", id);
+
+            return Ok(new { message = "Guide slot deleted successfully." });
         }
 
-        if (slot.Status == AvailabilityStatus.BOOKED)
+        var legacySlot = await db.GuideAvailabilitySlots.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        if (legacySlot != null)
         {
-            return BadRequest(new { message = "Cannot delete an active booked slot. Please block it instead." });
+            if (legacySlot.Status == "BOOKED" || legacySlot.Status == "HELD")
+            {
+                return BadRequest(new { message = "Cannot delete an active booked slot. Please block it instead." });
+            }
+
+            db.GuideAvailabilitySlots.Remove(legacySlot);
+            await db.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Deleted guide slot {SlotId}", id);
+
+            return Ok(new { message = "Guide slot deleted successfully." });
         }
 
-        db.GuideAvailabilities.Remove(slot);
-        await db.SaveChangesAsync(cancellationToken);
-        logger.LogInformation("Deleted guide slot {SlotId}", id);
-
-        return Ok(new { message = "Guide slot deleted successfully." });
+        return NotFound(new { message = $"Guide availability slot with ID '{id}' was not found." });
     }
 
     // ==========================================
@@ -562,50 +792,167 @@ public sealed class CapacityController(
     // ==========================================
 
     [HttpGet("transport/slots")]
+    [AllowAnonymous]
     [Authorize(Roles = "CAPACITY_OFFICER,ADMIN,TRAVEL_AGENT")]
     public async Task<IActionResult> GetTransportSlots(CancellationToken cancellationToken)
     {
-        var slots = await db.TransportSlots
+        var activeBookings = await db.Bookings
+            .AsNoTracking()
+            .Where(b => b.Status != "CANCELLED" && b.Status != "CAPACITY_FLAGGED_REJECTED")
+            .OrderByDescending(b => b.BookedAt)
+            .ToListAsync(cancellationToken);
+
+        var users = await db.Users.AsNoTracking().ToListAsync(cancellationToken);
+
+        // Fetch all fleet catalog items
+        var catalogs = await db.VehicleFleetCatalogs
+            .AsNoTracking()
+            .Include(v => v.TransportSlots)
+            .OrderBy(v => v.DisplayOrder)
+            .ToListAsync(cancellationToken);
+
+        // Fetch standalone transport slots
+        var standaloneSlots = await db.TransportSlots
             .AsNoTracking()
             .Include(t => t.VehicleCatalog)
             .Include(t => t.TransportOption)
-            .OrderBy(t => t.StartTimeUtc)
-            .Select(t => new
-            {
-                id = t.Id,
-                transportOptionId = t.TransportOptionId,
-                vehicleCatalogId = t.VehicleCatalogId,
-                vehicleCatalog = t.VehicleCatalog != null ? new
-                {
-                    id = t.VehicleCatalog.Id,
-                    vehicleModel = t.VehicleCatalog.VehicleModel,
-                    categoryBadge = t.VehicleCatalog.CategoryBadge,
-                    imageUrl = t.VehicleCatalog.ImageUrl,
-                    maxPassengers = t.VehicleCatalog.MaxPassengers,
-                    featureHighlight = t.VehicleCatalog.FeatureHighlight,
-                    dailyRateUsd = t.VehicleCatalog.DailyRateUsd,
-                    currency = t.VehicleCatalog.Currency
-                } : null,
-                optionTitle = t.VehicleCatalog != null ? t.VehicleCatalog.VehicleModel : (t.TransportOption != null ? t.TransportOption.Title : $"{t.VehicleType} Express Route"),
-                routeDescription = !string.IsNullOrWhiteSpace(t.RouteDescription) ? t.RouteDescription : (t.VehicleCatalog != null ? $"{t.VehicleCatalog.VehicleModel} Route" : $"{t.VehicleType} Express Route"),
-                vehicleType = t.VehicleType.ToString(),
-                startTimeUtc = t.StartTimeUtc,
-                endTimeUtc = t.EndTimeUtc,
-                departureTime = t.StartTimeUtc.UtcDateTime,
-                arrivalTime = t.EndTimeUtc.UtcDateTime,
-                status = t.Status.ToString(),
-                totalSeats = t.TotalSeats,
-                bookedSeats = t.BookedSeats,
-                heldSeats = t.HeldSeats,
-                availableSeats = Math.Max(0, t.TotalSeats - t.BookedSeats - t.HeldSeats),
-                pricePerSeat = t.PricePerSeat,
-                ratePerSeatLkr = t.PricePerSeat,
-                currency = t.Currency,
-                rowVersion = t.RowVersion
-            })
+            .Where(t => t.VehicleCatalogId == null)
             .ToListAsync(cancellationToken);
 
-        return Ok(slots);
+        var responseList = new List<object>();
+
+        // 1. Process Fleet Catalogs
+        foreach (var v in catalogs)
+        {
+            var linkedBooking = activeBookings.FirstOrDefault(b =>
+                (b.VehicleCatalogId.HasValue && b.VehicleCatalogId.Value == v.Id) ||
+                (b.VehicleSlotId.HasValue && (b.VehicleSlotId.Value == v.Id || v.TransportSlots.Any(ts => ts.Id == b.VehicleSlotId.Value)))
+            );
+
+            string status = "AVAILABLE";
+            string? charterStartDate = null;
+            string? charterEndDate = null;
+            int? tripDurationDays = null;
+            string? bookingReference = null;
+            string? travelerName = null;
+            int? passengerCount = null;
+
+            if (linkedBooking != null)
+            {
+                status = linkedBooking.Status == "CONFIRMED" ? "BOOKED" : "RESERVED";
+                charterStartDate = linkedBooking.StartDate ?? linkedBooking.BookedAt.ToString("yyyy-MM-dd");
+                tripDurationDays = linkedBooking.TripDurationDays ?? 1;
+
+                if (DateTime.TryParse(charterStartDate, out var pStart))
+                {
+                    charterEndDate = pStart.AddDays(tripDurationDays.Value).ToString("yyyy-MM-dd");
+                }
+
+                bookingReference = linkedBooking.BookingReference;
+                passengerCount = v.MaxPassengers;
+
+                var travelerUser = users.FirstOrDefault(u => u.Id.ToString() == linkedBooking.TravelerUserId || u.Id.ToString() == linkedBooking.TravelerId.ToString());
+                travelerName = travelerUser?.FullName ?? (string.IsNullOrWhiteSpace(travelerUser?.Email) ? "Traveler" : travelerUser.Email);
+            }
+            else if (!v.IsActive)
+            {
+                status = "BLOCKED";
+            }
+
+            var primarySlot = v.TransportSlots.FirstOrDefault();
+
+            responseList.Add(new
+            {
+                id = primarySlot?.Id ?? v.Id,
+                vehicleCatalogId = v.Id,
+                vehicleCatalog = new
+                {
+                    id = v.Id,
+                    vehicleModel = v.VehicleModel,
+                    categoryBadge = v.CategoryBadge,
+                    imageUrl = v.ImageUrl,
+                    maxPassengers = v.MaxPassengers,
+                    featureHighlight = v.FeatureHighlight,
+                    dailyRateUsd = v.DailyRateUsd,
+                    currency = v.Currency
+                },
+                optionTitle = v.VehicleModel,
+                routeDescription = $"{v.VehicleModel} • {v.CategoryBadge}",
+                vehicleType = v.TransportSlots.FirstOrDefault()?.VehicleType.ToString() ?? "VAN",
+                startTimeUtc = DateTime.UtcNow,
+                endTimeUtc = DateTime.UtcNow.AddDays(tripDurationDays ?? 1),
+                departureTime = DateTime.UtcNow,
+                arrivalTime = DateTime.UtcNow.AddDays(tripDurationDays ?? 1),
+                status = status,
+                maxPassengers = v.MaxPassengers,
+                dailyRate = primarySlot?.DailyRate ?? v.DailyRateUsd ?? 0m,
+                currency = v.Currency,
+                charterStartDate = charterStartDate,
+                charterEndDate = charterEndDate,
+                tripDurationDays = tripDurationDays,
+                bookingReference = bookingReference,
+                travelerName = travelerName,
+                passengerCount = passengerCount,
+                heldUntilUtc = primarySlot?.HeldUntilUtc,
+                rowVersion = primarySlot?.RowVersion
+            });
+        }
+
+        // 2. Process Standalone Slots
+        foreach (var slot in standaloneSlots)
+        {
+            var linkedBooking = activeBookings.FirstOrDefault(b => b.VehicleSlotId == slot.Id);
+            string status = slot.Status.ToString();
+            string? charterStartDate = null;
+            string? charterEndDate = null;
+            int? tripDurationDays = null;
+            string? bookingReference = null;
+            string? travelerName = null;
+
+            if (linkedBooking != null)
+            {
+                status = linkedBooking.Status == "CONFIRMED" ? "BOOKED" : "RESERVED";
+                charterStartDate = linkedBooking.StartDate ?? linkedBooking.BookedAt.ToString("yyyy-MM-dd");
+                tripDurationDays = linkedBooking.TripDurationDays ?? 1;
+
+                if (DateTime.TryParse(charterStartDate, out var pStart))
+                {
+                    charterEndDate = pStart.AddDays(tripDurationDays.Value).ToString("yyyy-MM-dd");
+                }
+                bookingReference = linkedBooking.BookingReference;
+
+                var travelerUser = users.FirstOrDefault(u => u.Id.ToString() == linkedBooking.TravelerUserId || u.Id.ToString() == linkedBooking.TravelerId.ToString());
+                travelerName = travelerUser?.FullName ?? travelerUser?.Email ?? "Traveler";
+            }
+
+            responseList.Add(new
+            {
+                id = slot.Id,
+                transportOptionId = slot.TransportOptionId,
+                vehicleCatalogId = (Guid?)null,
+                vehicleCatalog = (object?)null,
+                optionTitle = slot.TransportOption?.Title ?? $"{slot.VehicleType} Standalone Charter",
+                routeDescription = slot.RouteDescription ?? $"{slot.VehicleType} Express Route",
+                vehicleType = slot.VehicleType.ToString(),
+                startTimeUtc = slot.StartTimeUtc,
+                endTimeUtc = slot.EndTimeUtc,
+                departureTime = slot.StartTimeUtc.UtcDateTime,
+                arrivalTime = slot.EndTimeUtc.UtcDateTime,
+                status = status,
+                maxPassengers = slot.TransportOption?.PassengerCapacity ?? 4,
+                dailyRate = slot.DailyRate,
+                currency = slot.Currency,
+                charterStartDate = charterStartDate,
+                charterEndDate = charterEndDate,
+                tripDurationDays = tripDurationDays,
+                bookingReference = bookingReference,
+                travelerName = travelerName,
+                heldUntilUtc = slot.HeldUntilUtc,
+                rowVersion = slot.RowVersion
+            });
+        }
+
+        return Ok(responseList);
     }
 
     [HttpPost("transport/slots")]
@@ -614,19 +961,27 @@ public sealed class CapacityController(
         [FromBody] CreateTransportSlotRequest request,
         CancellationToken cancellationToken)
     {
-        var optionId = request.TransportOptionId ?? Guid.Parse("00000000-0000-0000-0000-000000000001");
+        if (!request.TransportOptionId.HasValue || request.TransportOptionId.Value == Guid.Empty)
+            return BadRequest(new { message = "TransportOptionId is required to create a transport slot." });
+        var optionId = request.TransportOptionId.Value;
         var vehicleType = Enum.TryParse<VehicleType>(request.VehicleType, true, out var vt) ? vt : VehicleType.VAN;
 
         VehicleFleetCatalog? catalogVehicle = null;
-        int totalSeats = request.TotalSeats ?? 12;
+        int maxPassengers = request.MaxPassengers ?? 12;
 
         if (request.VehicleCatalogId.HasValue && request.VehicleCatalogId != Guid.Empty)
         {
             catalogVehicle = await db.VehicleFleetCatalogs.FindAsync(new object[] { request.VehicleCatalogId.Value }, cancellationToken);
             if (catalogVehicle != null)
             {
-                totalSeats = catalogVehicle.MaxPassengers;
+                maxPassengers = catalogVehicle.MaxPassengers;
             }
+        }
+
+        var transportOption = await db.TransportOptions.FirstOrDefaultAsync(x => x.Id == optionId, cancellationToken);
+        if (catalogVehicle == null && transportOption != null && maxPassengers > 0)
+        {
+            transportOption.PassengerCapacity = maxPassengers;
         }
 
         var slot = new TransportSlot
@@ -639,11 +994,8 @@ public sealed class CapacityController(
             EndTimeUtc = request.EndTimeUtc,
             VehicleType = vehicleType,
             Status = SlotStatus.AVAILABLE,
-            TotalSeats = totalSeats,
-            BookedSeats = 0,
-            HeldSeats = 0,
-            PricePerSeat = request.PricePerSeat,
-            Currency = string.IsNullOrWhiteSpace(request.Currency) ? "LKR" : request.Currency,
+            DailyRate = request.DailyRate > 0 ? request.DailyRate : catalogVehicle?.DailyRateUsd ?? 0,
+            Currency = request.DailyRate > 0 || catalogVehicle == null ? request.Currency : catalogVehicle.Currency,
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
@@ -662,7 +1014,10 @@ public sealed class CapacityController(
         [FromBody] UpdateTransportSlotRequest request,
         CancellationToken cancellationToken)
     {
-        var slot = await db.TransportSlots.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+        var slot = await db.TransportSlots
+            .Include(t => t.TransportOption)
+            .Include(t => t.VehicleCatalog)
+            .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
         if (slot == null)
         {
             return NotFound(new { message = "Transport slot not found." });
@@ -678,9 +1033,12 @@ public sealed class CapacityController(
         {
             slot.Status = st;
         }
-        slot.TotalSeats = request.TotalSeats;
-        slot.AvailableSeats = request.AvailableSeats;
-        slot.PricePerSeat = request.PricePerSeat;
+        slot.DailyRate = request.DailyRate;
+        slot.Currency = string.IsNullOrWhiteSpace(request.Currency) ? "LKR" : request.Currency;
+        if (slot.VehicleCatalog == null && request.MaxPassengers is > 0 && slot.TransportOption != null)
+        {
+            slot.TransportOption.PassengerCapacity = request.MaxPassengers.Value;
+        }
         slot.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
@@ -764,8 +1122,8 @@ public record CreateTransportSlotRequest(
     DateTimeOffset StartTimeUtc,
     DateTimeOffset EndTimeUtc,
     string? VehicleType,
-    int? TotalSeats,
-    decimal PricePerSeat,
+    int? MaxPassengers,
+    decimal DailyRate,
     string Currency = "LKR"
 );
 
@@ -773,9 +1131,8 @@ public record UpdateTransportSlotRequest(
     DateTimeOffset StartTimeUtc,
     DateTimeOffset EndTimeUtc,
     string VehicleType,
-    int TotalSeats,
-    int AvailableSeats,
-    decimal PricePerSeat,
+    int? MaxPassengers,
+    decimal DailyRate,
     string Status,
     string Currency = "LKR"
 );

@@ -54,8 +54,9 @@ export const HomePage: React.FC = () => {
   const [guests, setGuests] = useState('2 Guests');
   const [travelStyle, setTravelStyle] = useState('Bespoke Luxury');
 
-  // Modal Itinerary State
-  const [activeModalPackage, setActiveModalPackage] = useState<typeof SIGNATURE_PACKAGES_DATA[0] | null>(null);
+  // Modal Detail & Gallery State
+  const [activeModalPackage, setActiveModalPackage] = useState<any | null>(null);
+  const [activeGalleryImage, setActiveGalleryImage] = useState<string | null>(null);
 
   const handleQuickInquiry = (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,18 +232,20 @@ export const HomePage: React.FC = () => {
             const isLive = !!pkg.heroImageUrl;
             const title = pkg.title;
             const image = isLive ? pkg.heroImageUrl : pkg.image;
-            const duration = isLive ? `${pkg.durationDays}D / ${pkg.durationNights}N` : pkg.duration;
             const region = isLive ? (pkg.destinationsCovered || 'Sri Lanka') : pkg.region;
             const description = pkg.description;
             const highlights = pkg.highlights || [];
-            const price = isLive ? formatPrice(pkg.startingPriceUsd) : formatPrice(pkg.priceUsd);
 
             return (
               <motion.div
                 key={pkg.id}
                 variants={staggerItemVariants}
                 {...hoverLiftProps}
-                className="bg-white rounded-2xl overflow-hidden border border-stone-200/80 shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between group"
+                onClick={() => {
+                  setActiveModalPackage(pkg);
+                  setActiveGalleryImage(image);
+                }}
+                className="bg-white rounded-2xl overflow-hidden border border-stone-200/80 shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between group cursor-pointer"
               >
                 <div>
                   {/* Package Image Banner */}
@@ -252,8 +255,18 @@ export const HomePage: React.FC = () => {
                       alt={title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
-                    <div className="absolute top-3 left-3 bg-[#0B131F]/80 backdrop-blur-md border border-[#C5A880]/40 text-[#C5A880] text-[11px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
-                      {duration}
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                      {region ? (
+                        <div className="bg-[#0B131F]/80 backdrop-blur-md border border-[#C5A880]/40 text-[#C5A880] text-[11px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
+                          {region}
+                        </div>
+                      ) : <div />}
+                      {pkg.durationDays > 0 && (
+                        <div className="bg-slate-950/80 backdrop-blur-md border border-stone-700 text-stone-200 text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md">
+                          <Clock className="w-3 h-3 text-[#C5A880]" />
+                          <span>{pkg.durationDays} Days</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -280,19 +293,17 @@ export const HomePage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Price & Action */}
-                <div className="p-5 pt-0 flex items-center justify-between border-t border-stone-100 mt-4">
-                  <div>
-                    <span className="text-[10px] text-stone-500 uppercase tracking-wider block font-mono">From</span>
-                    <span className="text-lg font-bold text-[#0B131F] font-serif-luxury">
-                      {price}
-                    </span>
-                  </div>
-
+                {/* Collection Action */}
+                <div className="p-5 pt-0 flex items-center justify-end border-t border-stone-100 mt-4">
                   <button
-                    onClick={() => handleBookJourney(pkg.id)}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveModalPackage(pkg);
+                      setActiveGalleryImage(image);
+                    }}
                     className="p-2.5 rounded-full bg-[#134E4A] text-white hover:bg-[#0B131F] transition-colors cursor-pointer"
-                    title="Book This Journey"
+                    title="View Details & Gallery"
                   >
                     <ArrowRight className="w-4 h-4" />
                   </button>
@@ -476,85 +487,169 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* ITINERARY DETAIL MODAL */}
+      {/* ITINERARY & GALLERY DETAIL MODAL */}
       <AnimatePresence>
-        {activeModalPackage && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-            <motion.div
-              variants={scaleInModalVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              className="relative w-full max-w-3xl max-h-[90vh] bg-[#0F1A24] border border-stone-700 rounded-2xl shadow-2xl overflow-hidden text-stone-100 flex flex-col"
-            >
-              {/* Modal Header */}
-              <div className="relative p-6 border-b border-stone-800 bg-[#0B131F] flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-mono text-[#C5A880] uppercase tracking-wider">
-                    {activeModalPackage.duration}
-                  </span>
-                  <h3 className="text-2xl font-serif-luxury font-bold text-stone-100">
-                    {activeModalPackage.title}
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setActiveModalPackage(null)}
-                  className="p-2 text-stone-400 hover:text-white rounded-full hover:bg-white/10"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+        {activeModalPackage && (() => {
+          const isLive = !!activeModalPackage.heroImageUrl;
+          const title = activeModalPackage.title;
+          const mainImage = activeGalleryImage || activeModalPackage.heroImageUrl || activeModalPackage.image;
+          const allImages = Array.from(new Set([
+            activeModalPackage.heroImageUrl || activeModalPackage.image,
+            ...(activeModalPackage.galleryImages || [])
+          ].filter(Boolean))) as string[];
+          const region = isLive ? (activeModalPackage.destinationsCovered || 'Sri Lanka') : activeModalPackage.region;
+          const price = activeModalPackage.startingPriceUsd || activeModalPackage.priceUsd || 0;
+          const highlights = activeModalPackage.highlights || [];
 
-              {/* Modal Body */}
-              <div className="p-6 overflow-y-auto space-y-6 flex-1">
-                <p className="text-sm text-stone-300 leading-relaxed">
-                  {activeModalPackage.description}
-                </p>
-
-                <div className="space-y-4">
-                  <h4 className="text-sm font-semibold text-[#C5A880] uppercase tracking-wider font-mono">
-                    Day-by-Day Experience Schedule
-                  </h4>
-                  <div className="space-y-3">
-                    {activeModalPackage.itinerary.map((item) => (
-                      <div key={item.day} className="p-4 bg-[#0B131F] rounded-xl border border-stone-800 space-y-1">
-                        <div className="flex items-center gap-2 text-xs font-bold text-[#C5A880]">
-                          <span className="px-2 py-0.5 rounded bg-[#134E4A] text-emerald-200">Day {item.day}</span>
-                          <span>{item.title}</span>
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+              <motion.div
+                variants={scaleInModalVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="relative w-full max-w-4xl max-h-[92vh] bg-[#0F1A24] border border-stone-700 rounded-2xl shadow-2xl overflow-hidden text-stone-100 flex flex-col"
+              >
+                {/* Modal Header */}
+                <div className="relative p-6 border-b border-stone-800 bg-[#0B131F] flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      {activeModalPackage.durationDays > 0 && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#134E4A]/80 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-[#C5A880]" />
+                          <span>{activeModalPackage.durationDays} Days Expedition</span>
+                        </span>
+                      )}
+                      {region && (
+                        <div className="flex items-center gap-1.5 text-xs font-mono text-[#C5A880] uppercase tracking-wider">
+                          <MapPin className="w-3.5 h-3.5 text-[#D4AF37]" />
+                          <span>{region}</span>
                         </div>
-                        <p className="text-xs text-stone-400 leading-relaxed pl-1 pt-1">
-                          {item.detail}
-                        </p>
-                      </div>
-                    ))}
+                      )}
+                    </div>
+                    <h3 className="text-2xl sm:text-3xl font-serif-luxury font-bold text-stone-100">
+                      {title}
+                    </h3>
+                    {activeModalPackage.tagline && (
+                      <p className="text-xs text-[#C5A880] font-serif italic mt-0.5">
+                        "{activeModalPackage.tagline}"
+                      </p>
+                    )}
                   </div>
+                  <button
+                    onClick={() => setActiveModalPackage(null)}
+                    className="p-2 text-stone-400 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-              </div>
 
-              {/* Modal Footer CTA */}
-              <div className="p-6 border-t border-stone-800 bg-[#0B131F] flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-stone-400 block">Total Package Quote</span>
-                  <span className="text-xl font-bold font-serif-luxury text-[#C5A880]">
-                    {formatPrice(activeModalPackage.priceUsd)} / guest
-                  </span>
+                {/* Modal Body */}
+                <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                  {/* Gallery & Photo Display */}
+                  <div className="space-y-3">
+                    <div className="relative h-64 sm:h-80 w-full rounded-2xl overflow-hidden border border-stone-800 bg-slate-950 shadow-inner">
+                      <img
+                        src={mainImage}
+                        alt={title}
+                        className="w-full h-full object-cover transition-all duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                    </div>
+
+                    {/* Gallery Thumbnails Strip */}
+                    {allImages.length > 1 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-mono text-stone-400 uppercase tracking-wider">
+                          Expedition Photos ({allImages.length}):
+                        </span>
+                        <div className="flex gap-2 overflow-x-auto pb-2">
+                          {allImages.map((imgUrl: string, idx: number) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setActiveGalleryImage(imgUrl)}
+                              className={`relative h-16 w-24 rounded-xl overflow-hidden border shrink-0 transition-all cursor-pointer ${
+                                mainImage === imgUrl ? 'border-[#C5A880] ring-2 ring-[#C5A880]/50 scale-95' : 'border-stone-800 opacity-70 hover:opacity-100'
+                              }`}
+                            >
+                              <img src={imgUrl} alt={`Thumb ${idx}`} className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Full Description */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-mono font-bold text-[#C5A880] uppercase tracking-wider">
+                      Expedition Overview
+                    </h4>
+                    <p className="text-sm text-stone-300 leading-relaxed">
+                      {activeModalPackage.description}
+                    </p>
+                  </div>
+
+                  {/* Highlights Grid */}
+                  {highlights.length > 0 && (
+                    <div className="space-y-3 pt-2 border-t border-stone-800">
+                      <h4 className="text-xs font-mono font-bold text-[#C5A880] uppercase tracking-wider">
+                        Curated Highlights
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {highlights.map((h: string, idx: number) => (
+                          <div key={idx} className="flex items-start gap-2 text-xs text-stone-200 bg-slate-900/60 p-3 rounded-xl border border-stone-800/80">
+                            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                            <span>{h}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Day-by-day if available */}
+                  {activeModalPackage.itinerary && activeModalPackage.itinerary.length > 0 && (
+                    <div className="space-y-4 pt-2 border-t border-stone-800">
+                      <h4 className="text-xs font-mono font-bold text-[#C5A880] uppercase tracking-wider">
+                        Day-by-Day Experience Schedule
+                      </h4>
+                      <div className="space-y-3">
+                        {activeModalPackage.itinerary.map((item: any) => (
+                          <div key={item.day} className="p-4 bg-[#0B131F] rounded-xl border border-stone-800 space-y-1">
+                            <div className="flex items-center gap-2 text-xs font-bold text-[#C5A880]">
+                              <span className="px-2 py-0.5 rounded bg-[#134E4A] text-emerald-200">Day {item.day}</span>
+                              <span>{item.title}</span>
+                            </div>
+                            <p className="text-xs text-stone-400 leading-relaxed pl-1 pt-1">
+                              {item.detail}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <motion.button
-                  {...buttonPressProps}
-                  onClick={() => {
-                    const pkgId = activeModalPackage.id;
-                    setActiveModalPackage(null);
-                    handleBookJourney(pkgId);
-                  }}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] text-[#0B131F] font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-2"
-                >
-                  <span>Book This Journey</span>
-                  <ArrowRight className="w-4 h-4" />
-                </motion.button>
-              </div>
-            </motion.div>
-          </div>
-        )}
+
+                {/* Modal Footer CTA */}
+                <div className="p-6 border-t border-stone-800 bg-[#0B131F] flex items-center justify-end">
+                  <motion.button
+                    {...buttonPressProps}
+                    onClick={() => {
+                      const pkgId = activeModalPackage.id;
+                      setActiveModalPackage(null);
+                      handleBookJourney(pkgId);
+                    }}
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>Book This Journey</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </motion.button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
     </motion.div>
   );

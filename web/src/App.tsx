@@ -7,12 +7,12 @@ import { PublicLayout } from './components/PublicLayout';
 import { HomePage } from './pages/HomePage';
 import { BespokePlannerPage } from './pages/BespokePlannerPage';
 import { AboutPage } from './pages/AboutPage';
-import { DestinationsPage } from './pages/DestinationsPage';
 import { FleetPage } from './pages/FleetPage';
 import { MyBookingsPage } from './pages/traveler/MyBookingsPage';
 import { ConciergeApprovalPage } from './pages/concierge/ConciergeApprovalPage';
 import { SignatureJourneysPage } from './pages/SignatureJourneysPage';
 import { CuratedJourneyBookingPage } from './pages/traveler/CuratedJourneyBookingPage';
+import { PaymentGatewayPage } from './pages/traveler/PaymentGatewayPage';
 import { GuidePortalPage } from './pages/guide/GuidePortalPage';
 import { DestinationsSafetyPage } from './pages/destinations/DestinationsSafetyPage';
 import { CapacityDispatchPage } from './pages/capacity/CapacityDispatchPage';
@@ -30,7 +30,6 @@ import { AppLayout } from './components/AppLayout';
 import { StaffPage } from './pages/StaffPage';
 import { TripRequestsPage } from './features/trips/TripRequestsPage';
 import { TripDetailsPage } from './features/trips/TripDetailsPage';
-import { DestinationsManagementPage } from './features/destinations/DestinationsManagementPage';
 import { isStaffUserRole, getRoleRedirectPath } from './auth/types';
 
 // Guard for Public Consumer Pages: Staff members trying to view tourist pages are redirected to their staff console
@@ -54,9 +53,11 @@ function AnimatedAppRoutes() {
       {/* Public Consumer Platform Routes (Guarded: Staff are auto-redirected to staff consoles) */}
       <Route element={<PublicRouteGuard />}>
         <Route path="/" element={<HomePage />} />
-        <Route path="/destinations" element={<DestinationsPage />} />
+        <Route path="/destinations" element={<SignatureJourneysPage />} />
         <Route path="/signature-journeys" element={<SignatureJourneysPage />} />
         <Route path="/book-journey/:packageId" element={<CuratedJourneyBookingPage />} />
+        <Route path="/payment-gateway/:bookingId" element={<PaymentGatewayPage />} />
+        <Route path="/checkout/:bookingId" element={<PaymentGatewayPage />} />
         <Route path="/plan-my-trip" element={<BespokePlannerPage />} />
         <Route path="/fleet-and-guides" element={<FleetPage />} />
         <Route path="/fleet" element={<Navigate to="/fleet-and-guides" replace />} />
@@ -116,7 +117,6 @@ function AnimatedAppRoutes() {
             <Route path="trips" element={<TripRequestsPage />} />
             <Route path="trips/:id" element={<TripDetailsPage />} />
             <Route path="signature-journeys" element={<AgentSignatureJourneysPage />} />
-            <Route path="destinations" element={<DestinationsManagementPage />} />
           </Route>
           <Route element={<RequireAuth roles={['ADMIN']} />}>
             <Route path="admin" element={<StaffPage kind="admin" />} />
