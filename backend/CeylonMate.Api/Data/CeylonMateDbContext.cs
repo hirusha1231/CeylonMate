@@ -123,6 +123,10 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
                      .WithMany(x => x.TransportSlots)
                      .HasForeignKey(x => x.TransportOptionId)
                      .OnDelete(DeleteBehavior.Restrict);
+        transportSlot.HasOne(x => x.VehicleCatalog)
+                     .WithMany()
+                     .HasForeignKey(x => x.VehicleCatalogId)
+                     .OnDelete(DeleteBehavior.SetNull);
 
         // AttractionSlot Configuration
         var attractionSlot = modelBuilder.Entity<AttractionSlot>();
