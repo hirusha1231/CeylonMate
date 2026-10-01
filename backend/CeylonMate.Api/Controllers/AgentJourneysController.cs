@@ -54,8 +54,8 @@ public class AgentJourneysController : ControllerBase
             Description = dto.Description?.Trim() ?? string.Empty,
             HeroImageUrl = dto.HeroImageUrl.Trim(),
             GalleryImages = dto.GalleryImages ?? new List<string>(),
-            DurationDays = dto.DurationDays,
-            DurationNights = dto.DurationNights,
+            DurationDays = dto.DurationDays ?? 0,
+            DurationNights = dto.DurationNights ?? 0,
             StartingPriceUsd = dto.StartingPriceUsd,
             StartingPriceLkr = dto.StartingPriceLkr,
             DestinationsCovered = dto.DestinationsCovered?.Trim() ?? string.Empty,
@@ -86,8 +86,8 @@ public class AgentJourneysController : ControllerBase
         journey.Description = dto.Description?.Trim() ?? string.Empty;
         journey.HeroImageUrl = dto.HeroImageUrl.Trim();
         journey.GalleryImages = dto.GalleryImages ?? new List<string>();
-        journey.DurationDays = dto.DurationDays;
-        journey.DurationNights = dto.DurationNights;
+        journey.DurationDays = dto.DurationDays ?? journey.DurationDays;
+        journey.DurationNights = dto.DurationNights ?? journey.DurationNights;
         journey.StartingPriceUsd = dto.StartingPriceUsd;
         journey.StartingPriceLkr = dto.StartingPriceLkr;
         journey.DestinationsCovered = dto.DestinationsCovered?.Trim() ?? string.Empty;

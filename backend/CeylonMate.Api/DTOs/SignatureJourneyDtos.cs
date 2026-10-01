@@ -17,11 +17,9 @@ public class CreateSignatureJourneyDto
 
     public List<string>? GalleryImages { get; set; }
 
-    [Range(1, 100)]
-    public int DurationDays { get; set; }
+    public int? DurationDays { get; set; }
 
-    [Range(0, 100)]
-    public int DurationNights { get; set; }
+    public int? DurationNights { get; set; }
 
     [Range(0, 1000000)]
     public decimal StartingPriceUsd { get; set; }

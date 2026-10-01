@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bus, Users, Calendar, Clock, DollarSign, Lock, AlertTriangle, Sparkles } from 'lucide-react';
+import { X, Bus, Users, Calendar, Clock, DollarSign, AlertTriangle, Sparkles } from 'lucide-react';
 import { api, apiError } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import { scaleInModalVariants } from '../../utils/animations';
@@ -41,7 +41,7 @@ export const AddVehicleSlotModal: React.FC<AddVehicleSlotModalProps> = ({
   const [routeDescription, setRouteDescription] = useState<string>('');
   const [departureTime, setDepartureTime] = useState<string>('');
   const [arrivalTime, setArrivalTime] = useState<string>('');
-  const [ratePerSeatLkr, setRatePerSeatLkr] = useState<string>('');
+  const [dailyRate, setDailyRate] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
@@ -91,9 +91,9 @@ export const AddVehicleSlotModal: React.FC<AddVehicleSlotModalProps> = ({
       showToast('Validation Error', 'Arrival time must be after departure time.', 'error');
       return;
     }
-    const rateNum = Number(ratePerSeatLkr);
+    const rateNum = Number(dailyRate);
     if (isNaN(rateNum) || rateNum < 0) {
-      showToast('Validation Error', 'Rate per seat cannot be negative or invalid.', 'error');
+      showToast('Validation Error', 'Daily vehicle rate cannot be negative or invalid.', 'error');
       return;
     }
 
@@ -107,13 +107,11 @@ export const AddVehicleSlotModal: React.FC<AddVehicleSlotModalProps> = ({
         routeDescription: routeDescription.trim(),
         departureTime: depIso,
         arrivalTime: arrIso,
-        ratePerSeatLkr: rateNum,
-        // Fallback fields for capacity/transport/slots endpoint
+        dailyRate: rateNum,
         startTimeUtc: depIso,
         endTimeUtc: arrIso,
-        pricePerSeat: rateNum,
         currency: 'LKR',
-        totalSeats: selectedVehicle.maxPassengers
+        maxPassengers: selectedVehicle.maxPassengers
       };
 
       try {
@@ -129,7 +127,7 @@ export const AddVehicleSlotModal: React.FC<AddVehicleSlotModalProps> = ({
       setRouteDescription('');
       setDepartureTime('');
       setArrivalTime('');
-      setRatePerSeatLkr('');
+      setDailyRate('');
     } catch (err: any) {
       showToast('Failed to Create Slot', apiError(err), 'error');
     } finally {
@@ -259,42 +257,25 @@ export const AddVehicleSlotModal: React.FC<AddVehicleSlotModalProps> = ({
               </div>
             </div>
 
-            {/* Locked Capacity & Rate per Seat */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                  <Lock className="w-3.5 h-3.5 text-stone-400" />
-                  Total Seats (Auto-Inherited)
-                </label>
-                <input
-                  type="number"
-                  value={selectedVehicle ? selectedVehicle.maxPassengers : ''}
-                  disabled
-                  readOnly
-                  className="w-full bg-slate-900/90 border border-stone-800 rounded-xl px-4 py-2.5 text-sm text-stone-400 font-mono font-bold cursor-not-allowed"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                  Rate Per Seat (LKR)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="100"
-                  value={ratePerSeatLkr}
-                  placeholder="e.g. 4500"
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '' || Number(val) >= 0) {
-                      setRatePerSeatLkr(val);
-                    }
-                  }}
-                  className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors font-mono placeholder:text-slate-500"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                Daily Vehicle Rate (LKR)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="100"
+                value={dailyRate}
+                placeholder="e.g. 45000"
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || Number(value) >= 0) {
+                    setDailyRate(value);
+                  }
+                }}
+                className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors font-mono placeholder:text-slate-500"
+              />
             </div>
 
             {/* Form Action Buttons */}

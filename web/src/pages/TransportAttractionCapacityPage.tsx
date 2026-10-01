@@ -32,9 +32,8 @@ export interface TransportSlot {
   startTimeUtc: string;
   endTimeUtc: string;
   status: string;
-  totalSeats: number;
-  availableSeats: number;
-  pricePerSeat: number;
+  maxPassengers: number;
+  dailyRate: number;
   currency: string;
   rowVersion?: string;
 }
@@ -61,8 +60,8 @@ const initialCreateTransportForm = {
   startTime: '',
   endTime: '',
   vehicleType: '',
-  totalSeats: '',
-  pricePerSeat: '',
+  maxPassengers: '',
+  dailyRate: '',
   currency: 'LKR'
 };
 
@@ -94,9 +93,8 @@ export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapaci
     startTime: '',
     endTime: '',
     vehicleType: 'VAN',
-    totalSeats: 12,
-    availableSeats: 12,
-    pricePerSeat: 3500,
+    maxPassengers: 12,
+    dailyRate: 3500,
     currency: 'LKR',
     status: 'AVAILABLE'
   });
@@ -179,12 +177,12 @@ export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapaci
       showToast('Validation Failed', 'Please select a vehicle type (e.g. VAN, SUV, SEDAN).', 'error');
       return;
     }
-    if (!createTransportForm.totalSeats || Number(createTransportForm.totalSeats) <= 0) {
-      showToast('Validation Failed', 'Please enter a valid total seat count.', 'error');
+    if (!createTransportForm.maxPassengers || Number(createTransportForm.maxPassengers) <= 0) {
+      showToast('Validation Failed', 'Please enter a valid maximum passenger count.', 'error');
       return;
     }
-    if (!createTransportForm.pricePerSeat || Number(createTransportForm.pricePerSeat) <= 0) {
-      showToast('Validation Failed', 'Please enter a valid price per seat in LKR.', 'error');
+    if (!createTransportForm.dailyRate || Number(createTransportForm.dailyRate) <= 0) {
+      showToast('Validation Failed', 'Please enter a valid daily vehicle rate.', 'error');
       return;
     }
 
@@ -199,10 +197,8 @@ export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapaci
         departureTimeUtc: startTimeIso,
         arrivalTimeUtc: endTimeIso,
         vehicleType: createTransportForm.vehicleType,
-        totalSeats: Number(createTransportForm.totalSeats),
-        availableSeats: Number(createTransportForm.totalSeats),
-        pricePerSeat: Number(createTransportForm.pricePerSeat),
-        priceLkr: Number(createTransportForm.pricePerSeat),
+        maxPassengers: Number(createTransportForm.maxPassengers),
+        dailyRate: Number(createTransportForm.dailyRate),
         currency: createTransportForm.currency || 'LKR',
         status: 'AVAILABLE'
       };
@@ -225,9 +221,8 @@ export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapaci
       startTime: slot.startTimeUtc ? new Date(slot.startTimeUtc).toISOString().slice(0, 16) : '',
       endTime: slot.endTimeUtc ? new Date(slot.endTimeUtc).toISOString().slice(0, 16) : '',
       vehicleType: slot.vehicleType || 'VAN',
-      totalSeats: slot.totalSeats,
-      availableSeats: slot.availableSeats,
-      pricePerSeat: slot.pricePerSeat,
+      maxPassengers: slot.maxPassengers,
+      dailyRate: slot.dailyRate,
       currency: slot.currency || 'LKR',
       status: slot.status || 'AVAILABLE'
     });
@@ -253,10 +248,8 @@ export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapaci
         arrivalTimeUtc: endTimeIso,
         vehicleType: editTransportForm.vehicleType,
         status: editTransportForm.status,
-        totalSeats: Number(editTransportForm.totalSeats),
-        availableSeats: Number(editTransportForm.availableSeats),
-        pricePerSeat: Number(editTransportForm.pricePerSeat),
-        priceLkr: Number(editTransportForm.pricePerSeat),
+        maxPassengers: Number(editTransportForm.maxPassengers),
+        dailyRate: Number(editTransportForm.dailyRate),
         currency: editTransportForm.currency || 'LKR',
         rowVersion: editingTransport.rowVersion
       };
@@ -281,9 +274,8 @@ export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapaci
         endTimeUtc: slot.endTimeUtc,
         vehicleType: slot.vehicleType,
         status: newStatus,
-        totalSeats: slot.totalSeats,
-        availableSeats: slot.availableSeats,
-        pricePerSeat: slot.pricePerSeat,
+        maxPassengers: slot.maxPassengers,
+        dailyRate: slot.dailyRate,
         currency: slot.currency || 'LKR',
         rowVersion: slot.rowVersion
       };
@@ -588,15 +580,13 @@ export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapaci
                   <th className="px-6 py-4">Vehicle & Route</th>
                   <th className="px-6 py-4">Type</th>
                   <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Seats Available</th>
-                  <th className="px-6 py-4">Price / Seat</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#C5A880]/10 text-sm">
                 {transportSlots.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-16 text-center text-slate-400 font-sans">
+                    <td colSpan={4} className="px-6 py-16 text-center text-slate-400 font-sans">
                       <Bus className="w-10 h-10 text-slate-600 mx-auto mb-3 opacity-60" />
                       <p className="text-base font-serif text-slate-300">No transport capacity slots found.</p>
                       <p className="text-xs text-slate-500 mt-1">Click "Add Transport Slot" above to publish a new vehicle schedule.</p>
@@ -652,19 +642,6 @@ export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapaci
                               {slot.status}
                             </span>
                           )}
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2 text-slate-200 font-medium font-mono text-sm">
-                            <Users className="w-4 h-4 text-slate-400" />
-                            <span>{slot.availableSeats} / {slot.totalSeats} seats</span>
-                          </div>
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <span className="font-bold text-[#C5A880] text-base font-mono">
-                            {slot.currency || 'LKR'} {slot.pricePerSeat.toLocaleString()}
-                          </span>
                         </td>
 
                         <td className="px-6 py-4 text-right">
@@ -921,13 +898,13 @@ export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapaci
 
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Total Seats Capacity
+                      Maximum Passengers
                     </label>
                     <input
                       type="number"
-                      value={createTransportForm.totalSeats}
+                      value={createTransportForm.maxPassengers}
                       placeholder="e.g. 12"
-                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, totalSeats: e.target.value })}
+                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, maxPassengers: e.target.value })}
                       className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
                     />
                   </div>
@@ -936,13 +913,13 @@ export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapaci
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Price Per Seat (LKR)
+                      Daily Vehicle Rate (LKR)
                     </label>
                     <input
                       type="number"
-                      value={createTransportForm.pricePerSeat}
-                      placeholder="e.g. 4500"
-                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, pricePerSeat: e.target.value })}
+                      value={createTransportForm.dailyRate}
+                      placeholder="e.g. 45000"
+                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, dailyRate: e.target.value })}
                       className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
                     />
                   </div>
@@ -1070,54 +1047,29 @@ export const TransportAttractionCapacityPage: React.FC<TransportAttractionCapaci
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Total Seats
+                      Maximum Passengers
                     </label>
                     <input
                       type="number"
-                      value={editTransportForm.totalSeats}
-                      onChange={(e) => setEditTransportForm({ ...editTransportForm, totalSeats: Number(e.target.value) })}
+                      value={editTransportForm.maxPassengers}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, maxPassengers: Number(e.target.value) })}
                       className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Available Seats
+                      Daily Vehicle Rate
                     </label>
                     <input
                       type="number"
-                      value={editTransportForm.availableSeats}
-                      onChange={(e) => setEditTransportForm({ ...editTransportForm, availableSeats: Number(e.target.value) })}
+                      value={editTransportForm.dailyRate}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, dailyRate: Number(e.target.value) })}
                       className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Price Per Seat (LKR)
-                    </label>
-                    <input
-                      type="number"
-                      value={editTransportForm.pricePerSeat}
-                      onChange={(e) => setEditTransportForm({ ...editTransportForm, pricePerSeat: Number(e.target.value) })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Currency
-                    </label>
-                    <input
-                      type="text"
-                      value={editTransportForm.currency}
-                      onChange={(e) => setEditTransportForm({ ...editTransportForm, currency: e.target.value })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
-                    />
-                  </div>
-                </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 mt-8 pt-4 border-t border-[#C5A880]/20">

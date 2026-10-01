@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  X, Lock, Mail, User, Sparkles, ArrowRight, AlertTriangle, Eye, EyeOff, Phone, CheckCircle2
+  X, Lock, Mail, User, Sparkles, ArrowRight, AlertTriangle, Eye, EyeOff, Phone, CheckCircle2, Compass, ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { getRoleRedirectPath } from '../../auth/types';
@@ -28,10 +28,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const { login, register, error: authError, clearError } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [mode, setMode] = useState<'signin' | 'register'>(initialMode);
   
   // Form Fields
+  const [role, setRole] = useState<'TRAVELER' | 'LOCAL_GUIDE'>('TRAVELER');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -45,11 +47,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       clearError();
       setLocalError(null);
+      setSuccessMessage(null);
       setMode(initialMode);
       probeServer();
     }
@@ -65,6 +69,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    setSuccessMessage(null);
     clearError();
 
     if (!email.trim() || !password) {
@@ -87,8 +92,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         showToast('Signed In Successfully', `Welcome back to CeylonMate Journeys.`, 'success');
         onSuccess?.();
         onClose();
-        const targetPath = getRoleRedirectPath(authUser.role);
-        if (authUser.role === 'ADMIN' || targetPath !== '/') {
+        const fromPath = (location.state as any)?.from;
+        const targetPath = fromPath || getRoleRedirectPath(authUser.role);
+        if (fromPath || authUser.role === 'ADMIN' || targetPath !== '/') {
           navigate(targetPath);
         }
       }
@@ -111,6 +117,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    setSuccessMessage(null);
     clearError();
 
     if (!fullName.trim()) {
@@ -150,14 +157,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     try {
       setLoading(true);
-      console.log('[AuthModal] Submitting registration form:', { email, fullName });
-      const authUser = await register(email, password, fullName, phoneNumber);
+      console.log('[AuthModal] Submitting registration form:', { email, fullName, role });
+      const registered = await register(email, password, fullName, phoneNumber, role);
       setLoading(false);
 
-      if (authUser) {
-        showToast('Welcome to CeylonMate!', 'Your bespoke traveler account has been created.', 'success');
-        onSuccess?.();
-        onClose();
+      if (registered) {
+        const isGuide = role === 'LOCAL_GUIDE';
+        const msg = isGuide
+          ? 'Your Certified Local Guide account has been created! Please sign in with your email and password to access your Guide Portal.'
+          : 'Your CeylonMate Traveler account has been created! Please sign in with your password to proceed.';
+
+        showToast(
+          'Account Created',
+          isGuide
+            ? 'Your local guide account has been created. Please sign in.'
+            : 'Your traveler account has been created. Please sign in.',
+          'success'
+        );
+
+        // Move to the sign in page / view with email prefilled
+        setMode('signin');
+        setSuccessMessage(msg);
+        setPassword('');
+        setConfirmPassword('');
+        setLocalError(null);
       }
     } catch (err: any) {
       setLoading(false);
@@ -192,7 +215,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <div className="relative p-6 pb-4 border-b border-stone-800 bg-gradient-to-r from-[#0B131F] to-[#134E4A]/30">
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-1.5 text-stone-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+              className="absolute top-4 right-4 p-1.5 text-stone-400 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -219,6 +242,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Body Form */}
           <div className="p-6 space-y-4">
+            {/* Success Banner */}
+            {successMessage && mode === 'signin' && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3.5 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-200 text-xs flex items-start gap-2.5 leading-relaxed font-mono shadow-lg"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="flex-1 font-sans text-xs">
+                  {successMessage}
+                </div>
+              </motion.div>
+            )}
+
             {/* Error Banner */}
             {(localError || authError || serverOnline === false) && (
               <div className="p-3.5 bg-rose-950/80 border border-rose-500/50 rounded-xl text-rose-200 text-xs flex items-start gap-2.5 leading-relaxed font-mono">
@@ -297,7 +334,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <span className="text-xs text-stone-400">Don't have an account? </span>
                   <button
                     type="button"
-                    onClick={() => { setMode('register'); setLocalError(null); }}
+                    onClick={() => { setMode('register'); setLocalError(null); setSuccessMessage(null); }}
                     className="text-xs font-semibold text-[#C5A880] hover:underline cursor-pointer"
                   >
                     Create a new account
@@ -307,6 +344,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             ) : (
               /* VIEW 2: REGISTRATION */
               <form onSubmit={handleRegister} className="space-y-3.5" noValidate>
+                {/* Role / Account Type Dropdown */}
+                <div>
+                  <label className="block text-xs font-medium text-stone-300 mb-1">
+                    Select Account Type
+                  </label>
+                  <div className="relative">
+                    <Compass className="absolute left-3 top-2.5 w-4 h-4 text-[#C5A880] pointer-events-none" />
+                    <select
+                      value={role}
+                      onChange={(e) => setRole(e.target.value as 'TRAVELER' | 'LOCAL_GUIDE')}
+                      className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-9 py-2 text-xs text-stone-100 focus:outline-none transition-colors appearance-none cursor-pointer font-medium"
+                    >
+                      <option value="TRAVELER" className="bg-[#0F1A24] text-stone-100">
+                        Traveler
+                      </option>
+                      <option value="LOCAL_GUIDE" className="bg-[#0F1A24] text-[#C5A880] font-semibold">
+                        Local Guide
+                      </option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-stone-400 pointer-events-none" />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-medium text-stone-300 mb-1">Full Name</label>
                   <div className="relative">
@@ -316,7 +376,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       required
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value.replace(/[0-9]/g, ''))}
-                      placeholder="Lady Evelyn Sinclair"
+                      placeholder={role === 'LOCAL_GUIDE' ? 'Kavinda Fernando' : 'Lady Evelyn Sinclair'}
                       className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-3 py-2 text-xs text-stone-100 placeholder-stone-600 focus:outline-none transition-colors"
                     />
                   </div>
@@ -406,7 +466,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
                     serverOnline === false
                       ? 'bg-stone-800 text-stone-500 border border-stone-700 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] shadow-lg'
+                      : 'bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] shadow-lg cursor-pointer'
                   }`}
                 >
                   {loading ? (
@@ -415,7 +475,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <span>Backend Offline</span>
                   ) : (
                     <>
-                      <span>Create Account & Continue</span>
+                      <span>Create Account</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -426,8 +486,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <span className="text-xs text-stone-400">Already have an account? </span>
                   <button
                     type="button"
-                    onClick={() => { setMode('signin'); setLocalError(null); }}
-                    className="text-xs font-semibold text-[#C5A880] hover:underline"
+                    onClick={() => { setMode('signin'); setLocalError(null); setSuccessMessage(null); }}
+                    className="text-xs font-semibold text-[#C5A880] hover:underline cursor-pointer"
                   >
                     Sign In
                   </button>

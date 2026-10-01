@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router';
-import { ShieldCheck, FileText, Compass, MapPin } from 'lucide-react';
+import { ShieldCheck, FileText, Compass } from 'lucide-react';
 
 interface AgentDeskSubNavProps {
-  activeTab: 'approvals' | 'trips' | 'collections' | 'destinations';
+  activeTab: 'approvals' | 'trips' | 'collections';
 }
 
 export const AgentDeskSubNav: React.FC<AgentDeskSubNavProps> = ({ activeTab }) => {
@@ -45,17 +45,6 @@ export const AgentDeskSubNav: React.FC<AgentDeskSubNavProps> = ({ activeTab }) =
         <span>Curated Master Collections</span>
       </Link>
 
-      <Link
-        to="/staff/destinations"
-        className={`px-5 py-2.5 rounded-xl font-medium text-xs md:text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${
-          activeTab === 'destinations'
-            ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold shadow-lg shadow-[#C5A880]/20'
-            : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
-        }`}
-      >
-        <MapPin className="w-4 h-4" />
-        <span>Destinations & Advisories</span>
-      </Link>
     </div>
   );
 };

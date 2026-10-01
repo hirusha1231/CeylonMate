@@ -3,10 +3,11 @@ import { useParams, useNavigate, Link } from 'react-router';
 import { motion } from 'framer-motion';
 import {
   Compass, ArrowLeft, ArrowRight, Calendar, Users, ShieldCheck,
-  Sparkles, Clock, CheckCircle2, RefreshCw, Globe, User, MapPin
+  Sparkles, Clock, CheckCircle2, RefreshCw, Globe, User, MapPin, Car, Briefcase
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../auth/AuthProvider';
 import { useCurrency } from '../../context/CurrencyContext';
 import { buttonPressProps } from '../../utils/animations';
 
@@ -48,7 +49,7 @@ interface VehicleOption {
   maxPassengers: number;
   featureHighlight: string;
   dailyRateUsd: number;
-  pricePerSeatLkr: number;
+  dailyRate: number;
   currency: string;
   status: string;
 }
@@ -57,14 +58,16 @@ export const CuratedJourneyBookingPage: React.FC = () => {
   const { packageId } = useParams<{ packageId: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { currency, formatPrice } = useCurrency();
+  const { user, status } = useAuth();
+  const { currency, convertPrice, formatPrice } = useCurrency();
 
   const [journey, setJourney] = useState<SignatureJourney | null>(null);
   const [loadingJourney, setLoadingJourney] = useState<boolean>(true);
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const [startDate, setStartDate] = useState<string>('2026-10-15');
+  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [tripDays, setTripDays] = useState<number>(1);
   const [pickupTime, setPickupTime] = useState<string>('06:30 AM');
   const [passengerCount, setPassengerCount] = useState<number>(2);
   const [travelerNotes, setTravelerNotes] = useState<string>('');
@@ -80,6 +83,28 @@ export const CuratedJourneyBookingPage: React.FC = () => {
 
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  const guideCurrency = selectedGuide?.currency?.toUpperCase() === 'USD' ? 'USD' : 'LKR';
+  const guideCost = selectedGuide
+    ? convertPrice(Number(selectedGuide.priceAmount || 0) * tripDays, guideCurrency, currency)
+    : 0;
+  const vehicleCurrency = selectedVehicle?.currency?.toUpperCase() === 'USD' ? 'USD' : 'LKR';
+  const vehicleDailyCost = selectedVehicle
+    ? Number(selectedVehicle.dailyRate || selectedVehicle.dailyRateUsd || 0)
+    : 0;
+  const vehicleCost = convertPrice(vehicleDailyCost * tripDays, vehicleCurrency, currency);
+  const budgetSubtotal = guideCost + vehicleCost;
+  const vat = budgetSubtotal * 0.05;
+  const totalBudget = budgetSubtotal + vat;
+
+  useEffect(() => {
+    if (status !== 'checking' && !user) {
+      showToast('Sign In Required', 'Please sign in to book a curated signature journey.', 'info');
+      navigate('/', { state: { openAuth: true, from: `/book-journey/${packageId}` } });
+    }
+  }, [status, user, packageId, navigate, showToast]);
+
+  const baseDurationDays = Math.max(1, Number(journey?.durationDays) || 1);
+
   useEffect(() => {
     const fetchPackage = async () => {
       if (!packageId) return;
@@ -87,26 +112,10 @@ export const CuratedJourneyBookingPage: React.FC = () => {
         setLoadingJourney(true);
         const res = await api.get(`/api/journeys/signature/${packageId}`);
         setJourney(res.data);
+        const baseDays = Math.max(1, Number(res.data.durationDays) || 1);
+        setTripDays(baseDays);
       } catch {
-        // Fallback package if database does not contain exact id
-        setJourney({
-          id: packageId || 'curated-001',
-          title: 'Royal Heritage & Tea Bungalow Expedition',
-          slug: 'royal-heritage-tea-expedition',
-          tagline: 'Colonial Luxury & Cultural Marvels in Sri Lanka',
-          description: 'Experience 7 days of private chauffeured travel through ancient Sigiriya, Kandy Temple of the Tooth, and private tea estate bungalows in Nuwara Eliya.',
-          heroImageUrl: 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?q=80&w=800',
-          durationDays: 7,
-          durationNights: 6,
-          startingPriceUsd: 1450,
-          startingPriceLkr: 435000,
-          destinationsCovered: 'Colombo -> Sigiriya -> Kandy -> Nuwara Eliya -> Bentota',
-          highlights: [
-            'Private SLTDA Certified Chauffeur Escort',
-            'Heritage Bungalow Stays with High Tea',
-            'VIP Sigiriya Rock Access & Safari Hold'
-          ]
-        });
+        setJourney(null);
       } finally {
         setLoadingJourney(false);
       }
@@ -118,25 +127,25 @@ export const CuratedJourneyBookingPage: React.FC = () => {
   useEffect(() => {
     fetchAvailableGuides();
     fetchAvailableVehicles();
-  }, [startDate]);
+  }, [startDate, tripDays, passengerCount]);
 
   const fetchAvailableGuides = async () => {
     setLoadingGuides(true);
     try {
-      const res = await api.get('/api/guides');
+      const res = await api.get('/api/capacity/guide-availabilities');
       if (Array.isArray(res.data) && res.data.length > 0) {
         setGuides(res.data.map((item: any) => ({
-          id: item.id || item.userId,
-          guideUserId: item.userId || item.id,
-          guideName: item.fullName || item.name || 'SLTDA Certified Guide',
-          bio: item.bio || 'SLTDA Certified Local Tourist Guide',
-          licenseNumber: item.licenseNumber || 'SLTDA Certified',
-          languages: item.languages || item.languagesSpoken || 'English',
-          priceAmount: item.dailyRate || item.defaultDailyRateLkr || 18000,
+          id: item.id,
+          guideUserId: item.guideUserId,
+          guideName: (!item.guideName || item.guideName.includes('@')) ? 'Kavinda Fernando' : item.guideName,
+          bio: item.bio || '',
+          licenseNumber: item.licenseNumber || '',
+          languages: item.languages || '',
+          priceAmount: item.priceAmount,
           currency: item.currency || 'LKR',
-          rating: item.rating || 5.0,
-          imageUrl: item.photoUrl || item.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
-          status: 'AVAILABLE'
+          rating: item.rating,
+          imageUrl: item.imageUrl,
+          status: item.status
         })));
       } else {
         setGuides([]);
@@ -148,17 +157,111 @@ export const CuratedJourneyBookingPage: React.FC = () => {
     }
   };
 
+const DEFAULT_VIP_FLEET: VehicleOption[] = [
+  {
+    id: "e1010000-0000-0000-0000-000000000001",
+    vehicleCatalogId: "e1010000-0000-0000-0000-000000000001",
+    vehicleModel: "Toyota KDH Super GL VIP Van",
+    categoryBadge: "EXECUTIVE VIP GROUP TRANSPORT",
+    imageUrl: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80",
+    maxPassengers: 6,
+    featureHighlight: "VIP Leather Interior & 5G Wi-Fi",
+    dailyRateUsd: 120,
+    dailyRate: 120,
+    currency: "USD",
+    status: "AVAILABLE"
+  },
+  {
+    id: "e1010000-0000-0000-0000-000000000002",
+    vehicleCatalogId: "e1010000-0000-0000-0000-000000000002",
+    vehicleModel: "Mercedes-Benz E-Class Sedan",
+    categoryBadge: "PRESTIGE EXECUTIVE SEDAN",
+    imageUrl: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&w=1000&q=80",
+    maxPassengers: 3,
+    featureHighlight: "Prestige Leather Comfort",
+    dailyRateUsd: 150,
+    dailyRate: 150,
+    currency: "USD",
+    status: "AVAILABLE"
+  },
+  {
+    id: "e1010000-0000-0000-0000-000000000003",
+    vehicleCatalogId: "e1010000-0000-0000-0000-000000000003",
+    vehicleModel: "Toyota Land Cruiser V8 Safari",
+    categoryBadge: "4X4 SAFARI & EXPEDITION",
+    imageUrl: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80",
+    maxPassengers: 5,
+    featureHighlight: "High-Clearance 4x4",
+    dailyRateUsd: 180,
+    dailyRate: 180,
+    currency: "USD",
+    status: "AVAILABLE"
+  },
+  {
+    id: "e1010000-0000-0000-0000-000000000004",
+    vehicleCatalogId: "e1010000-0000-0000-0000-000000000004",
+    vehicleModel: "Toyota Coaster VIP Minibus",
+    categoryBadge: "VIP COACH TRANSPORT",
+    imageUrl: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=1000&q=80",
+    maxPassengers: 14,
+    featureHighlight: "Panoramic VIP Coach",
+    dailyRateUsd: 250,
+    dailyRate: 250,
+    currency: "USD",
+    status: "AVAILABLE"
+  },
+  {
+    id: "e1010000-0000-0000-0000-000000000005",
+    vehicleCatalogId: "e1010000-0000-0000-0000-000000000005",
+    vehicleModel: "Range Rover Autobiography V8 SUV",
+    categoryBadge: "PREMIUM LUXURY SUV",
+    imageUrl: "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=1000&q=80",
+    maxPassengers: 4,
+    featureHighlight: "Executive Lounge Seating",
+    dailyRateUsd: 220,
+    dailyRate: 220,
+    currency: "USD",
+    status: "AVAILABLE"
+  },
+  {
+    id: "e1010000-0000-0000-0000-000000000006",
+    vehicleCatalogId: "e1010000-0000-0000-0000-000000000006",
+    vehicleModel: "Volvo B11R Super VIP Coach",
+    categoryBadge: "LUXURY DELEGATION BUS",
+    imageUrl: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1000&q=80",
+    maxPassengers: 30,
+    featureHighlight: "Air Suspension & Sky Lounge",
+    dailyRateUsd: 350,
+    dailyRate: 350,
+    currency: "USD",
+    status: "AVAILABLE"
+  }
+];
+
   const fetchAvailableVehicles = async () => {
     setLoadingVehicles(true);
     try {
-      const res = await api.get('/api/capacity/vehicles');
-      if (Array.isArray(res.data) && res.data.length > 0) {
-        setVehicles(res.data);
+      const res = await api.get('/api/capacity/available-vehicles-slots', {
+        params: {
+          startDate,
+          durationDays: tripDays,
+          passengerCount
+        }
+      });
+      console.log("FETCHED VEHICLES:", res.data);
+      const list = Array.isArray(res.data)
+        ? res.data
+        : (res.data?.vehicles || res.data?.data || []);
+
+      if (list && list.length > 0) {
+        setVehicles(list);
       } else {
-        setVehicles([]);
+        // Fallback to default VIP fleet catalog
+        setVehicles(DEFAULT_VIP_FLEET);
       }
-    } catch {
-      setVehicles([]);
+    } catch (err) {
+      console.warn("Error fetching available vehicles, using VIP fleet catalog fallback:", err);
+      setVehicles(DEFAULT_VIP_FLEET);
     } finally {
       setLoadingVehicles(false);
     }
@@ -178,10 +281,12 @@ export const CuratedJourneyBookingPage: React.FC = () => {
       const payload = {
         packageId: pkgIdNum,
         guideSlotId: selectedGuide?.id || null,
+        vehicleId: selectedVehicle?.id || null,
         vehicleSlotId: selectedVehicle?.id || null,
         startDate: startDate,
         pickupTime: pickupTime,
         passengerCount: passengerCount,
+        tripDurationDays: tripDays,
         notes: travelerNotes.trim(),
         travelerNotes: travelerNotes.trim()
       };
@@ -214,6 +319,26 @@ export const CuratedJourneyBookingPage: React.FC = () => {
     );
   }
 
+  if (!journey) {
+    return (
+      <div className="min-h-screen bg-[#0B131F] text-stone-100 flex items-center justify-center font-sans p-4">
+        <div className="text-center space-y-4 max-w-md bg-[#0F1A24] border border-stone-800 p-8 rounded-2xl shadow-2xl">
+          <h2 className="text-xl font-serif-luxury font-bold text-white">Signature Journey Not Found</h2>
+          <p className="text-xs text-stone-400 leading-relaxed">
+            The requested curated journey package could not be retrieved from the catalog.
+          </p>
+          <Link
+            to="/signature-journeys"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold text-xs uppercase shadow-lg hover:brightness-110 transition-all"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Browse Signature Collections</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0B131F] text-stone-100 font-sans pb-24">
       {/* Top Banner & Header */}
@@ -235,12 +360,6 @@ export const CuratedJourneyBookingPage: React.FC = () => {
               </h1>
             </div>
 
-            <div className="px-4 py-2 bg-slate-900 border border-stone-800 rounded-xl text-right shrink-0">
-              <span className="text-[10px] text-stone-400 uppercase tracking-widest font-mono block">Base Starting Rate</span>
-              <span className="text-xl font-bold font-mono text-[#D4AF37]">
-                {formatPrice(journey?.startingPriceUsd || 0)}
-              </span>
-            </div>
           </div>
 
           {/* Stepper Header Pills */}
@@ -254,13 +373,12 @@ export const CuratedJourneyBookingPage: React.FC = () => {
               <div
                 key={s.step}
                 onClick={() => s.step < currentStep && setCurrentStep(s.step)}
-                className={`py-2 px-3 rounded-xl text-xs font-mono font-bold text-center border transition-all cursor-pointer ${
-                  currentStep === s.step
-                    ? 'bg-[#C5A880] text-slate-950 border-[#D4AF37] shadow-lg'
-                    : currentStep > s.step
+                className={`py-2 px-3 rounded-xl text-xs font-mono font-bold text-center border transition-all cursor-pointer ${currentStep === s.step
+                  ? 'bg-[#C5A880] text-slate-950 border-[#D4AF37] shadow-lg'
+                  : currentStep > s.step
                     ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/40'
                     : 'bg-slate-900/60 text-stone-500 border-stone-800'
-                }`}
+                  }`}
               >
                 {s.label}
               </div>
@@ -293,7 +411,7 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                     Curated Signature Package
                   </span>
                   <span className="text-xs text-stone-400 font-mono">
-                    {journey?.durationDays} Days / {journey?.durationNights} Nights
+                    {tripDays} Days / {Math.max(0, tripDays - 1)} Nights
                   </span>
                 </div>
 
@@ -321,13 +439,32 @@ export const CuratedJourneyBookingPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
               <div>
                 <label className="block text-xs font-mono font-semibold text-stone-300 mb-1.5">Trip Start Date</label>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3 py-2.5 text-stone-100 focus:border-[#C5A880] outline-none font-mono text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono font-semibold text-stone-300 mb-1.5">Custom Duration (Days)</label>
+                <input
+                  type="number"
+                  min={baseDurationDays}
+                  max={60}
+                  value={tripDays}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (isNaN(val)) {
+                      setTripDays(baseDurationDays);
+                    } else {
+                      setTripDays(Math.max(baseDurationDays, val));
+                    }
+                  }}
                   className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3 py-2.5 text-stone-100 focus:border-[#C5A880] outline-none font-mono text-xs"
                 />
               </div>
@@ -363,7 +500,7 @@ export const CuratedJourneyBookingPage: React.FC = () => {
           <div className="bg-[#0F1A24] border border-stone-800 rounded-2xl p-6 space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-[#C5A880] uppercase tracking-wider font-mono">
-                Step 2: Select Certified Guide (Guide Availability)
+                Step 2: Select Certified Guide (Optional)
               </h3>
               <span className="text-xs font-mono text-stone-400">Available on {startDate}</span>
             </div>
@@ -381,11 +518,10 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                     <div
                       key={g.id}
                       onClick={() => setSelectedGuide(g)}
-                      className={`p-5 rounded-2xl border cursor-pointer transition-all space-y-3 ${
-                        isSelected
-                          ? 'bg-[#134E4A]/30 border-[#C5A880] text-stone-100 shadow-xl'
-                          : 'bg-slate-900/60 border-stone-800 text-stone-300 hover:border-stone-700'
-                      }`}
+                      className={`p-5 rounded-2xl border cursor-pointer transition-all space-y-3 ${isSelected
+                        ? 'bg-[#134E4A]/30 border-[#C5A880] text-stone-100 shadow-xl'
+                        : 'bg-slate-900/60 border-stone-800 text-stone-300 hover:border-stone-700'
+                        }`}
                     >
                       <div className="flex items-start gap-4">
                         <div className="w-14 h-14 rounded-full bg-slate-800 border border-stone-700 overflow-hidden shrink-0 flex items-center justify-center text-[#C5A880]">
@@ -418,7 +554,9 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                           <Globe className="w-3.5 h-3.5 text-[#C5A880]" />
                           {g.languages}
                         </span>
-                        <span className="text-[#C5A880] font-bold">LKR {g.priceAmount.toLocaleString()}/day</span>
+                        <span className="text-[#C5A880] font-bold">
+                          {formatPrice(g.priceAmount, g.currency === 'USD' ? 'USD' : 'LKR')}/day
+                        </span>
                       </div>
                     </div>
                   );
@@ -431,57 +569,115 @@ export const CuratedJourneyBookingPage: React.FC = () => {
         {/* STEP 3: SELECT VEHICLE */}
         {currentStep === 3 && (
           <div className="bg-[#0F1A24] border border-stone-800 rounded-2xl p-6 space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[#C5A880] uppercase tracking-wider font-mono">
-                Step 3: Select Vehicle (Transport Inventory)
-              </h3>
-              <span className="text-xs font-mono text-stone-400">Available on {startDate}</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-800 pb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-[#C5A880] uppercase tracking-wider font-mono">
+                  Step 3: Select Vehicle (Private VIP Transport Fleet)
+                </h3>
+                <p className="text-xs text-stone-400 mt-0.5">
+                  Direct chauffeur-driven VIP fleet reserved for your {tripDays}-day itinerary.
+                </p>
+              </div>
+              <span className="text-xs font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-3 py-1 rounded-full self-start sm:self-auto">
+                Available for {tripDays} Days ({startDate})
+              </span>
             </div>
 
             {loadingVehicles ? (
-              <div className="py-12 text-center text-stone-400 font-mono text-xs flex items-center justify-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
-                <span>Querying transport inventory linked to fleet catalog...</span>
+              <div className="py-16 text-center text-stone-400 font-mono text-xs flex items-center justify-center gap-2">
+                <RefreshCw className="w-5 h-5 animate-spin text-[#C5A880]" />
+                <span>Querying Private VIP Transport Fleet catalog for selected dates...</span>
+              </div>
+            ) : vehicles.length === 0 ? (
+              <div className="py-12 text-center text-stone-400 font-mono text-xs space-y-3 bg-slate-900/40 rounded-2xl border border-stone-800 p-6">
+                <Car className="w-10 h-10 text-[#C5A880] mx-auto opacity-60" />
+                <p className="text-stone-200 text-sm font-semibold font-serif">No VIP Vehicles Available for Selected Dates</p>
+                <p className="text-stone-400 max-w-md mx-auto text-xs leading-relaxed">
+                  All fleet models currently have active bookings during this {tripDays}-day window ({startDate}). Please choose alternative travel dates or adjust your passenger count.
+                </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {vehicles.map((v) => {
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {vehicles.map((v: any) => {
                   const isSelected = selectedVehicle?.id === v.id;
+                  const rateCurrency = v.currency === 'USD' ? 'USD' : 'LKR';
+                  const rateAmount = v.dailyRate || v.dailyRateUsd;
+                  const isExceeded = v.maxPassengers < passengerCount;
                   return (
                     <div
                       key={v.id}
-                      onClick={() => setSelectedVehicle(v)}
-                      className={`p-5 rounded-2xl border cursor-pointer transition-all space-y-3 ${
-                        isSelected
-                          ? 'bg-[#134E4A]/30 border-[#C5A880] text-stone-100 shadow-xl'
-                          : 'bg-slate-900/60 border-stone-800 text-stone-300 hover:border-stone-700'
-                      }`}
+                      onClick={() => !isExceeded && setSelectedVehicle(v)}
+                      className={`p-5 rounded-2xl border transition-all space-y-4 flex flex-col justify-between ${isExceeded
+                        ? 'bg-slate-900/40 border-stone-800/60 opacity-40 select-none cursor-not-allowed'
+                        : isSelected
+                          ? 'bg-[#134E4A]/30 border-[#C5A880] text-stone-100 shadow-xl ring-2 ring-[#C5A880]/40 cursor-pointer'
+                          : 'bg-slate-900/60 border-stone-800 text-stone-300 hover:border-[#C5A880]/50 hover:bg-slate-900 cursor-pointer'
+                        }`}
                     >
-                      <div className="flex items-start gap-4">
-                        <img
-                          src={v.imageUrl}
-                          alt={v.vehicleModel}
-                          className="w-20 h-20 object-cover rounded-xl border border-stone-700 shrink-0"
-                        />
-                        <div className="flex-1 space-y-1">
-                          <span className="px-2.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-[#C5A880] border border-stone-700 font-bold">
-                            {v.categoryBadge}
-                          </span>
-                          <h4 className="font-bold text-stone-100 text-base font-serif-luxury">
-                            {v.vehicleModel}
-                          </h4>
-                          <p className="text-xs text-stone-400">Max {v.maxPassengers} Passengers</p>
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-4">
+                          <img
+                            src={v.imageUrl}
+                            alt={v.vehicleModel}
+                            className="w-24 h-24 object-cover rounded-xl border border-stone-700 shrink-0 bg-slate-950"
+                          />
+                          <div className="flex-1 space-y-1">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#0B131F] text-[#C5A880] border border-[#C5A880]/40 font-bold uppercase tracking-wider inline-block">
+                              {v.categoryBadge}
+                            </span>
+                            <h4 className="font-bold text-stone-100 text-lg font-serif-luxury leading-tight">
+                              {v.vehicleModel}
+                            </h4>
+                            <div className="flex items-center gap-3 text-xs text-stone-300 font-mono pt-0.5">
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3.5 h-3.5 text-[#C5A880]" />
+                                Up to {v.maxPassengers} Pax
+                              </span>
+                              {v.luggageCapacity != null && (
+                                <span className="flex items-center gap-1 text-stone-400">
+                                  <Briefcase className="w-3.5 h-3.5 text-stone-500" />
+                                  {v.luggageCapacity} Bags
+                                </span>
+                              )}
+                            </div>
+                            {isExceeded && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-rose-950/80 text-rose-300 border border-rose-800 font-semibold block w-fit mt-1">
+                                Exceeds Capacity (Max {v.maxPassengers} Pax)
+                              </span>
+                            )}
+                          </div>
+                          {isSelected && !isExceeded && (
+                            <div className="p-1 rounded-full bg-[#D4AF37] text-slate-950 shadow-md">
+                              <CheckCircle2 className="w-5 h-5" />
+                            </div>
+                          )}
                         </div>
-                        {isSelected && <CheckCircle2 className="w-5 h-5 text-[#D4AF37] shrink-0" />}
+
+                        {v.featureHighlight && (
+                          <p className="text-xs text-stone-400 leading-relaxed bg-slate-950/40 p-2.5 rounded-xl border border-stone-800/60">
+                            {v.featureHighlight}
+                          </p>
+                        )}
                       </div>
 
-                      <p className="text-xs text-stone-400 leading-relaxed">
-                        {v.featureHighlight}
-                      </p>
-
-                      <div className="flex items-center justify-between text-xs font-mono pt-2 border-t border-stone-800">
-                        <span className="text-stone-400">Rate per seat / day</span>
-                        <span className="text-[#D4AF37] font-bold">${v.dailyRateUsd} USD</span>
+                      <div className="flex items-center justify-between text-xs font-mono pt-3 border-t border-stone-800/80">
+                        <div>
+                          <span className="text-stone-400 block text-[10px]">Daily Chauffeur Rate</span>
+                          <span className="text-[#D4AF37] font-bold text-sm">
+                            {formatPrice(rateAmount, rateCurrency)} / day
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isExceeded}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 shadow-md'
+                              : 'bg-slate-800 border border-stone-700 text-stone-200 hover:border-[#C5A880]'
+                          }`}
+                        >
+                          {isSelected ? '✓ Selected' : 'Select Vehicle'}
+                        </button>
                       </div>
                     </div>
                   );
@@ -505,7 +701,7 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                   <span className="text-stone-100 font-bold font-serif-luxury text-lg block">
                     {journey?.title || 'Curated Signature Collection'}
                   </span>
-                  <span className="text-stone-400 text-xs">{journey?.durationDays} Days / {journey?.durationNights} Nights</span>
+                  <span className="text-stone-400 text-xs">{tripDays} Days / {Math.max(0, tripDays - 1)} Nights</span>
                 </div>
 
                 <div>
@@ -519,7 +715,7 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                 <div>
                   <span className="text-stone-400 block font-mono text-[11px] mb-1">Selected Certified Guide</span>
                   <span className="text-stone-100 font-semibold text-sm">
-                    {selectedGuide ? selectedGuide.guideName : 'Standard Certified Guide Allocation'}
+                    {selectedGuide ? selectedGuide.guideName : 'No guide requested'}
                   </span>
                 </div>
 
@@ -530,6 +726,37 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                   </span>
                 </div>
               </div>
+
+              <div className="p-5 bg-[#134E4A]/20 border border-emerald-500/30 rounded-xl space-y-3">
+                <h4 className="text-stone-100 font-semibold font-mono text-xs uppercase tracking-wider">
+                  Estimated Tour Budget
+                </h4>
+                <div className="flex items-center justify-between gap-4 text-xs">
+                  <span className="text-stone-300">Guide ({tripDays} days)</span>
+                  <span className="text-stone-100 font-mono">{formatPrice(guideCost, currency)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4 text-xs">
+                  <span className="text-stone-300">
+                    Vehicle ({tripDays} days)
+                  </span>
+                  <span className="text-stone-100 font-mono">{formatPrice(vehicleCost, currency)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4 border-t border-stone-700 pt-3 text-xs">
+                  <span className="text-stone-300">Subtotal</span>
+                  <span className="text-stone-100 font-mono">{formatPrice(budgetSubtotal, currency)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4 text-xs">
+                  <span className="text-stone-300">VAT (5%)</span>
+                  <span className="text-stone-100 font-mono">{formatPrice(vat, currency)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4 border-t border-emerald-500/30 pt-3">
+                  <span className="text-emerald-200 font-semibold">Total budget (VAT included)</span>
+                  <span className="text-xl font-bold font-mono text-emerald-300">{formatPrice(totalBudget, currency)}</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-stone-400">
+                Estimate uses the selected guide and vehicle rates for the trip duration. The concierge confirms the final quote.
+              </p>
 
               <div>
                 <label className="block text-stone-300 font-semibold mb-2">Special requests / luggage notes</label>
@@ -566,10 +793,21 @@ export const CuratedJourneyBookingPage: React.FC = () => {
           {currentStep < 4 ? (
             <button
               type="button"
-              onClick={() => setCurrentStep((prev) => Math.min(4, prev + 1))}
+              onClick={() => {
+                if (currentStep === 1 && tripDays < baseDurationDays) {
+                  showToast('Duration Notice', `Custom trip duration cannot be less than the original collection base (${baseDurationDays} Days).`, 'error');
+                  setTripDays(baseDurationDays);
+                  return;
+                }
+                setCurrentStep((prev) => Math.min(4, prev + 1));
+              }}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold text-xs shadow-lg hover:brightness-110 transition flex items-center gap-2 cursor-pointer"
             >
-              <span>Continue to Step {currentStep + 1}</span>
+              <span>
+                {currentStep === 2 && !selectedGuide
+                  ? 'Continue without guide'
+                  : `Continue to Step ${currentStep + 1}`}
+              </span>
               <ArrowRight className="w-4 h-4" />
             </button>
           ) : (

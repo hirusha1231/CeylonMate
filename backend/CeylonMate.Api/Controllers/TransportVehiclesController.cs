@@ -26,75 +26,33 @@ public class TransportVehiclesController : ControllerBase
         public string RouteDescription { get; set; } = string.Empty;
         public DateTime DepartureTime { get; set; }
         public DateTime ArrivalTime { get; set; }
-        public decimal RatePerSeatLkr { get; set; }
+        public decimal DailyRate { get; set; }
+        public string Currency { get; set; } = "LKR";
     }
 
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> GetVehicleSlots()
     {
-        var slots = await _dbContext.TransportSlots
-            .Include(s => s.VehicleCatalog)
-            .Include(s => s.TransportOption)
-            .OrderBy(s => s.StartTimeUtc)
-            .ToListAsync();
-
         var fleetCatalog = await _dbContext.VehicleFleetCatalogs
             .Where(v => v.IsActive)
             .OrderBy(v => v.DisplayOrder)
             .ToListAsync();
 
-        var resultList = new List<object>();
-
-        foreach (var s in slots)
+        var resultList = fleetCatalog.Select(v => new
         {
-            var modelName = s.VehicleCatalog != null ? s.VehicleCatalog.VehicleModel : (s.TransportOption != null ? s.TransportOption.Title : $"{s.VehicleType} VIP Fleet");
-            var badge = s.VehicleCatalog?.CategoryBadge ?? "VIP Transport Escort";
-            var img = !string.IsNullOrWhiteSpace(s.VehicleCatalog?.ImageUrl) ? s.VehicleCatalog.ImageUrl : "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=800";
-            var maxPassengers = s.VehicleCatalog?.MaxPassengers ?? (s.TotalSeats > 0 ? s.TotalSeats : 7);
-            var features = s.VehicleCatalog?.FeatureHighlight ?? "Reclining Leather Seats, Dual AC, Onboard WiFi";
-            var dailyUsd = s.VehicleCatalog?.DailyRateUsd > 0 ? s.VehicleCatalog.DailyRateUsd : (s.PricePerSeat > 0 ? s.PricePerSeat / 300m : 140m);
-
-            resultList.Add(new
-            {
-                id = s.Id,
-                vehicleCatalogId = s.VehicleCatalogId,
-                vehicleModel = modelName,
-                categoryBadge = badge,
-                imageUrl = img,
-                maxPassengers = maxPassengers,
-                featureHighlight = features,
-                dailyRateUsd = dailyUsd,
-                pricePerSeatLkr = s.PricePerSeat > 0 ? s.PricePerSeat : dailyUsd * 300m,
-                currency = string.IsNullOrWhiteSpace(s.Currency) ? "LKR" : s.Currency,
-                status = s.Status.ToString(),
-                totalSeats = s.TotalSeats,
-                availableSeats = Math.Max(0, s.TotalSeats - s.BookedSeats - s.HeldSeats)
-            });
-        }
-
-        foreach (var v in fleetCatalog)
-        {
-            if (!slots.Any(s => s.VehicleCatalogId == v.Id))
-            {
-                resultList.Add(new
-                {
-                    id = v.Id,
-                    vehicleCatalogId = v.Id,
-                    vehicleModel = v.VehicleModel,
-                    categoryBadge = v.CategoryBadge,
-                    imageUrl = v.ImageUrl,
-                    maxPassengers = v.MaxPassengers,
-                    featureHighlight = v.FeatureHighlight,
-                    dailyRateUsd = v.DailyRateUsd,
-                    pricePerSeatLkr = v.DailyRateUsd * 300m,
-                    currency = "USD",
-                    status = "AVAILABLE",
-                    totalSeats = v.MaxPassengers,
-                    availableSeats = v.MaxPassengers
-                });
-            }
-        }
+            id = v.Id,
+            vehicleCatalogId = v.Id,
+            vehicleModel = v.VehicleModel,
+            categoryBadge = v.CategoryBadge,
+            imageUrl = v.ImageUrl,
+            maxPassengers = v.MaxPassengers,
+            featureHighlight = v.FeatureHighlight,
+            dailyRate = v.DailyRateUsd,
+            currency = v.Currency ?? "USD",
+            status = "AVAILABLE",
+            heldUntilUtc = (DateTimeOffset?)null
+        }).ToList();
 
         return Ok(resultList);
     }
@@ -112,9 +70,9 @@ public class TransportVehiclesController : ControllerBase
         if (catalogVehicle == null || !catalogVehicle.IsActive)
             return BadRequest(new { message = "Selected vehicle model not found in fleet catalog or inactive." });
 
-        if (dto.RatePerSeatLkr < 0)
+        if (dto.DailyRate < 0)
         {
-            return BadRequest(new { message = "Rate per seat cannot be negative." });
+            return BadRequest(new { message = "Daily vehicle rate cannot be negative." });
         }
 
         var departureUtc = DateTime.SpecifyKind(dto.DepartureTime, DateTimeKind.Utc);
@@ -133,11 +91,8 @@ public class TransportVehiclesController : ControllerBase
             RouteDescription = dto.RouteDescription.Trim(),
             StartTimeUtc = departureUtc,
             EndTimeUtc = arrivalUtc,
-            TotalSeats = catalogVehicle.MaxPassengers, // Auto-set from catalog capacity
-            BookedSeats = 0,
-            HeldSeats = 0,
-            PricePerSeat = dto.RatePerSeatLkr,
-            Currency = "LKR",
+            DailyRate = dto.DailyRate > 0 ? dto.DailyRate : catalogVehicle.DailyRateUsd ?? 0m,
+            Currency = dto.DailyRate > 0 ? dto.Currency : catalogVehicle.Currency,
             Status = SlotStatus.AVAILABLE,
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow
@@ -166,12 +121,8 @@ public class TransportVehiclesController : ControllerBase
             arrivalTime = slot.EndTimeUtc.UtcDateTime,
             startTimeUtc = slot.StartTimeUtc,
             endTimeUtc = slot.EndTimeUtc,
-            totalSeats = slot.TotalSeats,
-            bookedSeats = slot.BookedSeats,
-            heldSeats = slot.HeldSeats,
-            availableSeats = slot.AvailableSeats,
-            ratePerSeatLkr = slot.PricePerSeat,
-            pricePerSeat = slot.PricePerSeat,
+            maxPassengers = catalogVehicle.MaxPassengers,
+            dailyRate = slot.DailyRate,
             currency = slot.Currency,
             status = slot.Status.ToString()
         });

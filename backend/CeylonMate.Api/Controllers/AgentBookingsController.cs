@@ -50,6 +50,7 @@ namespace CeylonMate.Api.Controllers
                     guideSlotId = b.GuideSlotId,
                     vehicleSlotId = b.VehicleSlotId,
                     packageId = b.PackageId,
+                    tripDurationDays = b.TripDurationDays,
                     startDate = b.StartDate,
                     pickupTime = b.PickupTime,
                     travelerNotes = b.TravelerNotes,
@@ -93,27 +94,39 @@ namespace CeylonMate.Api.Controllers
                 booking.GuideResponseMessage = null;
                 booking.GuideRespondedAtUtc = null;
 
-                var guideSlot = await _context.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == dto.ReplacementGuideSlotId.Value);
-                if (guideSlot != null)
+                Guid replacementUserId = Guid.Empty;
+                var gProf = await _context.GuideProfiles.AsNoTracking()
+                    .FirstOrDefaultAsync(gp => gp.Id == dto.ReplacementGuideSlotId.Value || gp.UserId == dto.ReplacementGuideSlotId.Value);
+                if (gProf != null)
                 {
-                    guideSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
-                    _context.Notifications.Add(new Notification
-                    {
-                        Id = Guid.NewGuid(),
-                        RecipientUserId = Guid.Empty,
-                        RecipientRole = "LOCAL_GUIDE",
-                        BookingId = booking.Id,
-                        Type = "GUIDE_REQUEST_RAISED",
-                        Title = "Reassigned Expedition Request Received",
-                        Message = $"Travel Agent reassigned Booking #{booking.BookingReference} to you. Please review and respond.",
-                        IsRead = false,
-                        CreatedAt = DateTime.UtcNow
-                    });
+                    replacementUserId = gProf.UserId;
                 }
+                else
+                {
+                    var guideSlot = await _context.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == dto.ReplacementGuideSlotId.Value);
+                    if (guideSlot != null)
+                    {
+                        guideSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
+                        replacementUserId = guideSlot.LocalGuideUserId;
+                    }
+                }
+
+                _context.Notifications.Add(new Notification
+                {
+                    Id = Guid.NewGuid(),
+                    RecipientUserId = replacementUserId,
+                    RecipientRole = "LOCAL_GUIDE",
+                    BookingId = booking.Id,
+                    Type = "GUIDE_REQUEST_RAISED",
+                    Title = "Reassigned Expedition Request Received",
+                    Message = $"Travel Agent reassigned Booking #{booking.BookingReference} to you. Please review and respond.",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                });
             }
 
-            booking.FinalPriceQuoteLkr = dto.FinalPriceQuoteLkr ?? 125000m;
-            booking.FinalPriceQuoteUsd = dto.FinalPriceQuoteUsd ?? 395m;
+            booking.FinalPriceQuoteLkr = dto.FinalPriceQuoteLkr;
+            booking.FinalPriceQuoteUsd = dto.FinalPriceQuoteUsd;
             booking.AgentNotes = dto.AgentNotes;
             booking.Status = "APPROVED_PENDING_PAYMENT";
             booking.VehicleCapacityStatus = "ACKNOWLEDGED";
@@ -126,6 +139,33 @@ namespace CeylonMate.Api.Controllers
                 booking
             });
         }
+
+        // POST /api/agent/bookings/{bookingId}/reject
+        [HttpPost("bookings/{bookingId}/reject")]
+        public async Task<IActionResult> RejectBooking(
+            int bookingId,
+            [FromBody] RejectBookingRequestDto? dto)
+        {
+            var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId);
+            if (booking == null)
+            {
+                return NotFound(new { message = "Booking inquiry not found." });
+            }
+
+            booking.Status = "REJECTED";
+            if (!string.IsNullOrWhiteSpace(dto?.Reason))
+            {
+                booking.AgentNotes = dto.Reason;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Booking proposal rejected.",
+                booking
+            });
+        }
     }
 
     public record ApproveBookingRequestDto(
@@ -134,5 +174,9 @@ namespace CeylonMate.Api.Controllers
         decimal? FinalPriceQuoteLkr,
         decimal? FinalPriceQuoteUsd,
         string? AgentNotes
+    );
+
+    public record RejectBookingRequestDto(
+        string? Reason
     );
 }

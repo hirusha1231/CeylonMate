@@ -15,7 +15,8 @@ import {
   Sparkles,
   Users,
   Tag,
-  Info
+  Info,
+  Lock
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { useToast } from '../context/ToastContext';
@@ -141,23 +142,19 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
       return;
     }
     if (!createForm.startTime || !createForm.endTime) {
-      showToast('Validation Error', 'Please choose valid start and end times.', 'error');
+      showToast('Validation Error', 'Please select both Start Date and End Date.', 'error');
       return;
     }
-    if (new Date(createForm.endTime) <= new Date(createForm.startTime)) {
-      showToast('Validation Error', 'End Time must be after Start Time.', 'error');
+    if (new Date(createForm.endTime) < new Date(createForm.startTime)) {
+      showToast('Validation Error', 'End Date must be at or after Start Date.', 'error');
       return;
     }
     if (!createForm.slotType) {
       showToast('Validation Error', 'Please select a slot type.', 'error');
       return;
     }
-    if (!createForm.priceAmount || Number(createForm.priceAmount) <= 0) {
-      showToast('Validation Error', 'Please enter a valid price amount.', 'error');
-      return;
-    }
-    if (!createForm.maxCapacity || Number(createForm.maxCapacity) <= 0) {
-      showToast('Validation Error', 'Please enter a valid max capacity.', 'error');
+    if (createForm.notes && /\d/.test(createForm.notes)) {
+      showToast('Validation Error', 'Notes / Tour Excerpt must contain letters only. Numbers are not allowed.', 'error');
       return;
     }
 
@@ -167,8 +164,8 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
         startTimeUtc: new Date(createForm.startTime).toISOString(),
         endTimeUtc: new Date(createForm.endTime).toISOString(),
         slotType: createForm.slotType,
-        maxCapacity: Number(createForm.maxCapacity),
-        priceAmount: Number(createForm.priceAmount),
+        maxCapacity: Number(createForm.maxCapacity) || 1,
+        priceAmount: Number(createForm.priceAmount) || 15000,
         currency: 'LKR',
         notes: createForm.notes?.trim() || '',
       };
@@ -192,25 +189,38 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
   };
 
   const openEditModal = (slot: GuideSlot) => {
+    if (slot.status.toUpperCase() === 'BOOKED') {
+      showToast('Action Prohibited', 'Cannot edit a slot that is already booked. Cancel or reassign the booking first.', 'error');
+      return;
+    }
     setEditingSlot(slot);
     setEditPrice(slot.priceAmount);
     setEditCapacity(slot.maxCapacity);
     setEditSlotType(slot.slotType);
     setEditStatus(slot.status);
     setEditNotes(slot.notes || '');
-    setEditStartTime(new Date(slot.startTimeUtc).toISOString().slice(0, 16));
-    setEditEndTime(new Date(slot.endTimeUtc).toISOString().slice(0, 16));
+    setEditStartTime(new Date(slot.startTimeUtc).toISOString().slice(0, 10));
+    setEditEndTime(new Date(slot.endTimeUtc).toISOString().slice(0, 10));
   };
 
   const handleUpdate = async () => {
     if (!editingSlot) return;
 
-    if (!editStartTime || !editEndTime) {
-      showToast('Validation Error', 'Please select both Start Time and End Time.', 'error');
+    if (editingSlot.status.toUpperCase() === 'BOOKED') {
+      showToast('Action Prohibited', 'Cannot update an active booked slot.', 'error');
       return;
     }
-    if (new Date(editEndTime) <= new Date(editStartTime)) {
-      showToast('Validation Error', 'End Time must be after Start Time.', 'error');
+
+    if (!editStartTime || !editEndTime) {
+      showToast('Validation Error', 'Please select both Start Date and End Date.', 'error');
+      return;
+    }
+    if (new Date(editEndTime) < new Date(editStartTime)) {
+      showToast('Validation Error', 'End Date must be at or after Start Date.', 'error');
+      return;
+    }
+    if (editNotes && /\d/.test(editNotes)) {
+      showToast('Validation Error', 'Notes / Tour Excerpt must contain letters only. Numbers are not allowed.', 'error');
       return;
     }
 
@@ -251,9 +261,24 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
 
   const handleDelete = async () => {
     if (!deletingSlot) return;
+
+    if (deletingSlot.status.toUpperCase() === 'BOOKED') {
+      showToast('Action Prohibited', 'Cannot delete an active booked slot. Cancel the confirmed booking first.', 'error');
+      setDeletingSlot(null);
+      return;
+    }
+
     setIsDeleting(true);
     try {
-      await api.delete(`/api/guides/availability/${deletingSlot.id}`);
+      try {
+        await api.delete(`/api/guides/availability/${deletingSlot.id}`);
+      } catch {
+        try {
+          await api.delete(`/api/capacity/guides/slots/${deletingSlot.id}`);
+        } catch {
+          await api.delete(`/api/guides/slots/${deletingSlot.id}`);
+        }
+      }
       showToast('Slot Deleted', 'Guide availability slot has been removed from database.', 'info');
       setDeletingSlot(null);
       fetchSlots();
@@ -332,7 +357,7 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
             }`}
           >
             <Calendar className="w-4 h-4" />
-            <span>Transport & Attraction Capacity</span>
+            <span>Transport Inventory</span>
           </button>
         </div>
         {/* ACTION BAR HEADER */}
@@ -346,7 +371,7 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
               Guide Availability Management
             </h2>
             <p className="text-xs text-stone-400 mt-1">
-              Publish, update, and manage local guide daily schedules, pricing, and active hold slots.
+              Publish, update, and manage local guide daily schedules and active availability slots.
             </p>
           </div>
 
@@ -414,11 +439,9 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-900/90 border-b border-stone-800 text-[11px] font-mono uppercase tracking-wider text-[#C5A880]">
-                    <th className="px-5 py-4 font-semibold">Date & Time Window</th>
+                    <th className="px-5 py-4 font-semibold">Available Date</th>
                     <th className="px-5 py-4 font-semibold">Slot Type</th>
                     <th className="px-5 py-4 font-semibold">Status</th>
-                    <th className="px-5 py-4 font-semibold">Capacity</th>
-                    <th className="px-5 py-4 font-semibold">Price (LKR)</th>
                     <th className="px-5 py-4 font-semibold">Notes / Excerpt</th>
                     <th className="px-5 py-4 font-semibold text-right">Actions</th>
                   </tr>
@@ -426,7 +449,7 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
                 <tbody className="divide-y divide-stone-800/60 text-xs font-sans">
                   {filteredSlots.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-stone-400 space-y-2">
+                      <td colSpan={5} className="px-6 py-12 text-center text-stone-400 space-y-2">
                         <Info className="w-8 h-8 text-stone-600 mx-auto" />
                         <p className="font-medium text-stone-300">No guide availability slots found matching your filter.</p>
                         <p className="text-[11px] text-stone-500">Try changing the status filter or add a new guide slot.</p>
@@ -443,13 +466,6 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
                             <Calendar className="w-4 h-4 text-[#C5A880] shrink-0" />
                             <span>{new Date(slot.startTimeUtc).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 text-[11px] text-stone-400 mt-1 pl-6 font-mono">
-                            <Clock className="w-3 h-3 text-stone-500 shrink-0" />
-                            <span>
-                              {new Date(slot.startTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {' '}
-                              {new Date(slot.endTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
                         </td>
 
                         <td className="px-5 py-4">
@@ -465,17 +481,6 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
                           </span>
                         </td>
 
-                        <td className="px-5 py-4 font-mono text-stone-200">
-                          <div className="flex items-center gap-1.5">
-                            <Users className="w-3.5 h-3.5 text-[#C5A880]" />
-                            <span>{slot.bookedCapacity} / {slot.maxCapacity} slots</span>
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4 font-semibold text-[#D4AF37] font-mono text-sm">
-                          LKR {slot.priceAmount.toLocaleString()}
-                        </td>
-
                         <td className="px-5 py-4 text-stone-300 max-w-xs truncate">
                           {slot.notes ? (
                             <span title={slot.notes}>{slot.notes}</span>
@@ -486,21 +491,30 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
 
                         <td className="px-5 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => openEditModal(slot)}
-                              title="Edit Slot"
-                              className="p-2 rounded-xl bg-slate-900/80 hover:bg-[#C5A880]/20 text-stone-300 hover:text-[#D4AF37] border border-stone-700/60 hover:border-[#C5A880]/60 transition-all shadow-sm"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
+                            {slot.status.toUpperCase() === 'BOOKED' ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-blue-300 text-[11px] font-mono">
+                                <Lock className="w-3.5 h-3.5 text-blue-400" />
+                                Locked (Booked)
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => openEditModal(slot)}
+                                  title="Edit Slot"
+                                  className="p-2 rounded-xl bg-slate-900/80 hover:bg-[#C5A880]/20 text-stone-300 hover:text-[#D4AF37] border border-stone-700/60 hover:border-[#C5A880]/60 transition-all shadow-sm cursor-pointer"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
 
-                            <button
-                              onClick={() => setDeletingSlot(slot)}
-                              title="Delete Slot"
-                              className="p-2 rounded-xl bg-slate-900/80 hover:bg-rose-950/60 text-stone-300 hover:text-rose-400 border border-stone-700/60 hover:border-rose-500/50 transition-all shadow-sm"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                                <button
+                                  onClick={() => setDeletingSlot(slot)}
+                                  title="Delete Slot"
+                                  className="p-2 rounded-xl bg-slate-900/80 hover:bg-rose-950/60 text-stone-300 hover:text-rose-400 border border-stone-700/60 hover:border-rose-500/50 transition-all shadow-sm cursor-pointer"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -569,22 +583,22 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-stone-300 font-semibold mb-1">Start Time</label>
+                    <label className="block text-stone-300 font-semibold mb-1">Start Date</label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       value={createForm.startTime}
                       onChange={(e) => setCreateForm({ ...createForm, startTime: e.target.value })}
-                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono"
+                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono scheme-dark"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-stone-300 font-semibold mb-1">End Time</label>
+                    <label className="block text-stone-300 font-semibold mb-1">End Date</label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       value={createForm.endTime}
                       onChange={(e) => setCreateForm({ ...createForm, endTime: e.target.value })}
-                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono"
+                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono scheme-dark"
                     />
                   </div>
                 </div>
@@ -600,41 +614,16 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
                     <option value="FULL_DAY">Full Day</option>
                     <option value="HALF_DAY_MORNING">Half Day (Morning)</option>
                     <option value="HALF_DAY_AFTERNOON">Half Day (Afternoon)</option>
-                    <option value="HOURLY">Hourly</option>
                   </select>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-stone-300 font-semibold mb-1">Price Amount (LKR)</label>
-                    <input
-                      type="number"
-                      value={createForm.priceAmount}
-                      onChange={(e) => setCreateForm({ ...createForm, priceAmount: e.target.value })}
-                      placeholder="e.g. 15000"
-                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-stone-300 font-semibold mb-1">Max Capacity</label>
-                    <input
-                      type="number"
-                      value={createForm.maxCapacity}
-                      onChange={(e) => setCreateForm({ ...createForm, maxCapacity: e.target.value })}
-                      placeholder="e.g. 1"
-                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono"
-                    />
-                  </div>
-                </div>
-
                 <div>
-                  <label className="block text-stone-300 font-semibold mb-1">Notes / Tour Excerpt</label>
+                  <label className="block text-stone-300 font-semibold mb-1">Notes / Tour Excerpt (Letters Only)</label>
                   <input
                     type="text"
                     value={createForm.notes}
-                    onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
-                    placeholder="e.g. Kandy Cultural & Heritage Tour"
+                    onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value.replace(/[0-9]/g, '') })}
+                    placeholder="e.g. Kandy Cultural and Heritage Tour"
                     className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none"
                   />
                 </div>
@@ -701,29 +690,29 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
               <div className="space-y-4 text-xs font-sans">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-stone-300 font-semibold mb-1">Start Time</label>
+                    <label className="block text-stone-300 font-semibold mb-1">Start Date</label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       value={editStartTime}
                       onChange={(e) => setEditStartTime(e.target.value)}
-                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono"
+                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono scheme-dark"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-stone-300 font-semibold mb-1">End Time</label>
+                    <label className="block text-stone-300 font-semibold mb-1">End Date</label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       value={editEndTime}
                       onChange={(e) => setEditEndTime(e.target.value)}
-                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono"
+                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono scheme-dark"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-stone-300 font-semibold mb-1">Slot Type</label>
+                    <label className="block text-stone-300 font-semibold mb-1">Slot Duration</label>
                     <select
                       value={editSlotType}
                       onChange={(e) => setEditSlotType(e.target.value)}
@@ -732,7 +721,6 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
                       <option value="FULL_DAY">Full Day</option>
                       <option value="HALF_DAY_MORNING">Morning (Half Day)</option>
                       <option value="HALF_DAY_AFTERNOON">Afternoon (Half Day)</option>
-                      <option value="HOURLY">Hourly</option>
                     </select>
                   </div>
 
@@ -751,34 +739,13 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-stone-300 font-semibold mb-1">Price Amount (LKR)</label>
-                    <input
-                      type="number"
-                      value={editPrice}
-                      onChange={(e) => setEditPrice(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-stone-300 font-semibold mb-1">Max Capacity</label>
-                    <input
-                      type="number"
-                      value={editCapacity}
-                      onChange={(e) => setEditCapacity(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono"
-                    />
-                  </div>
-                </div>
-
                 <div>
-                  <label className="block text-stone-300 font-semibold mb-1">Notes / Inclusions</label>
+                  <label className="block text-stone-300 font-semibold mb-1">Notes / Tour Excerpt (Letters Only)</label>
                   <input
                     type="text"
                     value={editNotes}
-                    onChange={(e) => setEditNotes(e.target.value)}
+                    onChange={(e) => setEditNotes(e.target.value.replace(/[0-9]/g, ''))}
+                    placeholder="e.g. Kandy Cultural and Heritage Tour"
                     className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none"
                   />
                 </div>
@@ -846,10 +813,6 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
                   <div className="flex justify-between">
                     <span>Slot Type:</span>
                     <span className="text-stone-200 font-semibold">{formatSlotType(deletingSlot.slotType)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Rate:</span>
-                    <span className="text-[#D4AF37] font-semibold">LKR {deletingSlot.priceAmount.toLocaleString()}</span>
                   </div>
                 </div>
 

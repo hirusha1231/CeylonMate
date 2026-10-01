@@ -18,7 +18,8 @@ import {
   Clock,
   Car,
   Zap,
-  Bell
+  Bell,
+  Lock
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../context/ToastContext';
@@ -67,13 +68,10 @@ export interface TransportSlot {
   startTimeUtc: string;
   endTimeUtc: string;
   status: string;
-  totalSeats: number;
-  bookedSeats: number;
-  heldSeats: number;
-  availableSeats: number;
-  pricePerSeat: number;
-  ratePerSeatLkr?: number;
+  maxPassengers: number;
+  dailyRate: number;
   currency: string;
+  heldUntilUtc?: string | null;
   rowVersion?: string;
 }
 
@@ -106,8 +104,8 @@ const initialCreateTransportForm = {
   startTime: '',
   endTime: '',
   vehicleType: '',
-  totalSeats: '',
-  pricePerSeat: '',
+  maxPassengers: '',
+  dailyRate: '',
   currency: 'LKR'
 };
 
@@ -199,9 +197,8 @@ export const CapacityDeskPage: React.FC = () => {
     startTime: '',
     endTime: '',
     vehicleType: 'VAN',
-    totalSeats: 12,
-    availableSeats: 12,
-    pricePerSeat: 3500,
+    maxPassengers: 12,
+    dailyRate: 3500,
     currency: 'LKR',
     status: 'AVAILABLE'
   });
@@ -297,7 +294,7 @@ export const CapacityDeskPage: React.FC = () => {
           id: 'n-1',
           bookingId: 101,
           title: 'New Vehicle Booking Request #BK-4921',
-          message: 'Toyota KDH VIP requested for 2026-10-15. Automatic approval active. No manual approval required unless vehicle must be rejected.',
+          message: `Toyota KDH VIP requested for ${new Date().toISOString().slice(0, 10)}. Automatic approval active. No manual approval required unless vehicle must be rejected.`,
           createdAt: new Date().toISOString()
         }
       ]);
@@ -353,22 +350,21 @@ export const CapacityDeskPage: React.FC = () => {
       return;
     }
     if (!createGuideForm.startTime || !createGuideForm.endTime) {
-      showToast('Validation Failed', 'Please choose valid start and end times.', 'error');
+      showToast('Validation Failed', 'Please choose a starting date and end date.', 'error');
       return;
     }
     if (new Date(createGuideForm.endTime) <= new Date(createGuideForm.startTime)) {
-      showToast('Validation Failed', 'End time must be after start time.', 'error');
+      showToast('Validation Failed', 'End date must be after the starting date.', 'error');
       return;
     }
     if (!createGuideForm.slotType) {
       showToast('Validation Failed', 'Please select a slot duration type.', 'error');
       return;
     }
-    if (!createGuideForm.priceAmount || Number(createGuideForm.priceAmount) <= 0) {
-      showToast('Validation Failed', 'Please enter a valid price amount in LKR.', 'error');
+    if (createGuideForm.notes && /\d/.test(createGuideForm.notes)) {
+      showToast('Validation Failed', 'Tour Excerpt / Notes must contain letters only. Numbers are not allowed.', 'error');
       return;
     }
-
     setSubmitting(true);
     try {
       const payload = {
@@ -377,8 +373,8 @@ export const CapacityDeskPage: React.FC = () => {
         startTimeUtc: new Date(createGuideForm.startTime).toISOString(),
         endTimeUtc: new Date(createGuideForm.endTime).toISOString(),
         slotType: createGuideForm.slotType,
-        priceAmount: Number(createGuideForm.priceAmount),
-        maxCapacity: createGuideForm.maxCapacity ? Number(createGuideForm.maxCapacity) : 1,
+        priceAmount: 0,
+        maxCapacity: 1,
         currency: 'LKR',
         notes: createGuideForm.notes || ''
       };
@@ -402,10 +398,14 @@ export const CapacityDeskPage: React.FC = () => {
 
   // Handle Edit Guide Slot
   const openEditGuideModal = (slot: GuideSlot) => {
+    if (slot.status.toUpperCase() === 'BOOKED') {
+      showToast('Action Prohibited', 'Cannot edit a slot that is already booked. Cancel or reassign the booking first.', 'error');
+      return;
+    }
     setEditingGuideSlot(slot);
     setEditGuideForm({
-      startTime: slot.startTimeUtc ? new Date(slot.startTimeUtc).toISOString().slice(0, 16) : '',
-      endTime: slot.endTimeUtc ? new Date(slot.endTimeUtc).toISOString().slice(0, 16) : '',
+      startTime: slot.startTimeUtc ? new Date(slot.startTimeUtc).toISOString().slice(0, 10) : '',
+      endTime: slot.endTimeUtc ? new Date(slot.endTimeUtc).toISOString().slice(0, 10) : '',
       slotType: slot.slotType || 'FULL_DAY',
       priceAmount: slot.priceAmount,
       maxCapacity: slot.maxCapacity,
@@ -418,7 +418,15 @@ export const CapacityDeskPage: React.FC = () => {
     if (!editingGuideSlot) return;
 
     if (!editGuideForm.startTime || !editGuideForm.endTime) {
-      showToast('Validation Failed', 'Please choose valid start and end times.', 'error');
+      showToast('Validation Failed', 'Please choose valid starting date and end date.', 'error');
+      return;
+    }
+    if (new Date(editGuideForm.endTime) < new Date(editGuideForm.startTime)) {
+      showToast('Validation Failed', 'End date must be at or after starting date.', 'error');
+      return;
+    }
+    if (editGuideForm.notes && /\d/.test(editGuideForm.notes)) {
+      showToast('Validation Failed', 'Tour Excerpt / Notes must contain letters only. Numbers are not allowed.', 'error');
       return;
     }
 
@@ -454,6 +462,10 @@ export const CapacityDeskPage: React.FC = () => {
 
   // PATCH Status Toggle for Guide Slot
   const patchGuideSlotStatus = async (slot: GuideSlot) => {
+    if (slot.status.toUpperCase() === 'BOOKED') {
+      showToast('Action Prohibited', 'Cannot change the status of an active booked slot.', 'error');
+      return;
+    }
     const newStatus = slot.status.toUpperCase() === 'AVAILABLE' ? 'BLOCKED' : 'AVAILABLE';
     try {
       try {
@@ -518,12 +530,12 @@ export const CapacityDeskPage: React.FC = () => {
       showToast('Validation Failed', 'Please select a vehicle type.', 'error');
       return;
     }
-    if (!createTransportForm.totalSeats || Number(createTransportForm.totalSeats) <= 0) {
-      showToast('Validation Failed', 'Please enter valid total seats capacity.', 'error');
+    if (!createTransportForm.maxPassengers || Number(createTransportForm.maxPassengers) <= 0) {
+      showToast('Validation Failed', 'Please enter a valid maximum passenger count.', 'error');
       return;
     }
-    if (!createTransportForm.pricePerSeat || Number(createTransportForm.pricePerSeat) <= 0) {
-      showToast('Validation Failed', 'Please enter a valid price per seat in LKR.', 'error');
+    if (!createTransportForm.dailyRate || Number(createTransportForm.dailyRate) <= 0) {
+      showToast('Validation Failed', 'Please enter a valid daily vehicle rate.', 'error');
       return;
     }
 
@@ -539,10 +551,8 @@ export const CapacityDeskPage: React.FC = () => {
         departureTimeUtc: startTimeIso,
         arrivalTimeUtc: endTimeIso,
         vehicleType: createTransportForm.vehicleType,
-        totalSeats: Number(createTransportForm.totalSeats),
-        availableSeats: Number(createTransportForm.totalSeats),
-        pricePerSeat: Number(createTransportForm.pricePerSeat),
-        priceLkr: Number(createTransportForm.pricePerSeat),
+        maxPassengers: Number(createTransportForm.maxPassengers),
+        dailyRate: Number(createTransportForm.dailyRate),
         currency: createTransportForm.currency || 'LKR',
         status: 'AVAILABLE'
       };
@@ -571,9 +581,8 @@ export const CapacityDeskPage: React.FC = () => {
       startTime: slot.startTimeUtc ? new Date(slot.startTimeUtc).toISOString().slice(0, 16) : '',
       endTime: slot.endTimeUtc ? new Date(slot.endTimeUtc).toISOString().slice(0, 16) : '',
       vehicleType: slot.vehicleType || 'VAN',
-      totalSeats: slot.totalSeats,
-      availableSeats: slot.availableSeats,
-      pricePerSeat: slot.pricePerSeat,
+      maxPassengers: slot.maxPassengers,
+      dailyRate: slot.dailyRate,
       currency: slot.currency || 'LKR',
       status: slot.status || 'AVAILABLE'
     });
@@ -594,10 +603,8 @@ export const CapacityDeskPage: React.FC = () => {
         arrivalTimeUtc: endTimeIso,
         vehicleType: editTransportForm.vehicleType,
         status: editTransportForm.status,
-        totalSeats: Number(editTransportForm.totalSeats),
-        availableSeats: Number(editTransportForm.availableSeats),
-        pricePerSeat: Number(editTransportForm.pricePerSeat),
-        priceLkr: Number(editTransportForm.pricePerSeat),
+        maxPassengers: Number(editTransportForm.maxPassengers),
+        dailyRate: Number(editTransportForm.dailyRate),
         currency: editTransportForm.currency || 'LKR',
         rowVersion: editingTransport.rowVersion
       };
@@ -630,9 +637,8 @@ export const CapacityDeskPage: React.FC = () => {
           endTimeUtc: slot.endTimeUtc,
           vehicleType: slot.vehicleType,
           status: newStatus,
-          totalSeats: slot.totalSeats,
-          availableSeats: slot.availableSeats,
-          pricePerSeat: slot.pricePerSeat,
+          maxPassengers: slot.maxPassengers,
+          dailyRate: slot.dailyRate,
           currency: slot.currency || 'LKR',
           rowVersion: slot.rowVersion
         };
@@ -643,6 +649,16 @@ export const CapacityDeskPage: React.FC = () => {
       fetchTransportData();
     } catch (e: any) {
       showToast('Status Toggle Error', apiError(e), 'error');
+    }
+  };
+
+  const handleHoldTransportSlot = async (slot: TransportSlot) => {
+    try {
+      const response = await api.post<{ message?: string }>(`/api/transport/slots/${slot.id}/hold`);
+      showToast('Vehicle Held', response.data?.message || 'The vehicle is held for 15 minutes.', 'success');
+      fetchTransportData();
+    } catch (e: any) {
+      showToast('Hold Failed', apiError(e), 'error');
     }
   };
 
@@ -805,6 +821,9 @@ export const CapacityDeskPage: React.FC = () => {
 
   const filteredTransportSlots = transportSlots.filter((slot) => {
     if (transportFilter === 'ALL') return true;
+    if (transportFilter === 'HOLD VEHICLE') {
+      return Boolean(slot.heldUntilUtc && new Date(slot.heldUntilUtc).getTime() > Date.now());
+    }
     return slot.status.toUpperCase() === transportFilter.toUpperCase();
   });
 
@@ -846,63 +865,10 @@ export const CapacityDeskPage: React.FC = () => {
             Capacity Desk & Fleet Management
           </h1>
           <p className="text-sm text-stone-400 mt-1">
-            Centralized control center for guide daily schedules, vehicle seat allocations, and attraction quotas.
+            Centralized control center for guide schedules, vehicle dispatch, and attraction quotas.
           </p>
         </div>
 
-        {/* NOTIFICATION BELL WITH BADGE */}
-        <div className="relative shrink-0">
-          <button
-            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-            className="p-3 rounded-2xl bg-[#0F1A24] border border-[#C5A880]/30 text-[#C5A880] hover:bg-[#C5A880]/10 transition relative cursor-pointer flex items-center gap-2 text-xs font-mono font-bold"
-          >
-            <Bell className="w-5 h-5 text-[#D4AF37]" />
-            <span>Vehicle Hold Alerts</span>
-            {notifications.length > 0 && (
-              <span className="w-5 h-5 rounded-full bg-rose-500 text-white font-mono font-bold text-[10px] flex items-center justify-center animate-pulse">
-                {notifications.length}
-              </span>
-            )}
-          </button>
-
-          {/* Notifications Dropdown */}
-          {isNotificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#0F1A24] border border-[#C5A880]/40 rounded-2xl shadow-2xl p-4 z-40 space-y-3 font-sans">
-              <div className="flex items-center justify-between pb-2 border-b border-stone-800">
-                <span className="text-xs font-mono text-[#C5A880] uppercase font-bold">
-                  Vehicle Hold Notifications
-                </span>
-                <button onClick={() => setIsNotificationsOpen(false)} className="text-stone-400 hover:text-white">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="p-2.5 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-[11px] font-mono text-emerald-300">
-                Automatic approval active. No action needed unless you need to reject.
-              </div>
-
-              <div className="max-h-60 overflow-y-auto space-y-2.5">
-                {notifications.map((n) => (
-                  <div key={n.id} className="p-3 bg-slate-900/80 rounded-xl border border-stone-800 space-y-2">
-                    <h5 className="text-xs font-bold text-stone-100 font-serif-luxury">{n.title}</h5>
-                    <p className="text-[11px] text-stone-400 leading-relaxed">{n.message}</p>
-                    <button
-                      onClick={() => {
-                        setRejectingBookingId(n.bookingId || 101);
-                        setIsRejectModalOpen(true);
-                        setIsNotificationsOpen(false);
-                      }}
-                      className="w-full py-1.5 px-3 bg-rose-950/80 hover:bg-rose-900 border border-rose-500/40 text-rose-200 text-[11px] font-bold uppercase rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-                      <span>⚠️ Reject Vehicle Assignment</span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* UNIFIED LUXURY SEGMENTED PILL TOGGLE BAR */}
@@ -929,7 +895,7 @@ export const CapacityDeskPage: React.FC = () => {
             }`}
           >
             <Bus className="w-4 h-4" />
-            <span>Transport & Attraction Capacity</span>
+            <span>Transport Inventory</span>
           </button>
         </div>
 
@@ -1005,7 +971,7 @@ export const CapacityDeskPage: React.FC = () => {
                   <Tag className="w-3.5 h-3.5 text-[#C5A880]" />
                   Status:
                 </span>
-                {['ALL', 'AVAILABLE', 'RESERVED', 'BOOKED', 'BLOCKED'].map((st) => (
+                {['ALL', 'AVAILABLE', 'RESERVED', 'BOOKED', 'BLOCKED', 'HOLD VEHICLE'].map((st) => (
                   <button
                     key={st}
                     onClick={() => setGuideFilter(st)}
@@ -1037,22 +1003,20 @@ export const CapacityDeskPage: React.FC = () => {
                       <th className="px-5 py-4">Schedule Window</th>
                       <th className="px-5 py-4">Duration Type</th>
                       <th className="px-5 py-4">Status</th>
-                      <th className="px-5 py-4">Capacity</th>
-                      <th className="px-5 py-4">Rate (LKR)</th>
                       <th className="px-5 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-800/80 text-sm">
                     {loading ? (
                       <tr>
-                        <td colSpan={7} className="px-5 py-12 text-center text-stone-400">
+                        <td colSpan={5} className="px-5 py-12 text-center text-stone-400">
                           <RefreshCw className="w-6 h-6 text-[#C5A880] animate-spin mx-auto mb-2" />
                           <span>Loading guide availability roster...</span>
                         </td>
                       </tr>
                     ) : filteredGuideSlots.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-5 py-12 text-center text-stone-400 font-sans">
+                        <td colSpan={5} className="px-5 py-12 text-center text-stone-400 font-sans">
                           <Users className="w-8 h-8 text-stone-600 mx-auto mb-2" />
                           <p className="text-stone-300 font-medium">No guide availability slots found.</p>
                           <p className="text-xs text-stone-500 mt-1">Click "+ Add Guide Slot" to create a schedule.</p>
@@ -1082,13 +1046,9 @@ export const CapacityDeskPage: React.FC = () => {
                             </td>
 
                             <td className="px-5 py-4">
-                              <div className="text-xs text-stone-300 flex items-center gap-1.5">
-                                <Calendar className="w-3.5 h-3.5 text-stone-500" />
-                                {new Date(slot.startTimeUtc).toLocaleDateString()}
-                              </div>
-                              <div className="text-xs text-stone-400 flex items-center gap-1.5 mt-1 font-mono">
-                                <Clock className="w-3.5 h-3.5 text-stone-500" />
-                                {new Date(slot.startTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(slot.endTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              <div className="text-xs text-stone-300 flex items-center gap-1.5 font-medium">
+                                <Calendar className="w-3.5 h-3.5 text-[#C5A880]" />
+                                {new Date(slot.startTimeUtc).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                               </div>
                             </td>
 
@@ -1121,44 +1081,45 @@ export const CapacityDeskPage: React.FC = () => {
                               )}
                             </td>
 
-                            <td className="px-5 py-4 font-mono text-stone-200">
-                              {slot.bookedCapacity} / {slot.maxCapacity} group
-                            </td>
-
-                            <td className="px-5 py-4 font-bold text-[#C5A880] font-mono text-base">
-                              {slot.currency || 'LKR'} {slot.priceAmount.toLocaleString()}
-                            </td>
-
                             <td className="px-5 py-4 text-right">
                               <div className="flex items-center justify-end gap-1.5">
-                                {/* 3 Icon Actions: [Block/Unblock], [Edit], [Delete] */}
-                                <button
-                                  onClick={() => patchGuideSlotStatus(slot)}
-                                  className={`p-2 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
-                                    isAvailable
-                                      ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
-                                      : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                  }`}
-                                  title={isAvailable ? 'Block Slot' : 'Unblock Slot'}
-                                >
-                                  <Slash className="w-4 h-4" />
-                                </button>
+                                {isBooked ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-blue-300 text-xs font-mono">
+                                    <Lock className="w-3.5 h-3.5 text-blue-400" />
+                                    Locked (Booked)
+                                  </span>
+                                ) : (
+                                  <>
+                                    {/* 3 Icon Actions: [Block/Unblock], [Edit], [Delete] */}
+                                    <button
+                                      onClick={() => patchGuideSlotStatus(slot)}
+                                      className={`p-2 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
+                                        isAvailable
+                                          ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                          : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                      }`}
+                                      title={isAvailable ? 'Block Slot' : 'Unblock Slot'}
+                                    >
+                                      <Slash className="w-4 h-4" />
+                                    </button>
 
-                                <button
-                                  onClick={() => openEditGuideModal(slot)}
-                                  className="p-2 text-stone-400 hover:text-[#C5A880] hover:bg-[#C5A880]/10 rounded-lg transition-all cursor-pointer"
-                                  title="Edit Slot"
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </button>
+                                    <button
+                                      onClick={() => openEditGuideModal(slot)}
+                                      className="p-2 text-stone-400 hover:text-[#C5A880] hover:bg-[#C5A880]/10 rounded-lg transition-all cursor-pointer"
+                                      title="Edit Slot"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
 
-                                <button
-                                  onClick={() => setDeletingGuideSlot(slot)}
-                                  className="p-2 text-stone-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
-                                  title="Delete Slot"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                    <button
+                                      onClick={() => setDeletingGuideSlot(slot)}
+                                      className="p-2 text-stone-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
+                                      title="Delete Slot"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1185,34 +1146,14 @@ export const CapacityDeskPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#C5A880]/10">
                 <div>
                   <h2 className="text-2xl font-serif text-white font-bold">
-                    Transport & Attraction Inventory
+                    Transport Inventory
                   </h2>
                   <p className="text-stone-400 text-sm mt-1">
-                    Manage vehicle seat capacity, departure schedules, and entrance ticket quotas.
+                    Manage vehicle passenger limits and departure schedules.
                   </p>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {/* Transport Sub-Tab Selector */}
-                  <div className="flex items-center p-1 bg-slate-900 border border-stone-800 rounded-xl">
-                    <button
-                      onClick={() => setTransportSubTab('VEHICLES')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        transportSubTab === 'VEHICLES' ? 'bg-[#C5A880]/20 text-[#C5A880] border border-[#C5A880]/40' : 'text-stone-400 hover:text-white'
-                      }`}
-                    >
-                      Vehicles
-                    </button>
-                    <button
-                      onClick={() => setTransportSubTab('ATTRACTIONS')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        transportSubTab === 'ATTRACTIONS' ? 'bg-[#C5A880]/20 text-[#C5A880] border border-[#C5A880]/40' : 'text-stone-400 hover:text-white'
-                      }`}
-                    >
-                      Attractions
-                    </button>
-                  </div>
-
                   <button
                     onClick={fetchTransportData}
                     disabled={loading}
@@ -1222,26 +1163,6 @@ export const CapacityDeskPage: React.FC = () => {
                     <span>Refresh</span>
                   </button>
 
-                  {transportSubTab === 'VEHICLES' ? (
-                    <button
-                      onClick={() => setIsAddVehicleModalOpen(true)}
-                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-[#C5A880]/20 hover:brightness-110 active:scale-95 transition-all cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4 stroke-[3]" />
-                      <span>Add Vehicle Slot</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setCreateAttractionForm(initialCreateAttractionForm);
-                        setIsCreatingAttraction(true);
-                      }}
-                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-[#C5A880]/20 hover:brightness-110 active:scale-95 transition-all cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4 stroke-[3]" />
-                      <span>Add Attraction Quota</span>
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -1275,139 +1196,12 @@ export const CapacityDeskPage: React.FC = () => {
               )}
 
               {/* Table Shell */}
-              {transportSubTab === 'VEHICLES' ? (
-                <TransportInventoryTable
-                  slots={filteredTransportSlots}
-                  loading={loading}
-                  onStatusToggle={patchTransportSlotStatus}
-                  onEdit={openEditTransportModal}
-                  onDelete={(slot) => setDeletingTransport(slot)}
-                />
-              ) : (
-                <div className="overflow-x-auto rounded-xl border border-stone-800">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-900/80 text-[#C5A880]/90 text-xs tracking-wider uppercase font-semibold font-mono border-b border-[#C5A880]/20">
-                        <th className="px-5 py-4">Attraction & Inclusions</th>
-                        <th className="px-5 py-4">Time Window</th>
-                        <th className="px-5 py-4">Status</th>
-                        <th className="px-5 py-4">Quota Booked</th>
-                        <th className="px-5 py-4">Ticket Price</th>
-                        <th className="px-5 py-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-800/80 text-sm">
-                      {loading ? (
-                        <tr>
-                          <td colSpan={6} className="px-5 py-12 text-center text-stone-400">
-                            <RefreshCw className="w-6 h-6 text-[#C5A880] animate-spin mx-auto mb-2" />
-                            <span>Loading attraction quota slots...</span>
-                          </td>
-                        </tr>
-                      ) : filteredAttractionSlots.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="px-5 py-12 text-center text-stone-400 font-sans">
-                            <Ticket className="w-8 h-8 text-stone-600 mx-auto mb-2" />
-                            <p className="text-stone-300 font-medium">No attraction entry quota slots found.</p>
-                            <p className="text-xs text-stone-500 mt-1">Click "+ Add Attraction Quota" to create one.</p>
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredAttractionSlots.map((slot) => {
-                          const isAvailable = slot.status.toUpperCase() === 'AVAILABLE';
-                          const isBlocked = slot.status.toUpperCase() === 'BLOCKED';
-                          const isBooked = slot.status.toUpperCase() === 'BOOKED';
-
-                          return (
-                            <tr key={slot.id} className="hover:bg-[#C5A880]/5 transition-colors">
-                              <td className="px-5 py-4">
-                                <div className="font-semibold text-slate-100 flex items-center gap-2">
-                                  <Ticket className="w-4 h-4 text-[#C5A880]" />
-                                  <span>{slot.notes || 'Attraction Entry Quota'}</span>
-                                </div>
-                              </td>
-
-                              <td className="px-5 py-4">
-                                <div className="text-xs text-stone-300 flex items-center gap-1.5">
-                                  <Calendar className="w-3.5 h-3.5 text-stone-500" />
-                                  {new Date(slot.startTimeUtc).toLocaleDateString()}
-                                </div>
-                                <div className="text-xs text-stone-400 flex items-center gap-1.5 mt-1 font-mono">
-                                  <Clock className="w-3.5 h-3.5 text-stone-500" />
-                                  {new Date(slot.startTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(slot.endTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </div>
-                              </td>
-
-                              <td className="px-5 py-4">
-                                {isAvailable ? (
-                                  <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 w-fit">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                    AVAILABLE
-                                  </span>
-                                ) : isBlocked ? (
-                                  <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-rose-950/60 text-rose-400 border border-rose-500/30 w-fit">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                                    BLOCKED
-                                  </span>
-                                ) : isBooked ? (
-                                  <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-slate-800 text-slate-300 border border-slate-700 w-fit">
-                                    BOOKED
-                                  </span>
-                                ) : (
-                                  <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-amber-950/60 text-amber-400 border border-amber-500/30 w-fit">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                    {slot.status}
-                                  </span>
-                                )}
-                              </td>
-
-                              <td className="px-5 py-4 font-mono text-stone-200">
-                                {slot.bookedCapacity} / {slot.maxCapacity} tickets
-                              </td>
-
-                              <td className="px-5 py-4 font-bold text-[#C5A880] font-mono text-base">
-                                {slot.currency || 'LKR'} {slot.priceAmount.toLocaleString()}
-                              </td>
-
-                              <td className="px-5 py-4 text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <button
-                                    onClick={() => toggleAttractionStatus(slot)}
-                                    className={`p-2 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
-                                      isAvailable
-                                        ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
-                                        : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                    }`}
-                                    title={isAvailable ? 'Block Slot' : 'Unblock Slot'}
-                                  >
-                                    <Slash className="w-4 h-4" />
-                                  </button>
-
-                                  <button
-                                    onClick={() => openEditAttractionModal(slot)}
-                                    className="p-2 text-stone-400 hover:text-[#C5A880] hover:bg-[#C5A880]/10 rounded-lg transition-all cursor-pointer"
-                                    title="Edit Slot"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-
-                                  <button
-                                    onClick={() => setDeletingAttraction(slot)}
-                                    className="p-2 text-stone-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
-                                    title="Delete Slot"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <TransportInventoryTable
+                slots={filteredTransportSlots}
+                loading={loading}
+                onStatusToggle={patchTransportSlotStatus}
+                onHold={handleHoldTransportSlot}
+              />
             </div>
           </motion.div>
         )}
@@ -1455,26 +1249,28 @@ export const CapacityDeskPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Start Time
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      <Calendar className="w-3.5 h-3.5" />
+                      Starting Date
                     </label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       value={createGuideForm.startTime}
                       onChange={(e) => setCreateGuideForm({ ...createGuideForm, startTime: e.target.value })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 scheme-dark focus:outline-none focus:border-[#C5A880] transition-colors"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      End Time
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                      <Calendar className="w-3.5 h-3.5" />
+                      End Date
                     </label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       value={createGuideForm.endTime}
                       onChange={(e) => setCreateGuideForm({ ...createGuideForm, endTime: e.target.value })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 scheme-dark focus:outline-none focus:border-[#C5A880] transition-colors"
                     />
                   </div>
                 </div>
@@ -1493,47 +1289,17 @@ export const CapacityDeskPage: React.FC = () => {
                       <option value="FULL_DAY" className="bg-[#0F1A24]">Full Day</option>
                       <option value="HALF_DAY_MORNING" className="bg-[#0F1A24]">Half Day (Morning)</option>
                       <option value="HALF_DAY_AFTERNOON" className="bg-[#0F1A24]">Half Day (Afternoon)</option>
-                      <option value="HOURLY" className="bg-[#0F1A24]">Hourly</option>
                     </select>
                   </div>
-
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Price Amount (LKR)
-                    </label>
-                    <input
-                      type="number"
-                      value={createGuideForm.priceAmount}
-                      placeholder="e.g. 15000"
-                      onChange={(e) => setCreateGuideForm({ ...createGuideForm, priceAmount: e.target.value })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Max Group Capacity
-                    </label>
-                    <input
-                      type="number"
-                      value={createGuideForm.maxCapacity}
-                      placeholder="e.g. 1"
-                      onChange={(e) => setCreateGuideForm({ ...createGuideForm, maxCapacity: e.target.value })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Tour Excerpt / Notes
+                      Tour Excerpt / Notes (Letters Only)
                     </label>
                     <input
                       type="text"
                       value={createGuideForm.notes}
-                      placeholder="e.g. Kandy Cultural & Heritage Tour"
-                      onChange={(e) => setCreateGuideForm({ ...createGuideForm, notes: e.target.value })}
+                      placeholder="e.g. Kandy Cultural and Heritage Tour"
+                      onChange={(e) => setCreateGuideForm({ ...createGuideForm, notes: e.target.value.replace(/[0-9]/g, '') })}
                       className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
                     />
                   </div>
@@ -1585,25 +1351,25 @@ export const CapacityDeskPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Start Time
+                      Starting Date
                     </label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       value={editGuideForm.startTime}
                       onChange={(e) => setEditGuideForm({ ...editGuideForm, startTime: e.target.value })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors scheme-dark"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      End Time
+                      End Date
                     </label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       value={editGuideForm.endTime}
                       onChange={(e) => setEditGuideForm({ ...editGuideForm, endTime: e.target.value })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
+                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors scheme-dark"
                     />
                   </div>
                 </div>
@@ -1640,12 +1406,12 @@ export const CapacityDeskPage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                    Notes / Excerpt
+                    Notes / Excerpt (Letters Only)
                   </label>
                   <input
                     type="text"
                     value={editGuideForm.notes}
-                    onChange={(e) => setEditGuideForm({ ...editGuideForm, notes: e.target.value })}
+                    onChange={(e) => setEditGuideForm({ ...editGuideForm, notes: e.target.value.replace(/[0-9]/g, '') })}
                     className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
                   />
                 </div>
@@ -1778,13 +1544,13 @@ export const CapacityDeskPage: React.FC = () => {
 
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Total Seats Capacity
+                      Maximum Passengers
                     </label>
                     <input
                       type="number"
-                      value={createTransportForm.totalSeats}
+                      value={createTransportForm.maxPassengers}
                       placeholder="e.g. 12"
-                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, totalSeats: e.target.value })}
+                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, maxPassengers: e.target.value })}
                       className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
                     />
                   </div>
@@ -1793,13 +1559,13 @@ export const CapacityDeskPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Price Per Seat (LKR)
+                      Daily Vehicle Rate
                     </label>
                     <input
                       type="number"
-                      value={createTransportForm.pricePerSeat}
-                      placeholder="e.g. 4500"
-                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, pricePerSeat: e.target.value })}
+                      value={createTransportForm.dailyRate}
+                      placeholder="e.g. 45000"
+                      onChange={(e) => setCreateTransportForm({ ...createTransportForm, dailyRate: e.target.value })}
                       className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
                     />
                   </div>
@@ -1924,24 +1690,24 @@ export const CapacityDeskPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Total Seats
+                      Maximum Passengers
                     </label>
                     <input
                       type="number"
-                      value={editTransportForm.totalSeats}
-                      onChange={(e) => setEditTransportForm({ ...editTransportForm, totalSeats: Number(e.target.value) })}
+                      value={editTransportForm.maxPassengers}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, maxPassengers: Number(e.target.value) })}
                       className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Available Seats
+                      Daily Vehicle Rate
                     </label>
                     <input
                       type="number"
-                      value={editTransportForm.availableSeats}
-                      onChange={(e) => setEditTransportForm({ ...editTransportForm, availableSeats: Number(e.target.value) })}
+                      value={editTransportForm.dailyRate}
+                      onChange={(e) => setEditTransportForm({ ...editTransportForm, dailyRate: Number(e.target.value) })}
                       className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
                     />
                   </div>

@@ -65,7 +65,7 @@ export function DestinationsManagementPage() {
     >
       <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 space-y-6">
         {/* Top Sub-Navigation Tabs */}
-        <AgentDeskSubNav activeTab="destinations" />
+        <AgentDeskSubNav activeTab="collections" />
 
         {/* Action Header Card */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-[#0F1A24]/60 backdrop-blur-xl p-6 rounded-2xl border border-[#C5A880]/20 shadow-xl">

@@ -57,7 +57,6 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
         foreach (var slot in expiredTransportHolds)
         {
             slot.Status = SlotStatus.AVAILABLE;
-            slot.AvailableSeats = slot.TotalSeats;
             slot.HeldUntilUtc = null;
             slot.RowVersion = Guid.NewGuid().ToByteArray();
             slot.UpdatedAtUtc = now;
@@ -129,7 +128,11 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
         var transportQuery = db.TransportSlots
             .AsNoTracking()
             .Include(x => x.TransportOption)
-            .Where(x => x.Status == SlotStatus.AVAILABLE && x.AvailableSeats >= query.PartySize);
+            .Include(x => x.VehicleCatalog)
+            .Where(x => x.Status == SlotStatus.AVAILABLE &&
+                (x.VehicleCatalog != null
+                    ? x.VehicleCatalog.MaxPassengers
+                    : x.TransportOption != null ? x.TransportOption.PassengerCapacity : 0) >= query.PartySize);
 
         if (targetDate.HasValue)
         {
@@ -151,10 +154,9 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
             t.StartTimeUtc,
             t.EndTimeUtc,
             t.Status,
-            t.TotalSeats,
-            t.AvailableSeats,
-            t.PricePerSeat,
-            t.Currency,
+            t.VehicleCatalog != null ? t.VehicleCatalog.MaxPassengers : t.TransportOption != null ? t.TransportOption.PassengerCapacity : 0,
+            t.DailyRate,
+            string.IsNullOrWhiteSpace(t.Currency) ? "LKR" : t.Currency,
             t.RowVersion,
             t.HeldUntilUtc
         )).ToListAsync(ct);
@@ -241,26 +243,28 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
                 if (dto.TransportSlotId.HasValue)
                 {
                     var transportSlot = await db.TransportSlots
+                        .Include(x => x.VehicleCatalog)
+                        .Include(x => x.TransportOption)
                         .SingleOrDefaultAsync(x => x.Id == dto.TransportSlotId.Value, ct);
 
                     if (transportSlot is null)
                         return ReservationResultDto.Failure("Transport slot not found.", "TRANSPORT");
 
-                    if (transportSlot.Status != SlotStatus.AVAILABLE || transportSlot.AvailableSeats < partySize)
-                        return ReservationResultDto.Failure("Transport slot does not have sufficient available seats.", "TRANSPORT");
+                    var maxPassengers = transportSlot.VehicleCatalog?.MaxPassengers ?? transportSlot.TransportOption?.PassengerCapacity ?? 0;
+                    if (transportSlot.Status != SlotStatus.AVAILABLE || maxPassengers < partySize)
+                        return ReservationResultDto.Failure("Transport vehicle is not available for this party size.", "TRANSPORT");
 
                     if (dto.TransportSlotRowVersion is not null && dto.TransportSlotRowVersion.Length > 0)
                     {
                         db.Entry(transportSlot).Property(x => x.RowVersion).OriginalValue = dto.TransportSlotRowVersion;
                     }
 
-                    transportSlot.AvailableSeats -= partySize;
                     if (dto.HoldDurationMinutes.HasValue && dto.HoldDurationMinutes.Value > 0)
                     {
                         transportSlot.Status = SlotStatus.RESERVED;
                         transportSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(dto.HoldDurationMinutes.Value);
                     }
-                    else if (transportSlot.AvailableSeats <= 0)
+                    else
                     {
                         transportSlot.Status = SlotStatus.BOOKED;
                         transportSlot.HeldUntilUtc = null;
@@ -457,6 +461,7 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
 
         return await query
             .OrderBy(x => x.StartTimeUtc)
+            .Include(x => x.VehicleCatalog)
             .Select(t => new TransportSlotDto(
                 t.Id,
                 t.TransportOptionId,
@@ -467,10 +472,9 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
                 t.StartTimeUtc,
                 t.EndTimeUtc,
                 t.Status,
-                t.TotalSeats,
-                t.AvailableSeats,
-                t.PricePerSeat,
-                t.Currency,
+                t.VehicleCatalog != null ? t.VehicleCatalog.MaxPassengers : t.TransportOption != null ? t.TransportOption.PassengerCapacity : 0,
+                t.DailyRate,
+                string.IsNullOrWhiteSpace(t.Currency) ? "LKR" : t.Currency,
                 t.RowVersion,
                 t.HeldUntilUtc
             ))
@@ -500,12 +504,16 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
                 Id = transportOptionId,
                 Title = "Standard Transport Option",
                 VehicleType = request.VehicleType,
-                PassengerCapacity = request.EffectiveTotalSeats > 0 ? request.EffectiveTotalSeats : 4,
+                PassengerCapacity = request.MaxPassengers.GetValueOrDefault() > 0 ? request.MaxPassengers.GetValueOrDefault() : 4,
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 UpdatedAtUtc = DateTimeOffset.UtcNow
             };
             db.TransportOptions.Add(transportOption);
             await db.SaveChangesAsync(ct);
+        }
+        else if (request.MaxPassengers is > 0)
+        {
+            transportOption.PassengerCapacity = request.MaxPassengers.Value;
         }
 
         var slot = new TransportSlot
@@ -516,9 +524,7 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
             EndTimeUtc = endTime,
             VehicleType = request.VehicleType,
             Status = SlotStatus.AVAILABLE,
-            TotalSeats = request.EffectiveTotalSeats > 0 ? request.EffectiveTotalSeats : 4,
-            AvailableSeats = request.EffectiveTotalSeats > 0 ? request.EffectiveTotalSeats : 4,
-            PricePerSeat = request.EffectivePrice,
+            DailyRate = request.DailyRate,
             Currency = string.IsNullOrWhiteSpace(request.Currency) ? "LKR" : request.Currency,
             OriginDestinationId = request.OriginDestinationId,
             DestinationId = request.DestinationId,
@@ -540,9 +546,8 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
             slot.StartTimeUtc,
             slot.EndTimeUtc,
             slot.Status,
-            slot.TotalSeats,
-            slot.AvailableSeats,
-            slot.PricePerSeat,
+            transportOption.PassengerCapacity,
+            slot.DailyRate,
             slot.Currency,
             slot.RowVersion,
             slot.HeldUntilUtc
@@ -641,6 +646,11 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
         var slot = await db.GuideAvailabilities.SingleOrDefaultAsync(x => x.Id == slotId, ct);
         if (slot is null) return null;
 
+        if (slot.Status == AvailabilityStatus.BOOKED || slot.BookedCapacity > 0)
+        {
+            throw new InvalidOperationException("Cannot update an active booked slot. Cancel or reassign the booking first.");
+        }
+
         if (request.RowVersion is not null && request.RowVersion.Length > 0)
         {
             db.Entry(slot).Property(x => x.RowVersion).OriginalValue = request.RowVersion;
@@ -680,16 +690,32 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
     public async Task<bool> DeleteGuideAvailabilityAsync(Guid slotId, CancellationToken ct = default)
     {
         var slot = await db.GuideAvailabilities.SingleOrDefaultAsync(x => x.Id == slotId, ct);
-        if (slot is null) return false;
-
-        if (slot.BookedCapacity > 0 || slot.Status == AvailabilityStatus.RESERVED || slot.Status == AvailabilityStatus.BOOKED)
+        if (slot != null)
         {
-            throw new InvalidOperationException("Cannot delete slot with active reservations or holds.");
+            if (slot.BookedCapacity > 0 || slot.Status == AvailabilityStatus.RESERVED || slot.Status == AvailabilityStatus.BOOKED)
+            {
+                throw new InvalidOperationException("Cannot delete slot with active reservations or holds.");
+            }
+
+            db.GuideAvailabilities.Remove(slot);
+            await db.SaveChangesAsync(ct);
+            return true;
         }
 
-        db.GuideAvailabilities.Remove(slot);
-        await db.SaveChangesAsync(ct);
-        return true;
+        var legacySlot = await db.GuideAvailabilitySlots.SingleOrDefaultAsync(x => x.Id == slotId, ct);
+        if (legacySlot != null)
+        {
+            if (legacySlot.Status == "BOOKED" || legacySlot.Status == "HELD")
+            {
+                throw new InvalidOperationException("Cannot delete slot with active reservations or holds.");
+            }
+
+            db.GuideAvailabilitySlots.Remove(legacySlot);
+            await db.SaveChangesAsync(ct);
+            return true;
+        }
+
+        return false;
     }
 
     public async Task<TransportSlotDto?> UpdateTransportSlotAsync(Guid slotId, UpdateTransportSlotRequestDto request, CancellationToken ct = default)
@@ -711,9 +737,11 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
         slot.EndTimeUtc = request.EndTimeUtc;
         slot.VehicleType = request.VehicleType;
         slot.Status = request.Status;
-        slot.TotalSeats = request.TotalSeats;
-        slot.AvailableSeats = request.AvailableSeats;
-        slot.PricePerSeat = request.PricePerSeat;
+        if (slot.VehicleCatalog is null && request.MaxPassengers is > 0 && slot.TransportOption is not null)
+        {
+            slot.TransportOption.PassengerCapacity = request.MaxPassengers.Value;
+        }
+        slot.DailyRate = request.DailyRate;
         slot.Currency = string.IsNullOrWhiteSpace(request.Currency) ? "LKR" : request.Currency;
         slot.OriginDestinationId = request.OriginDestinationId;
         slot.DestinationId = request.DestinationId;
@@ -732,9 +760,8 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
             slot.StartTimeUtc,
             slot.EndTimeUtc,
             slot.Status,
-            slot.TotalSeats,
-            slot.AvailableSeats,
-            slot.PricePerSeat,
+            slot.VehicleCatalog?.MaxPassengers ?? slot.TransportOption?.PassengerCapacity ?? 0,
+            slot.DailyRate,
             slot.Currency,
             slot.RowVersion,
             slot.HeldUntilUtc
@@ -746,7 +773,7 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
         var slot = await db.TransportSlots.SingleOrDefaultAsync(x => x.Id == slotId, ct);
         if (slot is null) return false;
 
-        if (slot.AvailableSeats < slot.TotalSeats || slot.Status == SlotStatus.RESERVED || slot.Status == SlotStatus.BOOKED)
+        if (slot.Status == SlotStatus.RESERVED || slot.Status == SlotStatus.BOOKED)
         {
             throw new InvalidOperationException("Cannot delete transport slot with active bookings or holds.");
         }

@@ -10,6 +10,7 @@ public class Booking
     public int ItineraryId { get; set; }
     public int QuotationId { get; set; }
     public int TravelerId { get; set; }
+    public string? TravelerUserId { get; set; }
     public string BookingReference { get; set; } = string.Empty;
     public string Status { get; set; } = "PENDING_REVIEW"; // PENDING_REVIEW, CAPACITY_FLAGGED_REJECTED, APPROVED_PENDING_PAYMENT, CONFIRMED, CANCELLED
     public DateTime BookedAt { get; set; } = DateTime.UtcNow;
@@ -31,7 +32,10 @@ public class Booking
     // Multi-Step Selection References
     public Guid? GuideSlotId { get; set; }
     public Guid? VehicleSlotId { get; set; }
+    public Guid? VehicleCatalogId { get; set; }
     public int? PackageId { get; set; }
+    public int? TripDurationDays { get; set; }
+    public int? PassengerCount { get; set; }
     public string? StartDate { get; set; }
     public string? PickupTime { get; set; }
     public string? TravelerNotes { get; set; }

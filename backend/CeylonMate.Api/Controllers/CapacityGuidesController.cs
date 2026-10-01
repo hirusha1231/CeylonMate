@@ -264,46 +264,77 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
     // ==========================================
     // 5. UPDATE / PATCH (Slot Status Block/Unblock)
     // ==========================================
-    [Authorize(Roles = "ADMIN,CAPACITY_OFFICER")]
+    [Authorize(Roles = "ADMIN,CAPACITY_OFFICER,LOCAL_GUIDE")]
     [HttpPatch("slots/{slotId:guid}/toggle-block")]
     public async Task<IActionResult> ToggleSlotBlock(Guid slotId, CancellationToken cancellationToken)
     {
         var slot = await db.GuideAvailabilitySlots.FirstOrDefaultAsync(s => s.Id == slotId, cancellationToken);
-        if (slot == null)
-            return NotFound(new { message = $"Slot with ID {slotId} was not found." });
-
-        if (slot.Status == "BOOKED" || slot.Status == "HELD")
+        if (slot != null)
         {
-            return BadRequest(new { message = $"Cannot toggle status of a slot that is currently {slot.Status}." });
+            if (slot.Status == "BOOKED" || slot.Status == "HELD")
+            {
+                return BadRequest(new { message = $"Cannot toggle status of a slot that is currently {slot.Status}." });
+            }
+
+            slot.Status = slot.Status == "BLOCKED" ? "AVAILABLE" : "BLOCKED";
+            slot.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(cancellationToken);
+            return Ok(new { slotId = slot.Id, status = slot.Status, message = $"Slot status updated to {slot.Status}." });
         }
 
-        slot.Status = slot.Status == "BLOCKED" ? "AVAILABLE" : "BLOCKED";
-        slot.UpdatedAt = DateTime.UtcNow;
+        var gAvail = await db.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == slotId, cancellationToken);
+        if (gAvail != null)
+        {
+            if (gAvail.Status == AvailabilityStatus.BOOKED || gAvail.Status == AvailabilityStatus.RESERVED)
+            {
+                return BadRequest(new { message = "Cannot toggle status of a booked/reserved slot." });
+            }
 
-        await db.SaveChangesAsync(cancellationToken);
-        return Ok(new { slotId = slot.Id, status = slot.Status, message = $"Slot status updated to {slot.Status}." });
+            gAvail.Status = gAvail.Status == AvailabilityStatus.BLOCKED ? AvailabilityStatus.AVAILABLE : AvailabilityStatus.BLOCKED;
+            gAvail.UpdatedAtUtc = DateTimeOffset.UtcNow;
+
+            await db.SaveChangesAsync(cancellationToken);
+            return Ok(new { slotId = gAvail.Id, status = gAvail.Status.ToString(), message = $"Slot status updated to {gAvail.Status}." });
+        }
+
+        return NotFound(new { message = $"Slot with ID {slotId} was not found." });
     }
 
     // ==========================================
     // 6. DELETE (Slot)
     // ==========================================
-    [Authorize(Roles = "ADMIN,CAPACITY_OFFICER")]
+    [Authorize(Roles = "ADMIN,CAPACITY_OFFICER,LOCAL_GUIDE")]
     [HttpDelete("slots/{slotId:guid}")]
     public async Task<IActionResult> DeleteSlot(Guid slotId, CancellationToken cancellationToken)
     {
         var slot = await db.GuideAvailabilitySlots.FirstOrDefaultAsync(s => s.Id == slotId, cancellationToken);
-        if (slot == null)
-            return NotFound(new { message = $"Slot with ID {slotId} was not found." });
-
-        if (slot.Status == "BOOKED" || slot.Status == "HELD")
+        if (slot != null)
         {
-            return BadRequest(new { message = $"Cannot delete a slot that is currently in {slot.Status} state. Cancel the booking first." });
+            if (slot.Status == "BOOKED" || slot.Status == "HELD")
+            {
+                return BadRequest(new { message = $"Cannot delete a slot that is currently in {slot.Status} state. Cancel the booking first." });
+            }
+
+            db.GuideAvailabilitySlots.Remove(slot);
+            await db.SaveChangesAsync(cancellationToken);
+            return Ok(new { message = "Availability slot successfully deleted." });
         }
 
-        db.GuideAvailabilitySlots.Remove(slot);
-        await db.SaveChangesAsync(cancellationToken);
+        var gAvail = await db.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == slotId, cancellationToken);
+        if (gAvail != null)
+        {
+            if (gAvail.Status == AvailabilityStatus.BOOKED || gAvail.Status == AvailabilityStatus.RESERVED || gAvail.BookedCapacity > 0)
+            {
+                return BadRequest(new { message = "Cannot delete an active booked slot. Please block it instead." });
+            }
 
-        return Ok(new { message = "Availability slot successfully deleted." });
+            db.GuideAvailabilities.Remove(gAvail);
+            await db.SaveChangesAsync(cancellationToken);
+            return Ok(new { message = "Availability slot successfully deleted." });
+        }
+
+        return NotFound(new { message = $"Slot with ID {slotId} was not found." });
     }
 
     // ==========================================
