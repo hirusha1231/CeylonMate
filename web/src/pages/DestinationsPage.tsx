@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Compass, MapPin, Sparkles, ArrowRight, CheckCircle2, ShieldCheck, Heart } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Compass, MapPin, Sparkles, ArrowRight, CheckCircle2, ShieldCheck, Heart, Clock, SlidersHorizontal, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { api } from '../services/api';
 import { fadeInVariants, buttonPressProps, hoverLiftProps, staggerContainerVariants, staggerItemVariants } from '../utils/animations';
@@ -25,6 +25,22 @@ export interface SignatureJourney {
   isPublished: boolean;
 }
 
+type DurationFilterOption = 'all' | '1-4' | '5-7' | '8-10' | '11+';
+
+interface DurationOption {
+  id: DurationFilterOption;
+  label: string;
+  min?: number;
+  max?: number;
+}
+
+const DURATION_OPTIONS: DurationOption[] = [
+  { id: 'all', label: 'All Durations' },
+  { id: '1-4', label: '1 - 4 Days', min: 1, max: 4 },
+  { id: '5-7', label: '5 - 7 Days', min: 5, max: 7 },
+  { id: '8-10', label: '8 - 10 Days', min: 8, max: 10 },
+  { id: '11+', label: '11+ Days', min: 11, max: Infinity },
+];
 
 export const DestinationsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -33,6 +49,7 @@ export const DestinationsPage: React.FC = () => {
   const [journeys, setJourneys] = useState<SignatureJourney[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedDuration, setSelectedDuration] = useState<DurationFilterOption>('all');
   const [selectedJourney, setSelectedJourney] = useState<SignatureJourney | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -65,26 +82,50 @@ export const DestinationsPage: React.FC = () => {
 
   const categories = ['All', 'Heritage & Culture', 'Wildlife & Safaris', 'Highland Railway', 'Coastal Riviera'];
 
-  const filteredJourneys = journeys.filter((j) => {
-    if (selectedCategory === 'All') return true;
-    const catLower = selectedCategory.toLowerCase();
-    const titleLower = j.title.toLowerCase();
-    const destLower = j.destinationsCovered.toLowerCase();
-    const taglineLower = j.tagline.toLowerCase();
-    if (catLower.includes('heritage') || catLower.includes('culture')) {
-      return titleLower.includes('cultural') || destLower.includes('sigiriya') || destLower.includes('kandy');
-    }
-    if (catLower.includes('wildlife') || catLower.includes('safaris')) {
-      return titleLower.includes('wild') || destLower.includes('yala');
-    }
-    if (catLower.includes('railway') || catLower.includes('highland')) {
-      return titleLower.includes('highland') || destLower.includes('nuwara') || destLower.includes('ella');
-    }
-    if (catLower.includes('coastal') || catLower.includes('riviera')) {
-      return titleLower.includes('coastal') || titleLower.includes('ayurvedic') || destLower.includes('galle') || destLower.includes('mirissa');
-    }
-    return true;
-  });
+  const filteredJourneys = useMemo(() => {
+    return journeys.filter((j) => {
+      // Category filter
+      if (selectedCategory !== 'All') {
+        const catLower = selectedCategory.toLowerCase();
+        const titleLower = j.title.toLowerCase();
+        const destLower = j.destinationsCovered.toLowerCase();
+        if (catLower.includes('heritage') || catLower.includes('culture')) {
+          if (!titleLower.includes('cultural') && !destLower.includes('sigiriya') && !destLower.includes('kandy')) return false;
+        } else if (catLower.includes('wildlife') || catLower.includes('safaris')) {
+          if (!titleLower.includes('wild') && !destLower.includes('yala')) return false;
+        } else if (catLower.includes('railway') || catLower.includes('highland')) {
+          if (!titleLower.includes('highland') && !destLower.includes('nuwara') && !destLower.includes('ella')) return false;
+        } else if (catLower.includes('coastal') || catLower.includes('riviera')) {
+          if (!titleLower.includes('coastal') && !titleLower.includes('ayurvedic') && !destLower.includes('galle') && !destLower.includes('mirissa')) return false;
+        }
+      }
+
+      // Duration filter
+      if (selectedDuration !== 'all') {
+        const days = Number(j.durationDays) || 0;
+        const option = DURATION_OPTIONS.find((opt) => opt.id === selectedDuration);
+        if (option && option.min !== undefined) {
+          const min = option.min;
+          const max = option.max ?? Infinity;
+          if (days < min || days > max) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [journeys, selectedCategory, selectedDuration]);
+
+  const getCountForDuration = (optionId: DurationFilterOption) => {
+    if (optionId === 'all') return journeys.length;
+    const option = DURATION_OPTIONS.find((opt) => opt.id === optionId);
+    if (!option || option.min === undefined) return 0;
+    const min = option.min;
+    const max = option.max ?? Infinity;
+    return journeys.filter((j) => {
+      const days = Number(j.durationDays) || 0;
+      return days >= min && days <= max;
+    }).length;
+  };
 
   return (
     <motion.div
@@ -110,15 +151,69 @@ export const DestinationsPage: React.FC = () => {
             Find custom travel plans with private drivers, luxury stays, expert guides, and guaranteed tickets.
           </p>
 
+          {/* Duration Filters */}
+          <div className="pt-4 max-w-4xl mx-auto">
+            <div className="bg-[#0F1A24]/80 border border-stone-800/90 rounded-2xl p-4 shadow-xl space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+                <div className="flex items-center gap-2 text-xs font-mono text-[#C5A880] uppercase tracking-wider font-semibold">
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>Filter by Duration</span>
+                </div>
+                {(selectedDuration !== 'all' || selectedCategory !== 'All') && (
+                  <button
+                    onClick={() => {
+                      setSelectedDuration('all');
+                      setSelectedCategory('All');
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-stone-400 hover:text-[#C5A880] transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reset All Filters</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {DURATION_OPTIONS.map((option) => {
+                  const isActive = selectedDuration === option.id;
+                  const count = getCountForDuration(option.id);
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => setSelectedDuration(option.id)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-mono font-semibold transition-all flex items-center gap-2 cursor-pointer border ${
+                        isActive
+                          ? 'bg-gradient-to-r from-[#C5A880] to-[#D4AF37] text-[#0B131F] font-bold border-[#D4AF37] shadow-lg'
+                          : 'bg-[#0B131F]/80 border-stone-800 text-stone-300 hover:border-[#C5A880]/50'
+                      }`}
+                    >
+                      <Clock className={`w-3.5 h-3.5 ${isActive ? 'text-[#0B131F]' : 'text-[#C5A880]'}`} />
+                      <span>{option.label}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-bold ${
+                          isActive
+                            ? 'bg-[#0B131F]/20 text-[#0B131F]'
+                            : 'bg-stone-800/80 text-stone-400'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           {/* Category Chips */}
-          <div className="flex flex-wrap justify-center gap-2 pt-4">
+          <div className="flex flex-wrap justify-center gap-2 pt-2">
             {categories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-full text-xs font-semibold font-mono transition-all cursor-pointer ${
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold font-mono transition-all cursor-pointer ${
                   selectedCategory === cat
-                    ? 'bg-gradient-to-r from-[#C5A880] to-[#D4AF37] text-[#0B131F] font-bold shadow-md'
+                    ? 'bg-stone-200 text-[#0B131F] font-bold shadow-md'
                     : 'bg-[#0F1A24] border border-stone-700 text-stone-300 hover:border-[#C5A880]/50'
                 }`}
               >
@@ -143,10 +238,13 @@ export const DestinationsPage: React.FC = () => {
             <h3 className="text-xl font-serif-luxury text-stone-200">No Signature Collections Found</h3>
             <p className="text-xs text-stone-400">Try selecting another filter or explore all collections.</p>
             <button
-              onClick={() => setSelectedCategory('All')}
-              className="px-4 py-2 rounded-xl bg-[#134E4A] text-emerald-200 text-xs font-semibold font-mono"
+              onClick={() => {
+                setSelectedCategory('All');
+                setSelectedDuration('all');
+              }}
+              className="px-4 py-2 rounded-xl bg-[#134E4A] text-emerald-200 text-xs font-semibold font-mono cursor-pointer"
             >
-              Reset Category Filter
+              Reset Filters
             </button>
           </div>
         ) : (

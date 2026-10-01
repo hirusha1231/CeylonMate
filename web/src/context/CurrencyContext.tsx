@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 export type Currency = 'USD' | 'LKR';
 
@@ -16,22 +16,27 @@ const CurrencyContext = createContext<CurrencyContextType | null>(null);
 export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currency, setCurrency] = useState<Currency>('USD');
 
-  const convertPrice = (amount: number, fromCurrency: 'USD' | 'LKR' = 'USD', toCurrency?: 'USD' | 'LKR'): number => {
+  const convertPrice = useCallback((amount: number, fromCurrency: 'USD' | 'LKR' = 'USD', toCurrency?: 'USD' | 'LKR'): number => {
     const target = toCurrency || currency;
     if (fromCurrency === target) return amount;
     if (fromCurrency === 'USD' && target === 'LKR') return Math.round(amount * EXCHANGE_RATE);
     if (fromCurrency === 'LKR' && target === 'USD') return Math.round(amount / EXCHANGE_RATE);
     return amount;
-  };
+  }, [currency]);
 
-  const formatPrice = (amount: number, fromCurrency: 'USD' | 'LKR' = 'USD'): string => {
+  const formatPrice = useCallback((amount: number, fromCurrency: 'USD' | 'LKR' = 'USD'): string => {
     const converted = convertPrice(amount, fromCurrency, currency);
     const formatted = Math.round(converted).toLocaleString();
     return currency === 'USD' ? `$${formatted}` : `LKR ${formatted}`;
-  };
+  }, [convertPrice, currency]);
+
+  const value = useMemo(
+    () => ({ currency, setCurrency, formatPrice, convertPrice }),
+    [currency, formatPrice, convertPrice]
+  );
 
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, formatPrice, convertPrice }}>
+    <CurrencyContext.Provider value={value}>
       {children}
     </CurrencyContext.Provider>
   );
@@ -42,3 +47,4 @@ export const useCurrency = () => {
   if (!ctx) throw new Error('useCurrency must be used within CurrencyProvider');
   return ctx;
 };
+

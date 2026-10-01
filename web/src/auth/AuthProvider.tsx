@@ -10,7 +10,7 @@ interface AuthContextValue {
   status: AuthStatus;
   error: string | null;
   login(email: string, password: string): Promise<AuthUser | null>;
-  register(email: string, password: string, fullName?: string, phoneNumber?: string, role?: string): Promise<AuthUser | null>;
+  register(email: string, password: string, fullName?: string, phoneNumber?: string, role?: string): Promise<boolean>;
   logout(): void;
   clearError(): void;
 }
@@ -130,9 +130,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (email: string, password: string, fullName?: string, phoneNumber?: string, role: string = 'TRAVELER'): Promise<AuthUser | null> => {
+  const register = useCallback(async (email: string, password: string, fullName?: string, phoneNumber?: string, role: string = 'TRAVELER'): Promise<boolean> => {
     setError(null);
-    setStatus('checking');
     try {
       const selectedRole = role?.trim() || 'TRAVELER';
       console.log('[AuthProvider] Registering user:', { email: email.trim(), fullName, phoneNumber, role: selectedRole });
@@ -144,39 +143,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: selectedRole,
       });
       console.log('[AuthProvider] Registration successful. Status:', response.status, 'Payload:', response.data);
-
-      const data = response.data;
-      const token = data.accessToken || data.token || data.jwt;
-      if (!token) {
-        throw new Error('Invalid registration response from server.');
-      }
-
-      setAccessToken(token);
-
-      const registeredUser: AuthUser = {
-        id: String(data.user?.id || 'usr-reg'),
-        email: data.user?.email || email.trim(),
-        role: String(data.user?.role || selectedRole).toUpperCase(),
-        fullName: data.user?.fullName || fullName,
-      };
-
-      setUser(registeredUser);
-      localStorage.setItem('user', JSON.stringify(registeredUser));
-      setStatus('signedIn');
-      setError(null);
-      return registeredUser;
+      return true;
     } catch (failure: any) {
-      setAccessToken(null);
-      localStorage.removeItem('user');
-      setUser(null);
-
       const status = failure?.response?.status;
       const responseData = failure?.response?.data;
       console.error('[AuthProvider] Registration API error:', { status, data: responseData, error: failure?.message });
 
       const errMsg = apiError(failure);
       setError(errMsg);
-      setStatus('signedOut');
       throw failure;
     }
   }, []);

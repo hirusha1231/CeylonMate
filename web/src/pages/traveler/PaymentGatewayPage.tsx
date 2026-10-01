@@ -42,22 +42,11 @@ export const PaymentGatewayPage: React.FC = () => {
   const [paymentSuccess, setPaymentSuccess] = useState<boolean>(false);
   const [transactionRef, setTransactionRef] = useState<string>('');
 
-  // Lock Countdown Timer
-  const [timeLeft, setTimeLeft] = useState<number>(900); // 15 mins
-
   useEffect(() => {
     if (bookingId) {
       fetchBookingDetails();
     }
   }, [bookingId]);
-
-  // Countdown timer effect
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   // OTP Countdown timer effect
   useEffect(() => {
@@ -264,13 +253,6 @@ export const PaymentGatewayPage: React.FC = () => {
                   <span>256-Bit SSL Encrypted • PCI-DSS Level 1 Compliant</span>
                 </p>
               </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="px-3.5 py-1.5 rounded-xl bg-amber-950/40 border border-amber-500/30 font-mono text-xs text-amber-300 flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 animate-pulse text-amber-400" />
-              <span>Reservation Lock: <strong>{formatTimer(timeLeft)}</strong></span>
             </div>
           </div>
         </div>
@@ -769,9 +751,20 @@ export const PaymentGatewayPage: React.FC = () => {
               </div>
             </div>
 
-            {/* EMBEDDED PRINT STYLES */}
+            {/* EMBEDDED PRINT STYLES - PRESERVES FULL COLOR AND LUXURY GRADIENTS IN PRINT */}
             <style dangerouslySetInnerHTML={{ __html: `
               @media print {
+                * {
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                  color-adjust: exact !important;
+                }
+                html, body {
+                  background: #070D14 !important;
+                  background-color: #070D14 !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
                 body * {
                   visibility: hidden !important;
                 }
@@ -784,11 +777,14 @@ export const PaymentGatewayPage: React.FC = () => {
                   top: 0 !important;
                   width: 100% !important;
                   margin: 0 !important;
-                  padding: 30px !important;
-                  background: #ffffff !important;
-                  color: #0f172a !important;
+                  padding: 28px !important;
+                  background: linear-gradient(135deg, #070D14 0%, #0F1A24 50%, #081B18 100%) !important;
+                  background-color: #0F1A24 !important;
+                  color: #f1f5f9 !important;
                   box-shadow: none !important;
-                  border: 2px solid #0f172a !important;
+                  border: 2px solid #D4AF37 !important;
+                  border-radius: 24px !important;
+                  page-break-inside: avoid !important;
                 }
                 .no-print {
                   display: none !important;
@@ -796,94 +792,102 @@ export const PaymentGatewayPage: React.FC = () => {
               }
             `}} />
 
-            {/* OFFICIAL REAL PAYMENT SLIP & EXPEDITION TRAVEL VOUCHER */}
+            {/* OFFICIAL LUXURY COLORFUL PAYMENT SLIP & EXPEDITION TRAVEL VOUCHER */}
             <div
               id="printable-payment-slip"
-              className="bg-slate-950/90 text-stone-100 border border-[#C5A880]/50 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6 font-sans"
+              className="relative overflow-hidden bg-gradient-to-br from-[#070D14] via-[#0F1A24] to-[#081B18] text-stone-100 border-2 border-[#D4AF37] rounded-3xl p-6 sm:p-10 shadow-[0_0_50px_rgba(212,175,55,0.15)] space-y-6 font-sans"
             >
+              {/* Decorative Luxury Glow */}
+              <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-[#D4AF37]/15 via-[#134E4A]/20 to-transparent rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-[#134E4A]/20 via-[#D4AF37]/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+
               {/* VOUCHER HEADER */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b-2 border-stone-800">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-6 h-6 text-[#D4AF37]" />
-                    <h2 className="text-2xl font-serif-luxury font-bold tracking-wider text-[#D4AF37]">
+              <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b-2 border-[#D4AF37]/40">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#D4AF37] to-[#8C6D23] flex items-center justify-center text-slate-950 shadow-md">
+                      <Sparkles className="w-5 h-5 fill-slate-950" />
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-serif-luxury font-bold tracking-wider bg-gradient-to-r from-[#F9F1D8] via-[#D4AF37] to-[#C5A880] bg-clip-text text-transparent">
                       CEYLONMATE LUXURY EXPEDITIONS
                     </h2>
                   </div>
-                  <p className="text-xs text-stone-400 font-mono">
-                    SLTDA Licensed Inbound Tour Operator: <strong className="text-stone-300">SLTDA/T-OPT/2024/01492</strong>
+                  <p className="text-xs text-stone-300 font-mono flex items-center gap-2">
+                    <span>SLTDA Licensed Inbound Tour Operator:</span>
+                    <strong className="text-[#D4AF37] font-bold">SLTDA/T-OPT/2024/01492</strong>
                   </p>
                   <p className="text-[11px] text-stone-400 font-mono">
-                    Level 12, World Trade Center, Colombo 01, Sri Lanka • Tax Reg: VAT-88392019
+                    Level 12, World Trade Center, Colombo 01, Sri Lanka • Reg Tax No: <strong className="text-stone-300">VAT-88392019</strong>
                   </p>
                 </div>
 
-                <div className="sm:text-right space-y-1">
-                  <span className="inline-block px-3.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-950 text-emerald-400 border border-emerald-500/40 uppercase tracking-wider">
+                <div className="sm:text-right space-y-1.5">
+                  <span className="inline-block px-4 py-1.5 rounded-full text-xs font-mono font-bold bg-gradient-to-r from-emerald-950 to-[#134E4A] text-emerald-300 border border-emerald-400/60 uppercase tracking-wider shadow-lg">
                     ✓ Official Payment Slip & Tax Voucher
                   </span>
-                  <p className="text-xs text-stone-400 font-mono">
-                    Date: <strong className="text-stone-200">{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</strong>
+                  <p className="text-xs text-stone-300 font-mono">
+                    Issued: <strong className="text-white font-bold">{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</strong>
                   </p>
                 </div>
               </div>
 
               {/* METADATA HIGHLIGHT GRID: BOOKING ID & TOTAL PRICE */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-[#0B131F] to-[#134E4A]/30 border border-[#C5A880]/30 font-mono text-xs shadow-inner">
-                <div>
-                  <span className="text-[10px] text-[#C5A880] uppercase tracking-wider block font-bold">
+              <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-4 p-5 rounded-2xl bg-gradient-to-r from-[#134E4A]/40 via-[#0B131F] to-[#D4AF37]/15 border border-[#D4AF37]/50 font-mono text-xs shadow-xl backdrop-blur-md">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-[#D4AF37] uppercase tracking-wider block font-bold">
                     Booking ID / Reference
                   </span>
-                  <span className="text-lg font-bold text-white font-mono">
+                  <span className="text-2xl font-bold text-white font-mono block">
                     #{booking?.id || bookingId}
                   </span>
-                  <p className="text-[11px] text-stone-400">
-                    Ref: <strong className="text-[#C5A880]">{booking?.reference || booking?.bookingReference || `CM-2026-${booking?.id || bookingId}`}</strong>
+                  <p className="text-[11px] text-stone-300">
+                    Ref: <strong className="text-[#F3E5AB] font-semibold">{booking?.reference || booking?.bookingReference || `CM-2026-${booking?.id || bookingId}`}</strong>
                   </p>
                 </div>
 
-                <div>
-                  <span className="text-[10px] text-[#C5A880] uppercase tracking-wider block font-bold">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-[#D4AF37] uppercase tracking-wider block font-bold">
                     Transaction Reference
                   </span>
                   <span className="text-sm font-bold text-white font-mono block truncate">
                     {transactionRef || `TXN-CM-${Date.now().toString().slice(-8)}`}
                   </span>
-                  <p className="text-[11px] text-emerald-400 font-bold">
-                    Status: Verified & Escrow Locked
-                  </p>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-500/50">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Verified & Escrow Locked
+                  </span>
                 </div>
 
-                <div className="sm:text-right">
-                  <span className="text-[10px] text-[#C5A880] uppercase tracking-wider block font-bold">
+                <div className="sm:text-right space-y-1">
+                  <span className="text-[10px] text-[#D4AF37] uppercase tracking-wider block font-bold">
                     Total Amount Paid
                   </span>
-                  <span className="text-2xl font-serif-luxury font-bold text-[#D4AF37]">
+                  <span className="text-3xl font-bold font-mono text-emerald-300 block drop-shadow-md">
                     {formatPrice(grandTotalUsd)}
                   </span>
-                  <p className="text-[10px] text-stone-400">
-                    Currency: {currency} (All Taxes Included)
+                  <p className="text-[10px] text-stone-300 font-medium">
+                    Currency: {currency} (All Taxes & VIP Protection Included)
                   </p>
                 </div>
               </div>
 
               {/* RESERVATION & ESCORT BREAKDOWN GRID */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              <div className="relative grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
                 {/* Left: Traveler & Itinerary */}
-                <div className="p-5 rounded-2xl bg-[#0B131F] border border-stone-800 space-y-3 text-xs">
-                  <h4 className="font-serif-luxury font-bold text-sm text-stone-200 uppercase tracking-wider border-b border-stone-800 pb-2 flex items-center gap-2">
+                <div className="p-5 rounded-2xl bg-[#0B131F]/90 border border-[#C5A880]/40 space-y-3 text-xs shadow-lg">
+                  <h4 className="font-serif-luxury font-bold text-sm text-[#F3E5AB] uppercase tracking-wider border-b border-stone-800 pb-2.5 flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-[#D4AF37]" />
                     <span>Expedition & Itinerary Details</span>
                   </h4>
                   
-                  <div className="space-y-2">
+                  <div className="space-y-2 font-sans">
                     <div className="flex justify-between py-1 border-b border-stone-800/60">
                       <span className="text-stone-400">Expedition Plan:</span>
-                      <span className="font-bold text-stone-100 font-serif-luxury">{booking?.packageTitle || booking?.title}</span>
+                      <span className="font-bold text-stone-100 font-serif-luxury text-sm">{booking?.packageTitle || booking?.title}</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-stone-800/60">
                       <span className="text-stone-400">Travel Dates & Duration:</span>
-                      <span className="font-bold text-stone-200 font-mono">{booking?.startDate} ({booking?.tripDurationDays || 5} Days)</span>
+                      <span className="font-bold text-emerald-300 font-mono">{booking?.startDate} ({bDays} Days)</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-stone-800/60">
                       <span className="text-stone-400">Travel Party (Pax):</span>
@@ -891,26 +895,28 @@ export const PaymentGatewayPage: React.FC = () => {
                     </div>
                     <div className="flex justify-between py-1">
                       <span className="text-stone-400">Pickup Schedule:</span>
-                      <span className="font-bold text-[#C5A880] font-mono">{booking?.pickupTime || '08:00 AM'} (Luxury Chauffeur Transfer)</span>
+                      <span className="font-bold text-[#D4AF37] font-mono">{booking?.pickupTime || '06:30 AM'} (Luxury Chauffeur Transfer)</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Right: VIP Escort & Guide */}
-                <div className="p-5 rounded-2xl bg-[#0B131F] border border-stone-800 space-y-3 text-xs">
-                  <h4 className="font-serif-luxury font-bold text-sm text-stone-200 uppercase tracking-wider border-b border-stone-800 pb-2 flex items-center gap-2">
+                <div className="p-5 rounded-2xl bg-[#0B131F]/90 border border-[#10B981]/40 space-y-3 text-xs shadow-lg">
+                  <h4 className="font-serif-luxury font-bold text-sm text-emerald-300 uppercase tracking-wider border-b border-stone-800 pb-2.5 flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
                     <span>VIP Escort & Guide Credentials</span>
                   </h4>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 font-sans">
                     <div className="flex justify-between py-1 border-b border-stone-800/60">
                       <span className="text-stone-400">Dedicated Fleet Escort:</span>
                       <span className="font-bold text-stone-100">{booking?.vehicle?.modelName || booking?.vehicleModel || 'Volvo B11R Super VIP Coach'}</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-stone-800/60">
                       <span className="text-stone-400">Escort Plate Number:</span>
-                      <span className="font-bold text-emerald-400 font-mono">{booking?.vehicle?.registrationNumber || booking?.vehiclePlate || 'WP-CM VIP'}</span>
+                      <span className="font-bold text-emerald-400 font-mono bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                        {booking?.vehicle?.registrationNumber || booking?.vehiclePlate || 'WP-CM VIP'}
+                      </span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-stone-800/60">
                       <span className="text-stone-400">Private Tour Guide:</span>
@@ -927,56 +933,57 @@ export const PaymentGatewayPage: React.FC = () => {
               </div>
 
               {/* ITEMIZED PAYMENT BREAKDOWN TABLE */}
-              <div className="space-y-2">
-                <h4 className="font-serif-luxury font-bold text-xs text-[#C5A880] uppercase tracking-wider">
-                  Itemized Financial Statement
+              <div className="relative space-y-2">
+                <h4 className="font-serif-luxury font-bold text-xs text-[#D4AF37] uppercase tracking-wider flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-[#D4AF37]" />
+                  <span>Itemized Financial Statement</span>
                 </h4>
-                <div className="overflow-x-auto rounded-xl border border-stone-800">
+                <div className="overflow-x-auto rounded-2xl border border-[#C5A880]/40 shadow-xl">
                   <table className="w-full text-left font-mono text-xs border-collapse">
                     <thead>
-                      <tr className="bg-slate-900 text-stone-400 border-b border-stone-800">
-                        <th className="p-3">Item / Service Description</th>
-                        <th className="p-3 text-center">Duration / Qty</th>
-                        <th className="p-3 text-right">Rate</th>
-                        <th className="p-3 text-right">Amount</th>
+                      <tr className="bg-gradient-to-r from-[#134E4A] via-[#0F1A24] to-[#134E4A] text-[#F3E5AB] border-b border-[#C5A880]/40">
+                        <th className="p-3.5">Item / Service Description</th>
+                        <th className="p-3.5 text-center">Duration / Qty</th>
+                        <th className="p-3.5 text-right">Daily Rate</th>
+                        <th className="p-3.5 text-right">Amount</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-stone-800/60 text-stone-200">
+                    <tbody className="divide-y divide-stone-800 text-stone-200 bg-slate-950/70">
                       {hasGuideReq && (
                         <tr>
-                          <td className="p-3">
+                          <td className="p-3.5">
                             <strong className="text-white block font-serif-luxury text-sm">Dedicated Tour Guide Escort</strong>
                             <span className="text-stone-400 text-[11px]">{booking?.guide?.fullName || booking?.guideName || 'Licensed SLTDA Guide'}</span>
                           </td>
-                          <td className="p-3 text-center">{bDays} Days</td>
-                          <td className="p-3 text-right">{formatPrice(50)}/day</td>
-                          <td className="p-3 text-right font-bold text-stone-100">{formatPrice(guideRateUsd)}</td>
+                          <td className="p-3.5 text-center font-bold text-stone-300">{bDays} Days</td>
+                          <td className="p-3.5 text-right text-stone-400">{formatPrice(50)}/day</td>
+                          <td className="p-3.5 text-right font-bold text-[#F3E5AB]">{formatPrice(guideRateUsd)}</td>
                         </tr>
                       )}
                       <tr>
-                        <td className="p-3">
+                        <td className="p-3.5">
                           <strong className="text-white block font-serif-luxury text-sm">{booking?.vehicle?.modelName || booking?.vehicleModel || 'Private VIP Vehicle Escort'}</strong>
                           <span className="text-stone-400 text-[11px]">Chauffeur Drive, Fuel, Highway Tolls & Amenities</span>
                         </td>
-                        <td className="p-3 text-center">{bDays} Days</td>
-                        <td className="p-3 text-right">{formatPrice(120)}/day</td>
-                        <td className="p-3 text-right font-bold text-stone-100">{formatPrice(vehicleRateUsd)}</td>
+                        <td className="p-3.5 text-center font-bold text-stone-300">{bDays} Days</td>
+                        <td className="p-3.5 text-right text-stone-400">{formatPrice(120)}/day</td>
+                        <td className="p-3.5 text-right font-bold text-[#F3E5AB]">{formatPrice(vehicleRateUsd)}</td>
                       </tr>
-                      <tr>
-                        <td colSpan={3} className="p-3 text-right text-stone-400 font-semibold">Subtotal:</td>
-                        <td className="p-3 text-right font-bold text-stone-100">{formatPrice(budgetSubtotal)}</td>
+                      <tr className="bg-slate-900/60">
+                        <td colSpan={3} className="p-3.5 text-right text-stone-300 font-semibold uppercase tracking-wider">Subtotal:</td>
+                        <td className="p-3.5 text-right font-bold text-white font-mono text-sm">{formatPrice(budgetSubtotal)}</td>
                       </tr>
-                      <tr>
-                        <td colSpan={3} className="p-3 text-right text-stone-400 font-semibold">VAT (5%):</td>
-                        <td className="p-3 text-right font-bold text-stone-100">{formatPrice(vat)}</td>
+                      <tr className="bg-slate-900/60">
+                        <td colSpan={3} className="p-3.5 text-right text-stone-300 font-semibold uppercase tracking-wider">VAT (5%):</td>
+                        <td className="p-3.5 text-right font-bold text-amber-300 font-mono text-sm">{formatPrice(vat)}</td>
                       </tr>
                     </tbody>
                     <tfoot>
-                      <tr className="bg-slate-900/90 border-t-2 border-stone-800 text-stone-100">
-                        <td colSpan={3} className="p-4 text-right font-bold uppercase tracking-wider font-mono text-emerald-200">
+                      <tr className="bg-gradient-to-r from-[#134E4A] via-[#0A2622] to-[#134E4A] border-t-2 border-[#D4AF37] text-stone-100">
+                        <td colSpan={3} className="p-4 text-right font-bold uppercase tracking-wider font-mono text-[#F3E5AB] text-sm">
                           Total Budget (VAT Included):
                         </td>
-                        <td className="p-4 text-right text-xl font-mono font-bold text-emerald-300">
+                        <td className="p-4 text-right text-2xl font-mono font-bold text-emerald-300 drop-shadow">
                           {formatPrice(grandTotalUsd)}
                         </td>
                       </tr>
@@ -986,22 +993,23 @@ export const PaymentGatewayPage: React.FC = () => {
               </div>
 
               {/* FOOTER & SECURITY VERIFICATION */}
-              <div className="pt-4 border-t border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-stone-400">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-white p-1 rounded-lg shrink-0 flex items-center justify-center">
-                    <QrCode className="w-10 h-10 text-slate-950" />
+              <div className="relative pt-4 border-t-2 border-[#D4AF37]/30 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-stone-300">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-14 h-14 bg-white p-1 rounded-xl shrink-0 flex items-center justify-center shadow-lg border border-[#D4AF37]">
+                    <QrCode className="w-12 h-12 text-slate-950" />
                   </div>
                   <div>
-                    <p className="font-bold text-stone-200">Official Verification Token</p>
-                    <p className="text-[10px] text-stone-400">Scan QR Code or quote Booking ID #{booking?.id || bookingId} at any SLTDA checkpoint.</p>
+                    <p className="font-bold text-[#F3E5AB] text-sm">Official Verification Token</p>
+                    <p className="text-[11px] text-stone-400">Scan QR Code or quote Booking ID #{booking?.id || bookingId} at any SLTDA checkpoint.</p>
                   </div>
                 </div>
 
                 <div className="text-center sm:text-right space-y-1">
-                  <p className="text-[10px] text-emerald-400 font-bold uppercase">
-                    🔒 Certified Digital Security Seal
+                  <p className="text-xs text-emerald-400 font-bold uppercase tracking-wider flex items-center justify-center sm:justify-end gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Certified Digital Security Seal</span>
                   </p>
-                  <p className="text-[11px] text-stone-400">24/7 Concierge Hotline: +94 11 7311 611</p>
+                  <p className="text-[11px] text-[#D4AF37]">24/7 Concierge Hotline: +94 11 7311 611</p>
                 </div>
               </div>
             </div>
