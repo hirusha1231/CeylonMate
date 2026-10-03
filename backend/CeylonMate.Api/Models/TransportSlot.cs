@@ -9,9 +9,7 @@ public class TransportSlot
     public Guid TransportOptionId { get; set; }
     public TransportOption? TransportOption { get; set; }
 
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public Guid? VehicleCatalogId { get; set; }
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public VehicleFleetCatalog? VehicleCatalog { get; set; }
 
     public string? RouteDescription { get; set; }
