@@ -124,7 +124,7 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
                      .HasForeignKey(x => x.TransportOptionId)
                      .OnDelete(DeleteBehavior.Restrict);
         transportSlot.HasOne(x => x.VehicleCatalog)
-                     .WithMany()
+                     .WithMany(x => x.TransportSlots)
                      .HasForeignKey(x => x.VehicleCatalogId)
                      .OnDelete(DeleteBehavior.SetNull);
 

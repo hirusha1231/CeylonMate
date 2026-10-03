@@ -58,15 +58,18 @@ class RecommendedDestination(BaseModel):
 
 
 class ObjectiveInterpretationOutput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
     normalizedObjective: str
-    regionsOrThemes: list[str]
-    interests: list[str]
-    dateConstraints: DateConstraints
-    budgetConstraint: BudgetConstraint
-    accessibilityConstraints: list[str]
-    requiredSteps: list[str]
-    delegatedAgentRoles: list[str]
-    missingCriticalFields: list[str]
+    regionsOrThemes: list[str] = Field(default_factory=list)
+    themes: list[str] = Field(default_factory=list)
+    interests: list[str] = Field(default_factory=list)
+    pacing: str | None = None
+    dateConstraints: DateConstraints | None = None
+    budgetConstraint: BudgetConstraint | None = None
+    accessibilityConstraints: list[str] = Field(default_factory=list)
+    requiredSteps: list[str] = Field(default_factory=list)
+    delegatedAgentRoles: list[str] = Field(default_factory=list)
+    missingCriticalFields: list[str] = Field(default_factory=list)
     recommendedDestinations: list[RecommendedDestination] = Field(default_factory=list)
+    destinations: list[RecommendedDestination] = Field(default_factory=list)

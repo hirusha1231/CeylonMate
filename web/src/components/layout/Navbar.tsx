@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Phone, ChevronDown, Sparkles, User, LogOut, Menu, X, Shield, Compass, Users, Cpu, ShieldCheck, MapPin } from 'lucide-react';
+import { Phone, ChevronDown, Sparkles, User, LogOut, Menu, X, Shield, Compass, Users, Cpu, ShieldCheck, MapPin, CloudSun, Gauge } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { useCurrency, Currency } from '../../context/CurrencyContext';
 import { isStaffUserRole } from '../../auth/types';
@@ -18,6 +18,13 @@ export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [currencyDropdownOpen, setCurrencyDropdownOpen] = useState(false);
+  const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    setMoreDropdownOpen(false);
+    setMobileMenuOpen(false);
+    setCurrencyDropdownOpen(false);
+  }, [location.pathname]);
 
   const handleSignOut = () => {
     logout();
@@ -237,8 +244,9 @@ export const Navbar: React.FC = () => {
             {/* Brand Logo */}
             <Logo />
 
-            {/* Desktop Nav Links (Visible to Travelers & Guests ONLY) */}
+            {/* Desktop Nav Links (4 Main Visible Links + Luxury 'More' Dropdown) */}
             <div className="hidden lg:flex items-center gap-7 text-sm font-medium text-stone-300">
+              {/* 1. Signature Journeys */}
               <Link
                 to="/"
                 className={`hover:text-[#C5A880] transition-colors ${
@@ -248,6 +256,7 @@ export const Navbar: React.FC = () => {
                 Signature Journeys
               </Link>
 
+              {/* 2. Destinations */}
               <Link
                 to="/destinations"
                 className={`hover:text-[#C5A880] transition-colors ${
@@ -257,16 +266,7 @@ export const Navbar: React.FC = () => {
                 Destinations
               </Link>
 
-              <Link
-                to="/plan-my-trip"
-                className={`hover:text-[#C5A880] transition-colors flex items-center gap-1.5 ${
-                  location.pathname === '/plan-my-trip' ? 'text-[#C5A880] font-semibold' : ''
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-                Tailor-Made Planner
-              </Link>
-
+              {/* 3. Drivers & Guides */}
               <Link
                 to="/fleet-and-guides"
                 className={`hover:text-[#C5A880] transition-colors ${
@@ -276,6 +276,7 @@ export const Navbar: React.FC = () => {
                 Drivers & Guides
               </Link>
 
+              {/* 4. About Us */}
               <Link
                 to="/about"
                 className={`hover:text-[#C5A880] transition-colors ${
@@ -284,6 +285,97 @@ export const Navbar: React.FC = () => {
               >
                 About Us
               </Link>
+
+              {/* 5. Luxury 'More' Dropdown Menu for Specialized Tools & Operations */}
+              <div 
+                className="relative"
+                onMouseEnter={() => setMoreDropdownOpen(true)}
+                onMouseLeave={() => setMoreDropdownOpen(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setMoreDropdownOpen(!moreDropdownOpen)}
+                  className={`flex items-center gap-1.5 py-1 transition-colors cursor-pointer ${
+                    ['/plan-my-trip', '/operations/destinations-safety', '/operations/capacity-dispatch'].includes(location.pathname)
+                      ? 'text-[#C5A880] font-semibold'
+                      : 'hover:text-[#C5A880] text-stone-300'
+                  }`}
+                >
+                  <span>More</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${moreDropdownOpen ? 'rotate-180 text-[#C5A880]' : ''}`} />
+                </button>
+
+                <AnimatePresence>
+                  {moreDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      className="absolute left-0 mt-2 w-72 bg-[#0B131F]/98 backdrop-blur-2xl border border-stone-700/80 rounded-2xl shadow-2xl overflow-hidden z-50 p-2 space-y-1 divide-y divide-stone-800/60"
+                    >
+                      <div className="space-y-1">
+                        {/* Tailor-Made Planner */}
+                        <Link
+                          to="/plan-my-trip"
+                          onClick={() => setMoreDropdownOpen(false)}
+                          className={`flex items-start gap-3 p-2.5 rounded-xl transition-all ${
+                            location.pathname === '/plan-my-trip'
+                              ? 'bg-[#C5A880]/15 text-[#C5A880] border border-[#C5A880]/30'
+                              : 'hover:bg-white/5 text-stone-200'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-[#C5A880]/20 text-[#D4AF37] flex items-center justify-center shrink-0 mt-0.5">
+                            <Sparkles className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-semibold block text-stone-100">Tailor-Made Planner</span>
+                            <span className="text-[10px] text-stone-400 block font-normal leading-tight">AI objective & bespoke itinerary engine</span>
+                          </div>
+                        </Link>
+
+                        {/* Safety Hub */}
+                        <Link
+                          to="/operations/destinations-safety"
+                          onClick={() => setMoreDropdownOpen(false)}
+                          className={`flex items-start gap-3 p-2.5 rounded-xl transition-all ${
+                            location.pathname === '/operations/destinations-safety'
+                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                              : 'hover:bg-white/5 text-stone-200'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                            <CloudSun className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-semibold block text-stone-100">Destination & Safety Hub</span>
+                            <span className="text-[10px] text-stone-400 block font-normal leading-tight">Live meteorological & ocean radar</span>
+                          </div>
+                        </Link>
+
+                        {/* Fleet Dispatch */}
+                        <Link
+                          to="/operations/capacity-dispatch"
+                          onClick={() => setMoreDropdownOpen(false)}
+                          className={`flex items-start gap-3 p-2.5 rounded-xl transition-all ${
+                            location.pathname === '/operations/capacity-dispatch'
+                              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                              : 'hover:bg-white/5 text-stone-200'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-[#D4AF37] flex items-center justify-center shrink-0 mt-0.5">
+                            <Gauge className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-semibold block text-stone-100">Capacity & Fleet Dispatch</span>
+                            <span className="text-[10px] text-stone-400 block font-normal leading-tight">GIS route logistics & vehicle engine</span>
+                          </div>
+                        </Link>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
             {/* Right Auth Action Button */}
@@ -350,7 +442,7 @@ export const Navbar: React.FC = () => {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="absolute top-0 right-0 w-4/5 max-w-sm h-full bg-[#0B131F] border-l border-stone-800 p-6 flex flex-col justify-between shadow-2xl text-stone-100"
+              className="absolute top-0 right-0 w-4/5 max-w-sm h-full bg-[#0B131F] border-l border-stone-800 p-6 flex flex-col justify-between shadow-2xl text-stone-100 overflow-y-auto"
             >
               <div className="space-y-6">
                 <div className="flex items-center justify-between pb-4 border-b border-stone-800">
@@ -363,47 +455,87 @@ export const Navbar: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-4 text-base font-medium">
-                  <Link
-                    to="/"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="hover:text-[#C5A880] transition-colors"
-                  >
-                    Signature Journeys
-                  </Link>
+                {/* Primary Links */}
+                <div className="space-y-1">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-[#C5A880] font-bold block mb-2">
+                    Primary Navigation
+                  </span>
+                  <div className="flex flex-col gap-2 text-sm font-medium">
+                    <Link
+                      to="/"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`px-3 py-2 rounded-xl transition-colors ${
+                        location.pathname === '/' ? 'bg-[#C5A880]/15 text-[#C5A880] font-semibold' : 'hover:bg-white/5 text-stone-200'
+                      }`}
+                    >
+                      Signature Journeys
+                    </Link>
 
-                  <Link
-                    to="/destinations"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="hover:text-[#C5A880] transition-colors"
-                  >
-                    Destinations
-                  </Link>
+                    <Link
+                      to="/destinations"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`px-3 py-2 rounded-xl transition-colors ${
+                        location.pathname === '/destinations' ? 'bg-[#C5A880]/15 text-[#C5A880] font-semibold' : 'hover:bg-white/5 text-stone-200'
+                      }`}
+                    >
+                      Destinations
+                    </Link>
 
-                  <Link
-                    to="/plan-my-trip"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="hover:text-[#C5A880] transition-colors flex items-center gap-2 text-[#D4AF37]"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Tailor-Made Planner
-                  </Link>
+                    <Link
+                      to="/fleet-and-guides"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`px-3 py-2 rounded-xl transition-colors ${
+                        location.pathname === '/fleet-and-guides' ? 'bg-[#C5A880]/15 text-[#C5A880] font-semibold' : 'hover:bg-white/5 text-stone-200'
+                      }`}
+                    >
+                      Drivers & Guides
+                    </Link>
 
-                  <Link
-                    to="/fleet-and-guides"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="hover:text-[#C5A880] transition-colors"
-                  >
-                    Drivers & Guides
-                  </Link>
+                    <Link
+                      to="/about"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`px-3 py-2 rounded-xl transition-colors ${
+                        location.pathname === '/about' ? 'bg-[#C5A880]/15 text-[#C5A880] font-semibold' : 'hover:bg-white/5 text-stone-200'
+                      }`}
+                    >
+                      About Us
+                    </Link>
+                  </div>
+                </div>
 
-                  <Link
-                    to="/about"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="hover:text-[#C5A880] transition-colors"
-                  >
-                    About Us
-                  </Link>
+                {/* Intelligence & Operations */}
+                <div className="space-y-1 pt-3 border-t border-stone-800">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-stone-400 font-bold block mb-2">
+                    Live Operations & AI Tools
+                  </span>
+                  <div className="flex flex-col gap-2 text-sm font-medium">
+                    <Link
+                      to="/plan-my-trip"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="px-3 py-2 rounded-xl hover:bg-white/5 transition-colors flex items-center gap-2.5 text-[#C5A880] font-semibold"
+                    >
+                      <Sparkles className="w-4 h-4 text-[#D4AF37] shrink-0" />
+                      <span>Tailor-Made Planner</span>
+                    </Link>
+
+                    <Link
+                      to="/operations/destinations-safety"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="px-3 py-2 rounded-xl hover:bg-white/5 transition-colors flex items-center gap-2.5 text-emerald-400 font-semibold"
+                    >
+                      <CloudSun className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Destination & Safety Hub</span>
+                    </Link>
+
+                    <Link
+                      to="/operations/capacity-dispatch"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="px-3 py-2 rounded-xl hover:bg-white/5 transition-colors flex items-center gap-2.5 text-amber-400 font-semibold"
+                    >
+                      <Gauge className="w-4 h-4 text-[#D4AF37] shrink-0" />
+                      <span>Capacity & Fleet Dispatch</span>
+                    </Link>
+                  </div>
                 </div>
               </div>
 

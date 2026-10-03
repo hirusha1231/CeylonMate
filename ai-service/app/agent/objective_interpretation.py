@@ -1,13 +1,18 @@
+import os
 import re
-from typing import TypedDict
+import logging
+from typing import TypedDict, List, Dict, Any
 
 from langgraph.graph import END, START, StateGraph
 
+from app.core.llm import generate_gemini_json
 from app.schemas.objective_interpretation import (
     BudgetConstraint, DateConstraints, ObjectiveInterpretationOutput,
     ObjectiveInterpretationRequest, RecommendedDestination,
 )
 from app.tools.objective_tools import ObjectiveReadTools
+
+logger = logging.getLogger("ceylonmate.agent1")
 
 
 class ObjectiveState(TypedDict):
@@ -22,121 +27,36 @@ _COMMAND = re.compile(
 
 
 def _safe_objective(raw: str | None) -> str:
-    # Traveler text is data, never an instruction. Drop command-like clauses.
     clauses = re.split(r"[.;\n]+", raw or "")
     safe = [clause.strip() for clause in clauses if clause.strip() and not _COMMAND.search(clause)]
     return " ".join(safe).strip()
 
 
-TRAVEL_VOCABULARY = {
-    "travel", "trip", "tour", "visit", "explore", "vacation", "holiday", "journey", "expedition",
-    "stay", "flight", "wildlife", "safari", "leopard", "elephant", "national park", "yala",
-    "wilpattu", "udawalawe", "culture", "heritage", "temple", "history", "ancient", "unesco",
-    "sigiriya", "dambulla", "anuradhapura", "polonnaruwa", "kandy", "beach", "coast", "sea",
-    "ocean", "coastal", "riviera", "surf", "scuba", "marine", "galle", "bentota", "mirissa",
-    "trincomalee", "tangalle", "weligama", "nature", "hiking", "forest", "waterfall", "mountain",
-    "peak", "scenic", "trekking", "view", "food", "cuisine", "cooking", "curry", "spice",
-    "culinary", "hill country", "tea", "estate", "bungalow", "nuwara eliya", "ella", "haputale",
-    "highland", "mist", "train", "railway", "chauffeur", "resort", "hotel", "villa", "luxury",
-    "relax", "wellness", "ayurveda", "spa", "honeymoon", "romantic", "sri lanka", "colombo",
-    "negombo", "jaffna"
-}
-
-DESTINATION_CATALOG = [
-    {
-        "name": "Sigiriya Rock Fortress",
-        "region": "Cultural Triangle",
-        "highlights": "Ancient palace ruins, 360-degree panorama, frescoes",
-        "category": "HERITAGE",
-        "keywords": ["culture", "heritage", "sigiriya", "unesco", "temple", "ancient", "history"]
-    },
-    {
-        "name": "Nuwara Eliya Tea Country",
-        "region": "Central Highlands",
-        "highlights": "Colonial bungalows, tea plucking experience, waterfalls",
-        "category": "NATURE_AND_TEA",
-        "keywords": ["hill country", "tea country", "tea", "estate", "bungalow", "nuwara eliya", "mist", "highland"]
-    },
-    {
-        "name": "Yala National Park",
-        "region": "Southern Province",
-        "highlights": "High-density leopard safari, elephant herds, 4x4 naturalist escort",
-        "category": "WILDLIFE",
-        "keywords": ["wildlife", "safari", "yala", "animals", "leopard", "elephant"]
-    },
-    {
-        "name": "Galle Dutch Fort & Coastal Riviera",
-        "region": "Southern Coast",
-        "highlights": "XVII century ramparts, oceanfront dining, boutique villas",
-        "category": "BEACH_AND_HERITAGE",
-        "keywords": ["beaches", "south coast", "beach", "coast", "galle", "riviera", "bentota", "mirissa", "sea"]
-    },
-    {
-        "name": "Temple of the Sacred Tooth Relic",
-        "region": "Central Province",
-        "highlights": "Royal palace complex, Kandyan cultural performance, botanical gardens",
-        "category": "CULTURE",
-        "keywords": ["culture", "kandy", "temple", "relics", "heritage", "central region"]
-    },
-    {
-        "name": "Ella Gap & Nine Arch Bridge",
-        "region": "Badulla Highlands",
-        "highlights": "Iconic mountain viaduct train ride, Ella Rock sunrise trek",
-        "category": "NATURE_AND_HIKING",
-        "keywords": ["nature", "hiking", "ella", "train", "view", "mountain", "waterfall", "scenic"]
-    }
-]
-
-
-def interpret_objective_node(state: ObjectiveState) -> dict[str, ObjectiveInterpretationOutput]:
+async def interpret_objective_node(state: ObjectiveState) -> dict[str, ObjectiveInterpretationOutput]:
     request = state["request"]
     tools = ObjectiveReadTools(request.storedTripRequest)
     trip = tools.read_trip_request(str(request.tripRequestId))
     reference = tools.read_reference_summary()
     objective = _safe_objective(trip.objective)
     text = objective.casefold()
+
     themes = [name for name, terms in reference.items() if any(term in text for term in terms)]
     interests = list(dict.fromkeys(item.strip() for item in trip.interests if item.strip()))
     accessibility = [trip.accessibilityNeeds.strip()] if trip.accessibilityNeeds and trip.accessibilityNeeds.strip() else []
 
-    # Semantic & meaningful intent detection
-    matched_words = [word for word in TRAVEL_VOCABULARY if word in text]
-    is_gibberish_length = len(text.strip()) < 15
-    has_zero_intent = len(matched_words) == 0 and len(themes) == 0
-
-    alpha_chars = [c for c in text if c.isalpha()]
-    distinct_alpha = set(alpha_chars)
-    has_repeating_gibberish = len(alpha_chars) > 0 and len(distinct_alpha) < 4
-
-    is_invalid_prompt = is_gibberish_length or has_zero_intent or has_repeating_gibberish
-
     missing = []
-    if is_invalid_prompt:
-        missing.append("Valid travel description or destinations")
-        normalized_obj = "Input does not contain recognizable travel intent or destinations."
-        themes = []
-    else:
-        normalized_obj = objective
-
     if not trip.startDate:
         missing.append("startDate")
     if not trip.endDate:
         missing.append("endDate")
     if trip.budget is None:
         missing.append("budget")
-    if not trip.currency:
-        missing.append("currency")
-    if trip.partySize is None:
-        missing.append("partySize")
 
-    if is_invalid_prompt:
-        steps = ["Prompt Clarification Required"]
-        roles = []
-        recommended = []
-    elif missing:
+    if missing:
         steps = ["CLARIFY_MISSING_FIELDS"]
-        roles = []
-        recommended = []
+        roles: List[str] = []
+        recommended: List[RecommendedDestination] = []
+        pacing = "Moderate"
     else:
         steps = [
             "RESEARCH_DESTINATION_OPTIONS", "DRAFT_ITINERARY", "CHECK_RESOURCE_FEASIBILITY",
@@ -146,29 +66,92 @@ def interpret_objective_node(state: ObjectiveState) -> dict[str, ObjectiveInterp
             "DESTINATION_RESEARCH_AGENT", "ITINERARY_PLANNING_AGENT",
             "RESOURCE_FEASIBILITY_AGENT", "QUOTATION_AGENT",
         ]
-        recommended_raw = []
-        for dest in DESTINATION_CATALOG:
-            if any(kw in text or any(kw in t for t in themes) or any(kw in i.lower() for i in interests) for kw in dest["keywords"]):
-                recommended_raw.append(RecommendedDestination(
-                    name=dest["name"],
-                    region=dest["region"],
-                    highlights=dest["highlights"],
-                    category=dest["category"]
-                ))
-        if not recommended_raw:
-            for dest in DESTINATION_CATALOG[:3]:
-                recommended_raw.append(RecommendedDestination(
-                    name=dest["name"],
-                    region=dest["region"],
-                    highlights=dest["highlights"],
-                    category=dest["category"]
-                ))
-        recommended = recommended_raw
+
+        # Destination match fallback catalog
+        if any(w in text for w in ["beach", "coast", "ocean", "sea", "surf", "swim"]):
+            recommended = [
+                RecommendedDestination(name="Bentota Golden Beach Strip", region="South Western Coast", highlights="Pristine golden sands, luxury water sports & oceanfront private villas.", category="BEACH_AND_LEISURE"),
+                RecommendedDestination(name="Mirissa Marine & Coastal Bay", region="Southern Coast", highlights="Private whale watching yachts, sunset dining & coconut hill palm vistas.", category="BEACH_AND_CULINARY"),
+                RecommendedDestination(name="Weligama Bay Surfing Riviera", region="Southern Coast", highlights="Crescent bay surfing, fresh seafood grills & beachfront luxury cabanas.", category="BEACH_AND_LEISURE")
+            ]
+        elif any(w in text for w in ["tea", "mountain", "hill", "ella", "nuwara", "hiking", "cold"]):
+            recommended = [
+                RecommendedDestination(name="Ella Scenic Mountain Highlands", region="Central Highlands", highlights="Nine Arch Bridge panoramic train views, Little Adam's Peak & tea trails.", category="NATURE_AND_TEA"),
+                RecommendedDestination(name="Nuwara Eliya Colonial Tea Country", region="Central Highlands", highlights="Historic planter bungalows, tea factory tasting tours & misty lakes.", category="NATURE_AND_TEA"),
+                RecommendedDestination(name="Horton Plains & World's End", region="Central Highlands", highlights="Cloud forest trekking, dramatic 800m sheer drop & Baker's Falls.", category="SCENIC")
+            ]
+        elif any(w in text for w in ["safari", "wildlife", "animal", "leopard", "elephant", "yala"]):
+            recommended = [
+                RecommendedDestination(name="Yala Leopard Sanctuary", region="Southern Province", highlights="Dawn leopard tracking & modified luxury 4x4 private game drives.", category="WILDLIFE"),
+                RecommendedDestination(name="Udawalawe Elephant Reserve", region="Uva Province", highlights="Vast herds of wild elephants, transit home rehabilitation & reservoir views.", category="WILDLIFE")
+            ]
+        elif any(w in text for w in ["culture", "heritage", "temple", "history", "ancient", "sigiriya"]):
+            recommended = [
+                RecommendedDestination(name="Sigiriya Ancient Rock Citadel", region="Cultural Triangle", highlights="UNESCO 5th-century palace fortress, mirror wall & royal water gardens.", category="HERITAGE"),
+                RecommendedDestination(name="Kandy Royal Sacred City", region="Central Province", highlights="Temple of the Sacred Tooth Relic, Royal Botanical Gardens & cultural dance.", category="HERITAGE")
+            ]
+        else:
+            recommended = [
+                RecommendedDestination(name="Bentota Luxury Coastline", region="South Western Coast", highlights="Golden sand beaches, private lagoon river safaris & oceanfront resorts.", category="BEACH_AND_LEISURE"),
+                RecommendedDestination(name="Sigiriya Rock Fortress", region="Cultural Triangle", highlights="5th-century iconic UNESCO citadel with royal water gardens.", category="HERITAGE"),
+                RecommendedDestination(name="Ella Mountain Gap", region="Central Highlands", highlights="Tea estate hikes, Nine Arch Bridge and mist-clad mountain passes.", category="NATURE_AND_TEA")
+            ]
+        pacing = "Moderate"
+
+        # Try dynamic LLM enrichment if API key is present
+        has_api_key = bool(os.getenv("GOOGLE_API_KEY", "").strip())
+        if has_api_key:
+            llm_prompt = f"""
+You are Agent 1 (Objective Interpretation) for CeylonMate Luxury Sri Lanka Tours.
+The traveler says: '{objective}'.
+Start Date: {trip.startDate}
+End Date: {trip.endDate}
+Party Size: {trip.partySize or 2} travelers
+Budget: {trip.budget} {trip.currency or "USD"}
+Interests: {", ".join(trip.interests) if trip.interests else "Not specified"}
+
+Return a JSON object with:
+{{
+  "pacing": "Relaxed | Moderate | Active",
+  "destinations": [
+    {{
+      "name": "Destination Name in Sri Lanka",
+      "region": "Geographic Region in Sri Lanka",
+      "highlights": "Key luxury highlights matching traveler intent",
+      "category": "BEACH_AND_CULINARY | BEACH_AND_LEISURE | WILDLIFE | HERITAGE | NATURE_AND_TEA | SCENIC"
+    }}
+  ]
+}}
+"""
+            try:
+                gemini_data = await generate_gemini_json(
+                    prompt=llm_prompt,
+                    system_instruction="You are CeylonMate's Agent 1: Lead Travel Concierge & Objective Interpretation Agent for Sri Lanka luxury tours."
+                )
+                if gemini_data and isinstance(gemini_data, dict):
+                    raw_destinations = gemini_data.get("destinations") or []
+                    custom_dest: List[RecommendedDestination] = []
+                    for d in raw_destinations:
+                        if isinstance(d, dict) and d.get("name"):
+                            custom_dest.append(RecommendedDestination(
+                                name=d.get("name", "Sri Lanka Destination"),
+                                region=d.get("region", "Sri Lanka"),
+                                highlights=d.get("highlights", "Scenic luxury experience"),
+                                category=d.get("category", "LEISURE")
+                            ))
+                    if custom_dest:
+                        recommended = custom_dest
+                    if gemini_data.get("pacing"):
+                        pacing = gemini_data.get("pacing")
+            except Exception as e:
+                logger.warning(f"Gemini enrichment skipped: {e}")
 
     return {"output": ObjectiveInterpretationOutput(
-        normalizedObjective=normalized_obj,
+        normalizedObjective=objective,
         regionsOrThemes=themes,
+        themes=themes,
         interests=interests,
+        pacing=pacing,
         dateConstraints=DateConstraints(startDate=trip.startDate, endDate=trip.endDate),
         budgetConstraint=BudgetConstraint(amount=trip.budget, currency=trip.currency),
         accessibilityConstraints=accessibility,
@@ -176,6 +159,7 @@ def interpret_objective_node(state: ObjectiveState) -> dict[str, ObjectiveInterp
         delegatedAgentRoles=roles,
         missingCriticalFields=missing,
         recommendedDestinations=recommended,
+        destinations=recommended,
     )}
 
 

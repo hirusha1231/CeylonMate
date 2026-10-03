@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router';
 import { motion } from 'framer-motion';
-import { Users, Luggage, Wifi, ShieldCheck, Car, Sparkles, RefreshCw } from 'lucide-react';
+import { Users, Luggage, Wifi, ShieldCheck, Car, Sparkles, RefreshCw, Gauge } from 'lucide-react';
 import { api } from '../../api/client';
 import { hoverLiftProps } from '../../utils/animations';
 import { VehicleFleetItem } from './FleetCatalogManagerModal';
@@ -110,10 +111,10 @@ export const FleetShowcaseSection: React.FC<FleetShowcaseSectionProps> = ({
             Unrivaled Comfort & Safety
           </span>
           <h2 className="text-3xl sm:text-5xl font-serif-luxury font-bold text-[#0B131F]">
-            Our Private Fleet & Certified Chauffeur Guides
+            Our Private Fleet & Certified Guides
           </h2>
           <p className="text-stone-600 text-sm leading-relaxed">
-            All vehicles are company-owned, climate-controlled, equipped with Wi-Fi, and piloted by English/German/French fluent SLTDA-licensed chauffeur guides.
+            All vehicles are company-owned, climate-controlled, equipped with Wi-Fi, and piloted by English/German/French fluent SLTDA-licensed guides.
           </p>
         </div>
       )}
@@ -227,6 +228,30 @@ export const FleetShowcaseSection: React.FC<FleetShowcaseSectionProps> = ({
           ))}
         </div>
       )}
+
+      {/* Capacity & Fleet Dispatch AI Agent Launcher Bar */}
+      <div className="pt-4 flex flex-col sm:flex-row items-center justify-between p-5 bg-[#0F1A24] border border-stone-800 rounded-2xl gap-4 shadow-xl">
+        <div className="flex items-center gap-3 text-left">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-[#D4AF37] shrink-0">
+            <Gauge className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="font-serif-luxury font-bold text-stone-100 text-sm">
+              Live Capacity & Fleet Dispatch Agent (Agent 3)
+            </h4>
+            <p className="text-xs text-stone-400">
+              Calculate instant route logistics, elevation physics, and available fleet allocations in real time.
+            </p>
+          </div>
+        </div>
+
+        <Link to="/operations/capacity-dispatch" className="shrink-0">
+          <button className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#B89628] hover:from-[#E5C158] hover:to-[#D4AF37] text-slate-950 text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-[#D4AF37]/20 transition-all cursor-pointer">
+            <Gauge className="w-4 h-4" />
+            <span>Launch Fleet Dispatch ➔</span>
+          </button>
+        </Link>
+      </div>
     </div>
   );
 };

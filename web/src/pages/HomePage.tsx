@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Compass, MapPin, Calendar, Users, Sparkles, ShieldCheck, Mountain, Wind,
-  CheckCircle, ArrowRight, Star, Clock, Car, ChevronRight, X, PhoneCall, Award
+  CheckCircle, ArrowRight, Star, Clock, Car, ChevronRight, ChevronLeft, X, PhoneCall, Award, CloudSun, Gauge, Quote, CheckCircle2, Heart
 } from 'lucide-react';
 import { AnimatedCounter } from '../components/common/Counter';
 import { QuickInquiryBar } from '../components/common/QuickInquiryBar';
@@ -57,6 +57,55 @@ export const HomePage: React.FC = () => {
   // Modal Detail & Gallery State
   const [activeModalPackage, setActiveModalPackage] = useState<any | null>(null);
   const [activeGalleryImage, setActiveGalleryImage] = useState<string | null>(null);
+  const [activeReviewIndex, setActiveReviewIndex] = useState(0);
+  const reviewsScrollRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = reviewsScrollRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > 0) {
+        e.preventDefault();
+        el.scrollBy({
+          left: e.deltaY * 1.5,
+          behavior: 'auto'
+        });
+      }
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const handleReviewsScroll = () => {
+    const el = reviewsScrollRef.current;
+    if (!el) return;
+    const cardWidth = 380;
+    const currentIdx = Math.min(4, Math.max(0, Math.round(el.scrollLeft / cardWidth)));
+    setActiveReviewIndex(currentIdx);
+  };
+
+  const scrollReviewsTo = (index: number) => {
+    const el = reviewsScrollRef.current;
+    if (!el) return;
+    const cardWidth = 390;
+    el.scrollTo({
+      left: index * cardWidth,
+      behavior: 'smooth'
+    });
+    setActiveReviewIndex(index);
+  };
+
+  const scrollReviewsBy = (dir: 'left' | 'right') => {
+    const el = reviewsScrollRef.current;
+    if (!el) return;
+    const cardWidth = 390;
+    el.scrollBy({
+      left: dir === 'left' ? -cardWidth : cardWidth,
+      behavior: 'smooth'
+    });
+  };
 
   const handleQuickInquiry = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,16 +171,34 @@ export const HomePage: React.FC = () => {
             <Link to="/plan-my-trip">
               <motion.button
                 {...buttonPressProps}
-                className="px-8 py-4 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] font-bold text-sm tracking-wider uppercase shadow-2xl gold-shadow-bloom flex items-center gap-3"
+                className="px-7 py-4 rounded-xl bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] font-bold text-sm tracking-wider uppercase shadow-2xl gold-shadow-bloom flex items-center gap-2.5 cursor-pointer"
               >
                 <span>Curate Your Journey</span>
                 <ArrowRight className="w-4 h-4" />
               </motion.button>
             </Link>
+            <Link to="/operations/destinations-safety">
+              <motion.button
+                {...buttonPressProps}
+                className="px-6 py-4 rounded-xl bg-[#0F1A24]/90 hover:bg-[#134E4A]/80 border border-emerald-500/50 text-emerald-300 hover:text-white font-semibold text-sm tracking-wide backdrop-blur-md transition-all flex items-center gap-2.5 cursor-pointer shadow-xl"
+              >
+                <CloudSun className="w-4 h-4 text-emerald-400" />
+                <span>Destination & Safety Hub</span>
+              </motion.button>
+            </Link>
+            <Link to="/operations/capacity-dispatch">
+              <motion.button
+                {...buttonPressProps}
+                className="px-6 py-4 rounded-xl bg-[#0F1A24]/90 hover:bg-[#1C1405]/90 border border-amber-500/50 text-amber-300 hover:text-white font-semibold text-sm tracking-wide backdrop-blur-md transition-all flex items-center gap-2.5 cursor-pointer shadow-xl"
+              >
+                <Gauge className="w-4 h-4 text-[#D4AF37]" />
+                <span>Capacity & Fleet Dispatch</span>
+              </motion.button>
+            </Link>
             <a href="#signature-collections">
               <motion.button
                 {...buttonPressProps}
-                className="px-8 py-4 rounded-xl bg-white/10 hover:bg-white/20 border border-stone-400/40 text-stone-100 font-semibold text-sm tracking-wide backdrop-blur-md transition-all"
+                className="px-6 py-4 rounded-xl bg-white/10 hover:bg-white/20 border border-stone-400/40 text-stone-100 font-semibold text-sm tracking-wide backdrop-blur-md transition-all cursor-pointer"
               >
                 View Collections
               </motion.button>
@@ -149,7 +216,7 @@ export const HomePage: React.FC = () => {
       {/* FLOATING QUICK-INQUIRY BAR */}
       <QuickInquiryBar />
 
-      {/* SECTION 3: LIVE ISLAND INTELLIGENCE TICKER */}
+      {/* SECTION 3: LIVE ISLAND INTELLIGENCE TICKER & DESTINATION SAFETY HUB LAUNCHER */}
       <section className="py-8 max-w-7xl mx-auto px-4 md:px-8 mt-6">
         <div className="bg-[#0F1A24] border border-stone-800 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg text-stone-200">
           <div className="flex items-center gap-3">
@@ -157,33 +224,37 @@ export const HomePage: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               Live Field Intelligence
             </span>
-            <span className="text-xs text-stone-400 hidden sm:inline">Updated 15 mins ago from certified guides</span>
+            <span className="text-xs text-stone-400 hidden sm:inline">Updated real-time </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto text-xs">
-            <div className="flex items-center gap-2 bg-[#0B131F] px-3 py-2 rounded-xl border border-stone-800">
-              <Wind className="w-4 h-4 text-sky-400" />
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+            <div className="hidden lg:flex items-center gap-2 bg-[#0B131F] px-3 py-2 rounded-xl border border-stone-800 text-xs">
+              <CloudSun className="w-4 h-4 text-amber-400" />
               <div>
-                <span className="font-semibold text-stone-200">Nuwara Eliya:</span>{' '}
-                <span className="text-stone-400">16°C, Clear Tea Trails</span>
+                <span className="font-semibold text-stone-200">Microclimate Radar:</span>{' '}
+                <span className="text-stone-400">Live 3-Day Telemetry Active</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-[#0B131F] px-3 py-2 rounded-xl border border-stone-800">
-              <Mountain className="w-4 h-4 text-amber-400" />
-              <div>
-                <span className="font-semibold text-stone-200">Yala Block 1:</span>{' '}
-                <span className="text-stone-400">Dry, Optimal Tracking</span>
-              </div>
-            </div>
+            <Link to="/operations/capacity-dispatch">
+              <motion.button
+                {...buttonPressProps}
+                className="px-4 py-2 rounded-xl bg-[#1C1405] border border-amber-500/50 hover:bg-amber-900/60 text-amber-300 hover:text-white font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md"
+              >
+                <Gauge className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span>Fleet & Route Dispatch ➔</span>
+              </motion.button>
+            </Link>
 
-            <div className="flex items-center gap-2 bg-[#0B131F] px-3 py-2 rounded-xl border border-stone-800">
-              <Compass className="w-4 h-4 text-emerald-400" />
-              <div>
-                <span className="font-semibold text-stone-200">Southern Coast:</span>{' '}
-                <span className="text-stone-400">Calm Seas, Whale Season</span>
-              </div>
-            </div>
+            <Link to="/operations/destinations-safety">
+              <motion.button
+                {...buttonPressProps}
+                className="px-4 py-2 rounded-xl bg-emerald-950 border border-emerald-500/50 hover:bg-emerald-900/80 text-emerald-300 hover:text-white font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md"
+              >
+                <CloudSun className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Destination & Safety Hub ➔</span>
+              </motion.button>
+            </Link>
           </div>
         </div>
       </section>
@@ -426,63 +497,207 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* SECTION 5: TESTIMONIALS & SLTDA BADGES */}
-      <section className="py-20 bg-[#F4EFEA] border-t border-stone-200">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-12">
-          <div className="text-center max-w-xl mx-auto space-y-2">
-            <span className="text-xs font-mono tracking-widest text-[#134E4A] uppercase font-semibold">
-              Guest Stories & Recognition
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-serif-luxury font-bold text-[#0B131F]">
-              Reflections of Elegance
-            </h2>
+      {/* SECTION 5: TESTIMONIALS & SLTDA BADGES (Horizontal Mouse-Wheel Scrollable Track) */}
+      <section
+        className="py-24 bg-[#F4EFEA] border-t border-stone-200 relative overflow-hidden"
+      >
+        {/* Animated Subtle Ambient Background Orbs */}
+        <motion.div
+          animate={{
+            scale: [1, 1.15, 1],
+            opacity: [0.12, 0.22, 0.12],
+            x: [-20, 20, -20],
+            y: [-10, 10, -10]
+          }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-1/3 left-1/4 w-[600px] h-[350px] bg-[#C5A880]/20 rounded-full blur-3xl pointer-events-none"
+        />
+        <motion.div
+          animate={{
+            scale: [1, 1.2, 1],
+            opacity: [0.08, 0.18, 0.08],
+            x: [20, -20, 20],
+            y: [10, -10, 10]
+          }}
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          className="absolute bottom-10 right-1/4 w-[500px] h-[300px] bg-[#134E4A]/15 rounded-full blur-3xl pointer-events-none"
+        />
+
+        <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-8 relative z-10">
+          {/* Animated Header with Interactive Controls */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-stone-200/80 pb-6">
+            <motion.div
+              variants={slideUpVariants}
+              initial="initial"
+              whileInView="whileInView"
+              viewport={{ once: true, margin: "-50px" }}
+              className="space-y-2.5 max-w-xl"
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#134E4A]/10 border border-[#134E4A]/20 text-xs font-mono tracking-widest text-[#134E4A] uppercase font-bold"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] animate-spin-slow" />
+                <span>Guest Stories & Recognition</span>
+              </motion.div>
+
+              <h2 className="text-3xl sm:text-5xl font-serif-luxury font-bold text-[#0B131F] tracking-tight">
+                Reflections of Elegance
+              </h2>
+              <p className="text-xs sm:text-sm text-stone-600 font-light">
+                Memories etched in time from travelers who experienced Sri Lanka with CeylonMate.
+              </p>
+            </motion.div>
+
+            {/* Navigation Buttons & Mouse Wheel Scroll Hint */}
+            <div className="flex items-center gap-4 shrink-0">
+              <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-stone-500 bg-white/80 border border-stone-200/80 px-3 py-1.5 rounded-full shadow-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+
+              </div>
+              <span className="text-xs font-mono font-bold text-stone-500 tracking-wider">
+                0{activeReviewIndex + 1} / 05
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => scrollReviewsBy('left')}
+                  className="p-2.5 rounded-full bg-white border border-stone-200 text-stone-700 hover:bg-[#134E4A] hover:text-white hover:border-[#134E4A] transition-all shadow-sm cursor-pointer"
+                  title="Scroll Left"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollReviewsBy('right')}
+                  className="p-2.5 rounded-full bg-white border border-stone-200 text-stone-700 hover:bg-[#134E4A] hover:text-white hover:border-[#134E4A] transition-all shadow-sm cursor-pointer"
+                  title="Scroll Right"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-2xl border border-stone-200/80 shadow-md space-y-4">
-              <div className="flex items-center gap-1 text-[#D4AF37]">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-current" />
-                ))}
-              </div>
-              <p className="text-xs text-stone-700 italic leading-relaxed">
-                "CeylonMate transformed our two-week honeymoon into a seamless dream. Our private chauffeur guide knew every hidden viewpoint in Nuwara Eliya and arranged effortless Yala safari access."
-              </p>
-              <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
-                <span className="text-xs font-bold text-[#0B131F]">Lord & Lady Harrington</span>
-                <span className="text-[10px] text-stone-500">London, UK</span>
-              </div>
-            </div>
+          {/* 5 Reviews Horizontal Scrollable Rail (Mouse Wheel Rotates Horizontally) */}
+          <div
+            ref={reviewsScrollRef}
+            onScroll={handleReviewsScroll}
+            className="flex gap-6 sm:gap-8 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory py-4 px-1 select-none"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {[
+              {
+                id: 1,
+                name: "Kasun & Chathurika Senanayake",
+                location: "Melbourne, Australia",
+                trip: "Family Heritage & Nuwara Eliya Highlands",
+                quote: "CeylonMate curated a breathtaking homecoming expedition for our family. From our private Sigiriya villa to the scenic tea bungalows in Nuwara Eliya, our chauffeur guide's hospitality was world-class.",
+                rating: 5,
+              },
+              {
+                id: 2,
+                name: "Lord & Lady Harrington",
+                location: "London, UK",
+                trip: "Bespoke Honeymoon & Tea Trails",
+                quote: "CeylonMate transformed our two-week honeymoon into a seamless dream. Our private chauffeur guide knew every hidden viewpoint in Nuwara Eliya and arranged effortless Yala safari access.",
+                rating: 5,
+              },
+              {
+                id: 3,
+                name: "Dr. Dinesh & Nilushi Jayawardena",
+                location: "London, UK",
+                trip: "Southern Coast & Hill Country Expedition",
+                quote: "The 1.25x hill country transit estimates and real-time route physics were remarkably precise. We arrived at our Hatton tea estate bungalow completely relaxed. True Sri Lankan warmth meets Swiss precision.",
+                rating: 5,
+              },
+              {
+                id: 4,
+                name: "Dr. Aris Thorne",
+                location: "Zurich, Switzerland",
+                trip: "Cultural Triangle & Ella Trails",
+                quote: "The 1.25x hill country transit estimates were spot-on! We arrived at our tea estate bungalow relaxed and stress-free. Truly authoritative luxury service with zero guesswork.",
+                rating: 5,
+              },
+              {
+                id: 5,
+                name: "Malinda & Sanduni Wickramasinghe",
+                location: "Singapore",
+                trip: "Wildlife Safari & Whale Expedition",
+                quote: "The live ground intelligence and bespoke safari dispatch in Yala made our expedition unforgettable. Highly recommend CeylonMate for anyone seeking authoritative, uncompromised luxury in Sri Lanka.",
+                rating: 5,
+              }
+            ].map((review, idx) => (
+              <motion.div
+                key={review.id}
+                initial={{ opacity: 0, y: 15 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.35, delay: idx * 0.08 }}
+                whileHover={{
+                  y: -8,
+                  scale: 1.02,
+                  boxShadow: "0 25px 50px -12px rgba(197, 168, 128, 0.25)",
+                  transition: { duration: 0.3, ease: 'easeOut' }
+                }}
+                className="w-[340px] sm:w-[380px] md:w-[410px] shrink-0 snap-start bg-white p-7 rounded-2xl border border-stone-200/90 shadow-lg transition-all duration-300 space-y-4 relative group flex flex-col justify-between overflow-hidden cursor-pointer"
+              >
+                {/* Subtle Card Glow Top Edge */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#C5A880] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-            <div className="bg-white p-6 rounded-2xl border border-stone-200/80 shadow-md space-y-4">
-              <div className="flex items-center gap-1 text-[#D4AF37]">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-current" />
-                ))}
-              </div>
-              <p className="text-xs text-stone-700 italic leading-relaxed">
-                "The 1.25x hill country transit estimates were spot-on! We arrived at our tea estate bungalow relaxed and stress-free. Truly authoritative luxury service."
-              </p>
-              <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
-                <span className="text-xs font-bold text-[#0B131F]">Dr. Aris Thorne</span>
-                <span className="text-[10px] text-stone-500">Zurich, Switzerland</span>
-              </div>
-            </div>
+                <div className="space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-[#D4AF37]">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className="w-4 h-4 fill-current group-hover:scale-110 transition-transform duration-200" />
+                      ))}
+                    </div>
+                    <motion.div
+                      whileHover={{ rotate: 15, scale: 1.15 }}
+                      transition={{ type: "spring", stiffness: 400 }}
+                    >
+                      <Quote className="w-6 h-6 text-[#C5A880]/30 group-hover:text-[#C5A880] transition-colors duration-300" />
+                    </motion.div>
+                  </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-stone-200/80 shadow-md space-y-4">
-              <div className="flex items-center gap-1 text-[#D4AF37]">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-current" />
-                ))}
-              </div>
-              <p className="text-xs text-stone-700 italic leading-relaxed">
-                "CeylonMate's live ground intelligence kept us updated on weather and sea conditions before our Mirissa whale expedition. Highly recommended!"
-              </p>
-              <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
-                <span className="text-xs font-bold text-[#0B131F]">Claire & Jean-Luc Vasseur</span>
-                <span className="text-[10px] text-stone-500">Paris, France</span>
-              </div>
-            </div>
+                  <p className="text-xs sm:text-sm text-stone-700 italic leading-relaxed font-serif min-h-[76px]">
+                    "{review.quote}"
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-[#0B131F] block group-hover:text-[#134E4A] transition-colors">
+                      {review.name}
+                    </span>
+                    <span className="text-[10px] text-stone-500 font-mono">{review.location}</span>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#134E4A]/10 text-[#134E4A] text-[9px] font-mono font-bold uppercase tracking-wider flex items-center gap-1 group-hover:bg-[#134E4A] group-hover:text-white transition-colors duration-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Verified
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* 5 Interactive Pagination Navigation Dots */}
+          <div className="flex items-center justify-center gap-2 pt-2">
+            {[0, 1, 2, 3, 4].map((dotIdx) => (
+              <button
+                key={dotIdx}
+                type="button"
+                onClick={() => scrollReviewsTo(dotIdx)}
+                className={`transition-all duration-300 rounded-full h-2 cursor-pointer ${activeReviewIndex === dotIdx
+                    ? 'w-8 bg-[#134E4A]'
+                    : 'w-2 bg-stone-300 hover:bg-[#C5A880]'
+                  }`}
+                title={`Jump to review ${dotIdx + 1}`}
+              />
+            ))}
           </div>
         </div>
       </section>
@@ -569,9 +784,8 @@ export const HomePage: React.FC = () => {
                               key={idx}
                               type="button"
                               onClick={() => setActiveGalleryImage(imgUrl)}
-                              className={`relative h-16 w-24 rounded-xl overflow-hidden border shrink-0 transition-all cursor-pointer ${
-                                mainImage === imgUrl ? 'border-[#C5A880] ring-2 ring-[#C5A880]/50 scale-95' : 'border-stone-800 opacity-70 hover:opacity-100'
-                              }`}
+                              className={`relative h-16 w-24 rounded-xl overflow-hidden border shrink-0 transition-all cursor-pointer ${mainImage === imgUrl ? 'border-[#C5A880] ring-2 ring-[#C5A880]/50 scale-95' : 'border-stone-800 opacity-70 hover:opacity-100'
+                                }`}
                             >
                               <img src={imgUrl} alt={`Thumb ${idx}`} className="w-full h-full object-cover" />
                             </button>

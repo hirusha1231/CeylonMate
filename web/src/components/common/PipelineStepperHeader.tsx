@@ -23,7 +23,7 @@ export const PipelineStepperHeader: React.FC<PipelineStepperHeaderProps> = ({ cu
       number: 2,
       id: '02',
       title: '02. Destination & Field Safety',
-      subtitle: 'Agent 02 Safety & Hazard Desk',
+      subtitle: ' Safety & Hazard Desk',
       path: '/operations/destinations-safety',
       icon: ShieldAlert,
     },
@@ -54,7 +54,7 @@ export const PipelineStepperHeader: React.FC<PipelineStepperHeaderProps> = ({ cu
   return (
     <div className="w-full bg-[#070D1E]/95 border-b border-emerald-900/50 backdrop-blur-md sticky top-0 z-40 py-3.5 px-4 md:px-8 shadow-2xl font-mono">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-        
+
         {/* Brand & Badge Header */}
         <div className="flex items-center gap-3 shrink-0">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-slate-950 shadow-lg font-bold">
@@ -82,13 +82,12 @@ export const PipelineStepperHeader: React.FC<PipelineStepperHeaderProps> = ({ cu
               <React.Fragment key={step.number}>
                 <button
                   onClick={() => handleNavigate(step.path)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs transition-all whitespace-nowrap cursor-pointer ${
-                    isActive
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs transition-all whitespace-nowrap cursor-pointer ${isActive
                       ? 'bg-gradient-to-r from-emerald-950 via-teal-900 to-emerald-950 border-emerald-500/80 text-emerald-200 font-bold shadow-lg shadow-emerald-950/50 scale-[1.02]'
                       : isCompleted
-                      ? 'bg-slate-900/90 border-emerald-700/40 text-emerald-400 hover:border-emerald-500/60 hover:text-emerald-300'
-                      : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                  }`}
+                        ? 'bg-slate-900/90 border-emerald-700/40 text-emerald-400 hover:border-emerald-500/60 hover:text-emerald-300'
+                        : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                    }`}
                 >
                   <div className="flex items-center justify-center shrink-0">
                     {isCompleted ? (

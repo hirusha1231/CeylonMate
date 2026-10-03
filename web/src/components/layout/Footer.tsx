@@ -16,43 +16,43 @@ export const Footer: React.FC = () => {
         {/* Top Badges Bar (Only visible on Home Page) */}
         {isHomePage && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-12 border-b border-stone-800">
-          <div className="flex items-start gap-4 p-5 rounded-2xl bg-[#0F1A24]/70 border border-stone-800">
-            <div className="w-12 h-12 rounded-xl bg-[#134E4A]/30 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-              <Award className="w-6 h-6" />
+            <div className="flex items-start gap-4 p-5 rounded-2xl bg-[#0F1A24]/70 border border-stone-800">
+              <div className="w-12 h-12 rounded-xl bg-[#134E4A]/30 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                <Award className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="font-serif-luxury text-stone-100 text-lg font-semibold">SLTDA Certified</h4>
+                <p className="text-xs text-stone-400 mt-0.5 leading-relaxed">
+                  Licensed Tour Operator #SLTDA/SQA/TA/01492 under Ministry of Tourism Sri Lanka.
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-serif-luxury text-stone-100 text-lg font-semibold">SLTDA Certified</h4>
-              <p className="text-xs text-stone-400 mt-0.5 leading-relaxed">
-                Licensed Tour Operator #SLTDA/SQA/TA/01492 under Ministry of Tourism Sri Lanka.
-              </p>
-            </div>
-          </div>
 
-          <div className="flex items-start gap-4 p-5 rounded-2xl bg-[#0F1A24]/70 border border-stone-800">
-            <div className="w-12 h-12 rounded-xl bg-[#134E4A]/30 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-              <Leaf className="w-6 h-6" />
+            <div className="flex items-start gap-4 p-5 rounded-2xl bg-[#0F1A24]/70 border border-stone-800">
+              <div className="w-12 h-12 rounded-xl bg-[#134E4A]/30 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                <Leaf className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="font-serif-luxury text-stone-100 text-lg font-semibold">100% Carbon Neutral</h4>
+                <p className="text-xs text-stone-400 mt-0.5 leading-relaxed">
+                  Every vehicle kilometer offset through Sinharaja Rainforest reforestation programs.
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-serif-luxury text-stone-100 text-lg font-semibold">100% Carbon Neutral</h4>
-              <p className="text-xs text-stone-400 mt-0.5 leading-relaxed">
-                Every vehicle kilometer offset through Sinharaja Rainforest reforestation programs.
-              </p>
-            </div>
-          </div>
 
-          <div className="flex items-start gap-4 p-5 rounded-2xl bg-[#0F1A24]/70 border border-stone-800">
-            <div className="w-12 h-12 rounded-xl bg-[#134E4A]/30 border border-amber-500/30 flex items-center justify-center text-[#C5A880] shrink-0">
-              <PhoneCall className="w-6 h-6" />
-            </div>
-            <div>
-              <h4 className="font-serif-luxury text-stone-100 text-lg font-semibold">24/7 Island Desk</h4>
-              <p className="text-xs text-stone-400 mt-0.5 leading-relaxed">
-                Dedicated ground operations response hotline: +94 11 7311 611 (Colombo HQ).
-              </p>
+            <div className="flex items-start gap-4 p-5 rounded-2xl bg-[#0F1A24]/70 border border-stone-800">
+              <div className="w-12 h-12 rounded-xl bg-[#134E4A]/30 border border-amber-500/30 flex items-center justify-center text-[#C5A880] shrink-0">
+                <PhoneCall className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="font-serif-luxury text-stone-100 text-lg font-semibold">24/7 Island Desk</h4>
+                <p className="text-xs text-stone-400 mt-0.5 leading-relaxed">
+                  Dedicated ground operations response hotline: +94 11 222 0000  (Colombo HQ).
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
         {/* Main Footer Links */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
@@ -65,7 +65,7 @@ export const Footer: React.FC = () => {
             <div className="pt-2 text-xs text-stone-400 space-y-1.5">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-[#C5A880]" />
-                <span>CeylonMate HQ, Level 14, World Trade Centre, Colombo 02, Sri Lanka</span>
+                <span>CeylonMate HQ, World Trade Centre, Colombo, Sri Lanka</span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-[#C5A880]" />
@@ -160,15 +160,6 @@ export const Footer: React.FC = () => {
                 >
                   <Compass className="w-3.5 h-3.5 text-amber-400" />
                   <span>🚗 Capacity & Fleet Dispatch</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/operations/concierge-approval"
-                  className="text-stone-300 hover:text-emerald-400 transition-colors text-xs flex items-center gap-1.5 font-mono pt-1"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>⚖️ Concierge Governance & Approval</span>
                 </Link>
               </li>
               <li>

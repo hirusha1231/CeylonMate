@@ -349,8 +349,8 @@ if (app.Environment.IsDevelopment())
                     },
                     DurationDays = 7,
                     DurationNights = 6,
-                    StartingPriceUsd = 2450.00m,
-                    StartingPriceLkr = 750000.00m,
+                    StartingPriceUsd = 0m,
+                    StartingPriceLkr = 0m,
                     DestinationsCovered = "Sigiriya, Kandy, Nuwara Eliya, Colombo",
                     Highlights = new List<string>
                     {
@@ -378,8 +378,8 @@ if (app.Environment.IsDevelopment())
                     },
                     DurationDays = 10,
                     DurationNights = 9,
-                    StartingPriceUsd = 3800.00m,
-                    StartingPriceLkr = 1150000.00m,
+                    StartingPriceUsd = 0m,
+                    StartingPriceLkr = 0m,
                     DestinationsCovered = "Yala National Park, Weligama, Galle Fort, Mirissa",
                     Highlights = new List<string>
                     {

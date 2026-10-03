@@ -3,6 +3,54 @@ from typing import Any
 # Controlled mock database of destinations and attraction rules matching backend seeded data
 DESTINATION_CATALOG = [
     {
+        "id": "dest-bentota",
+        "name": "Bentota Coastal Strip",
+        "region": "south western coast",
+        "category": "beach",
+        "themes": ["beach", "coast", "water sports", "relaxation", "luxury", "culinary"],
+        "attractions": [
+            {"id": "attr-bentota-01", "name": "Bentota Private Lagoon & Beach Access", "price": 35.0, "status": "OPEN", "accessibility": "Wheelchair accessible"}
+        ],
+        "advisories": [],
+        "guideReports": []
+    },
+    {
+        "id": "dest-mirissa",
+        "name": "Mirissa Beach & Bay",
+        "region": "southern coast",
+        "category": "beach",
+        "themes": ["beach", "coast", "whale watching", "seafood", "relaxation"],
+        "attractions": [
+            {"id": "attr-mirissa-01", "name": "Mirissa Marine & Coastal Access", "price": 45.0, "status": "OPEN", "accessibility": "Level sandy access"}
+        ],
+        "advisories": [],
+        "guideReports": []
+    },
+    {
+        "id": "dest-weligama",
+        "name": "Weligama Bay",
+        "region": "southern coast",
+        "category": "beach",
+        "themes": ["beach", "surfing", "coast", "culinary"],
+        "attractions": [
+            {"id": "attr-weligama-01", "name": "Weligama Bay Surf & Coastline", "price": 30.0, "status": "OPEN", "accessibility": "Wheelchair accessible"}
+        ],
+        "advisories": [],
+        "guideReports": []
+    },
+    {
+        "id": "dest-sigiriya",
+        "name": "Sigiriya Rock Fortress",
+        "region": "cultural triangle",
+        "category": "heritage",
+        "themes": ["heritage", "culture", "archaeology", "history"],
+        "attractions": [
+            {"id": "attr-sigi-01", "name": "Sigiriya Ancient Citadel Entry", "price": 36.0, "status": "OPEN", "accessibility": "Steep stairways"}
+        ],
+        "advisories": [],
+        "guideReports": []
+    },
+    {
         "id": "dest-nuwara-eliya",
         "name": "Nuwara Eliya Tea Country",
         "region": "hill country",
@@ -31,7 +79,7 @@ DESTINATION_CATALOG = [
         "name": "Galle Fort",
         "region": "southern",
         "category": "heritage",
-        "themes": ["culture", "heritage", "history", "southern"],
+        "themes": ["culture", "heritage", "history", "southern", "coast"],
         "attractions": [
             {"id": "attr-galle-01", "name": "Galle Heritage Walk", "price": 25.0, "status": "OPEN", "accessibility": "Ramped access"}
         ],

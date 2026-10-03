@@ -31,3 +31,7 @@ class DestinationSuitabilityResponse(BaseModel):
     selectedCandidates: list[DestinationCandidate] = Field(default_factory=list)
     rejectedCandidates: list[DestinationCandidate] = Field(default_factory=list)
     evaluatedAt: str
+
+class DestinationInspectRequest(BaseModel):
+    destination: str
+

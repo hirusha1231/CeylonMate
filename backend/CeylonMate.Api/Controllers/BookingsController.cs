@@ -232,7 +232,7 @@ namespace CeylonMate.Api.Controllers
                     vehicleModel = vehicleModel,
                     vehiclePlate = vehiclePlate,
                     chauffeurName = guideFullName ?? "SLTDA Certified Escort Chauffeur",
-                    chauffeurPhone = guideContactPhone ?? "+94 11 7311 611",
+                    chauffeurPhone = guideContactPhone ?? "+94 11 222 0000",
                     vehicle = new
                     {
                         modelName = vehicleModel,
