@@ -1,65 +1,93 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  MapPin, AlertTriangle, ShieldCheck, FileCode, Play, RefreshCw, Compass, CheckCircle2, XCircle, ChevronRight
+  MapPin, AlertTriangle, ShieldCheck, Play, RefreshCw, Compass, CheckCircle2,
+  XCircle, ChevronRight, CloudSun, Sun, CloudRain, Thermometer, Droplets, Loader2, Sparkles, ShieldAlert
 } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router';
 import { api } from '../../api/client';
 import { fadeInVariants, hoverLiftProps, buttonPressProps } from '../../utils/animations';
-import { PipelineStepperHeader } from '../../components/common/PipelineStepperHeader';
+
+interface WeatherDay {
+  date?: string;
+  condition: string;
+  tempMax: string;
+  tempMin: string;
+  rainMm: string;
+}
+
+interface Agent2Response {
+  destination: string;
+  weatherTimeline: {
+    yesterday: WeatherDay;
+    today: WeatherDay;
+    tomorrow: WeatherDay;
+  };
+  suitability: {
+    status: 'SUITABLE' | 'CAUTION' | 'NOT_RECOMMENDED';
+    suitabilityStatus?: 'SUITABLE' | 'CAUTION' | 'NOT_RECOMMENDED';
+    score: number;
+    suitabilityScore?: number;
+    verdict: string;
+    reasoning: string;
+    safetyTips: string[];
+  };
+}
 
 export const DestinationsSafetyPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const incomingTheme = searchParams.get('theme');
-  const incomingRoute = searchParams.get('route');
+  const incomingDest = searchParams.get('destination') || searchParams.get('dest') || searchParams.get('route') || searchParams.get('location') || '';
   const incomingPax = searchParams.get('pax');
   const incomingBudget = searchParams.get('budget');
 
-  const [selectedThemes, setSelectedThemes] = useState<string[]>(
-    incomingTheme ? incomingTheme.split(',').map((t) => t.trim()).filter(Boolean) : ['Tea Estates', 'Heritage', 'Coastal Riviera']
-  );
-  const [hazardSimActive, setHazardSimActive] = useState<boolean>(false);
+  const [targetDestination, setTargetDestination] = useState<string>(incomingDest || 'Mirissa');
   const [loading, setLoading] = useState<boolean>(false);
-  const [result, setResult] = useState<any>(null);
-  const [showRawJson, setShowRawJson] = useState<boolean>(false);
+  const [result, setResult] = useState<Agent2Response | null>(null);
 
-  const toggleTheme = (theme: string) => {
-    setSelectedThemes((prev) =>
-      prev.includes(theme) ? prev.filter((t) => t !== theme) : [...prev, theme]
-    );
-  };
+  useEffect(() => {
+    if (incomingDest && !targetDestination) {
+      setTargetDestination(incomingDest);
+    }
+  }, [incomingDest]);
 
-  const dispatchAgent2 = async (overrideHazard?: boolean) => {
-    const isSimActive = overrideHazard !== undefined ? overrideHazard : hazardSimActive;
+  const handleInspectSuitability = async (customDest?: string) => {
+    const destToInspect = (customDest || targetDestination || 'Mirissa').trim();
+    if (!destToInspect) return;
+
     setLoading(true);
     try {
-      const response = await api.post('/api/trips/evaluate-destinations', {
-        tripRequestId: `CM-GEOSPATIAL-${Date.now()}`,
-        regionsOrThemes: selectedThemes.length > 0 ? selectedThemes : ['Tea Estates', 'Heritage'],
-        interests: selectedThemes.length > 0 ? selectedThemes : ['Tea Estates', 'Heritage'],
-        startDate: new Date().toISOString().slice(0, 10),
-        endDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-        accessibilityConstraints: isSimActive
-          ? ['RESTRICT_HEAVY_MONSOON_FLOODING', 'HAZARD_LOCAL_GUIDE_ROADBLOCK']
-          : []
-      });
-      setResult(response.data);
+      let data: Agent2Response | null = null;
+      try {
+        const response = await api.post('/api/trips/agent2-destination-suitability-inspect', {
+          destination: destToInspect
+        });
+        data = response.data;
+      } catch (proxyErr) {
+        console.warn('Backend proxy failed, attempting direct AI service call:', proxyErr);
+        const directRes = await fetch('http://localhost:8000/agent/destination-suitability/inspect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ destination: destToInspect })
+        });
+        if (directRes.ok) {
+          data = await directRes.json();
+        }
+      }
+
+      if (data && data.weatherTimeline && data.suitability) {
+        setResult(data);
+      }
     } catch (err: any) {
-      setResult({ error: err?.message || 'Agent 2 Execution Failed' });
+      console.error('Agent 2 Inspection Error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    dispatchAgent2();
-  }, []);
-
   return (
     <div className="min-h-screen bg-[#0B132B]">
-      <PipelineStepperHeader currentStep={2} />
       <motion.div
         variants={fadeInVariants}
         initial="initial"
@@ -67,187 +95,309 @@ export const DestinationsSafetyPage: React.FC = () => {
         exit="exit"
         className="text-slate-100 py-10 px-4 md:px-8 font-sans selection:bg-[#C5A880] selection:text-[#0B132B]"
       >
-      <div className="max-w-6xl mx-auto space-y-8">
-        
-        {/* Page Header */}
-        <div className="p-6 sm:p-8 bg-gradient-to-r from-[#0F172A] via-[#1E293B] to-[#0F172A] border border-emerald-900/40 rounded-3xl shadow-2xl space-y-3 relative overflow-hidden">
-          <div className="flex items-center gap-2 font-mono text-xs text-cyan-400 font-bold uppercase tracking-wider">
-            <MapPin className="w-4 h-4 text-cyan-400" />
-            <span>Agent 02 • Geospatial & Safety Hub</span>
-            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[10px]">
-              Python AI Microservice (Port 8000)
-            </span>
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Page Header */}
+          <div className="p-6 sm:p-8 bg-gradient-to-r from-[#0F172A] via-[#1E293B] to-[#0F172A] border border-emerald-900/40 rounded-3xl shadow-2xl space-y-3 relative overflow-hidden">
+            <div className="flex items-center gap-2 font-mono text-xs text-emerald-400 font-bold uppercase tracking-wider">
+              <CloudSun className="w-4 h-4 text-emerald-400" />
+
+            </div>
+
+            <h1 className="text-3xl sm:text-4xl font-serif-luxury font-bold text-slate-100">
+              Destination Weather & Safety Hub
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
+              Analyzes real meteorological telemetry for Yesterday (historical wetness), Today (active radar), and Tomorrow (microclimate forecast) with Gemini AI terrain and viability assessment.
+            </p>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-serif-luxury font-bold text-slate-100">
-            Geospatial Suitability & Active Field Advisory Engine
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
-            Evaluates attraction suitability based on extracted travel themes, active weather advisories, and real-time hazard reports logged by certified Local Guides.
-          </p>
-        </div>
-
-        {/* Controls Panel */}
-        <div className="p-6 bg-slate-900/90 border border-emerald-900/40 rounded-3xl space-y-6 shadow-xl backdrop-blur-md">
-          <div className="space-y-3">
-            <label className="block text-xs font-mono text-slate-300 uppercase font-semibold">
-              Select Regional Themes & Attractions Focus:
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {['Tea Estates', 'Heritage', 'Coastal Riviera', 'Wildlife Safaris', 'Ayurveda Wellness', 'Scuba & Marine'].map((chip) => {
-                const active = selectedThemes.includes(chip);
-                return (
-                  <button
-                    key={chip}
-                    onClick={() => toggleTheme(chip)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-mono transition-all cursor-pointer ${
-                      active
-                        ? 'bg-cyan-950 border border-cyan-500/50 text-cyan-200 font-bold shadow'
-                        : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
-                    }`}
-                  >
-                    {chip} {active && '✓'}
-                  </button>
-                );
-              })}
+          {/* Clean Destination Input Controls Panel */}
+          <div className="p-6 bg-slate-900/90 border border-emerald-900/40 rounded-3xl space-y-5 shadow-xl backdrop-blur-md">
+            <div className="space-y-2">
+              <label className="block text-xs font-mono text-stone-300 uppercase font-semibold flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span>Enter Destination to Inspect Safety & Weather:</span>
+              </label>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  value={targetDestination}
+                  onChange={(e) => setTargetDestination(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleInspectSuitability();
+                  }}
+                  placeholder="Enter destination (e.g. Mirissa, Ella, Nuwara Eliya, Trincomalee)"
+                  className="flex-1 bg-[#0B132B] border border-slate-700 focus:border-emerald-400 rounded-2xl px-4 py-3.5 text-sm text-slate-100 placeholder-slate-500 font-mono outline-none transition shadow-inner"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleInspectSuitability()}
+                  disabled={loading || !targetDestination.trim()}
+                  className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-mono text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Analyzing Telemetry...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Check Weather & Safety Verdict</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Live Hazard Simulator Toggle */}
-          <div className="p-4 bg-[#0B132B] rounded-2xl border border-amber-500/40 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-              <div>
-                <span className="text-xs font-mono font-bold text-amber-200 block uppercase">
-                  Simulate Field Hazard & Roadblock Advisories
-                </span>
-                <span className="text-[11px] text-slate-400 block font-sans">
-                  Enforces safety advisory filtering for heavy monsoon flooding and Local Guide hazard reports.
+          {/* DYNAMIC RENDERING / LOADING / EMPTY STATE */}
+          {loading ? (
+            <div className="p-12 bg-slate-900/60 rounded-3xl border border-dashed border-slate-800 flex flex-col items-center justify-center text-center space-y-4 shadow-xl">
+              <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
+              <div className="space-y-1">
+                <p className="text-sm font-mono text-emerald-300 font-bold animate-pulse">
+                  Fetching live meteorological telemetry & evaluating terrain safety...
+                </p>
+                <span className="text-xs font-mono text-slate-400 block">
+                  Querying Open-Meteo precipitation radar & calculating Gemini suitability score for {targetDestination}
                 </span>
               </div>
             </div>
-
-            <button
-              onClick={() => {
-                const next = !hazardSimActive;
-                setHazardSimActive(next);
-                dispatchAgent2(next);
-              }}
-              className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
-                hazardSimActive
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
-                  : 'bg-slate-800 text-slate-400 border border-slate-700'
-              }`}
-            >
-              {hazardSimActive ? '⚠️ FIELD HAZARDS ACTIVE' : 'CLEAR WEATHER TRANSIT'}
-            </button>
-          </div>
-
-          {/* Action Button & Telemetry Toggle */}
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-800">
-            <button
-              onClick={() => setShowRawJson(!showRawJson)}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white font-mono text-xs flex items-center gap-1.5 cursor-pointer"
-            >
-              <FileCode className="w-4 h-4 text-[#D4AF37]" />
-              <span>{showRawJson ? 'Formatted Enterprise View' : '📋 Live Telemetry (JSON)'}</span>
-            </button>
-
-            <button
-              onClick={() => dispatchAgent2()}
-              disabled={loading}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-lg"
-            >
-              {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              <span>⚡ EXECUTE GEOSPATIAL SUITABILITY AGENT</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Live Output Section */}
-        {result && (
-          showRawJson ? (
-            <pre className="p-5 bg-slate-950 border border-cyan-500/40 rounded-3xl text-cyan-300 font-mono text-xs overflow-x-auto max-h-96 shadow-2xl">
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          ) : (
+          ) : result ? (
             <div className="space-y-6">
-              {/* Approved Destinations */}
-              <div className="p-6 bg-slate-900/90 border border-emerald-900/40 rounded-3xl space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                    <h3 className="text-base font-serif-luxury font-bold text-slate-100">
-                      Approved Candidate Destinations ({result.selectedCandidates?.length || 0})
-                    </h3>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-bold uppercase">
-                    Safety Cleared
+              {/* 1. THREE DYNAMIC 3-DAY WEATHER CARDS */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-bold text-[#C5A880] uppercase tracking-wider flex items-center gap-1.5">
+                    <Thermometer className="w-4 h-4 text-[#D4AF37]" />
+                    <span>3-Day Real Meteorological Timeline ({result.destination})</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-stone-400">
+                    Open-Meteo Verified Radar
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {result.selectedCandidates?.map((c: any, idx: number) => (
-                    <div key={idx} className="p-4 bg-[#0B132B] border border-slate-800 hover:border-cyan-500/40 rounded-2xl space-y-2 transition-all shadow-md">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-serif-luxury font-bold text-sm text-slate-100">{c.destinationName}</h4>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-500/30 font-bold">
-                          Score: {c.suitabilityScore}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Yesterday Card */}
+                  <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3 shadow-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                          <span>📅 YESTERDAY</span>
                         </span>
+                        {result.weatherTimeline.yesterday.date && (
+                          <span className="text-[10px] font-mono text-slate-500 block">{result.weatherTimeline.yesterday.date}</span>
+                        )}
                       </div>
-                      <div className="text-[11px] font-mono text-slate-400 space-y-0.5">
-                        <p>Region: <span className="text-slate-200">{c.region}</span></p>
-                        <p>Category: <span className="text-slate-200">{c.category}</span></p>
-                        {c.weatherSummary && <p className="text-emerald-400">🌤️ {c.weatherSummary}</p>}
+                      <span className="px-2 py-0.5 rounded text-[9px] font-mono bg-slate-800 text-slate-300 border border-slate-700 font-semibold">
+                        Historical
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <CloudSun className="w-4 h-4 text-amber-400" />
+                        <h5 className="font-serif font-bold text-slate-100 text-sm">{result.weatherTimeline.yesterday.condition}</h5>
                       </div>
                     </div>
-                  ))}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-[11px] font-mono">
+                      <div>
+                        <span className="text-[9px] text-slate-500 uppercase block">Temp Range</span>
+                        <span className="text-slate-200 font-bold">
+                          {result.weatherTimeline.yesterday.tempMin} - {result.weatherTimeline.yesterday.tempMax}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-500 uppercase block">Rainfall</span>
+                        <span className="text-[#D4AF37] font-bold">{result.weatherTimeline.yesterday.rainMm}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Today Card */}
+                  <div className="p-5 rounded-2xl bg-slate-900/90 border border-emerald-500/40 ring-1 ring-emerald-500/20 shadow-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                          <span>☀️ TODAY</span>
+                        </span>
+                        {result.weatherTimeline.today.date && (
+                          <span className="text-[10px] font-mono text-emerald-500/80 block">{result.weatherTimeline.today.date}</span>
+                        )}
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[9px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-bold">
+                        Active Telemetry
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Sun className="w-4 h-4 text-emerald-400" />
+                        <h5 className="font-serif font-bold text-slate-100 text-sm">{result.weatherTimeline.today.condition}</h5>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-[11px] font-mono">
+                      <div>
+                        <span className="text-[9px] text-slate-500 uppercase block">Temp Range</span>
+                        <span className="text-emerald-300 font-bold">
+                          {result.weatherTimeline.today.tempMin} - {result.weatherTimeline.today.tempMax}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-500 uppercase block">Rainfall</span>
+                        <span className="text-[#D4AF37] font-bold">{result.weatherTimeline.today.rainMm}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tomorrow Card */}
+                  <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3 shadow-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                          <span>🌤️ TOMORROW</span>
+                        </span>
+                        {result.weatherTimeline.tomorrow.date && (
+                          <span className="text-[10px] font-mono text-slate-500 block">{result.weatherTimeline.tomorrow.date}</span>
+                        )}
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[9px] font-mono bg-slate-800 text-slate-300 border border-slate-700 font-semibold">
+                        Micro Forecast
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <CloudRain className="w-4 h-4 text-sky-400" />
+                        <h5 className="font-serif font-bold text-slate-100 text-sm">{result.weatherTimeline.tomorrow.condition}</h5>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-[11px] font-mono">
+                      <div>
+                        <span className="text-[9px] text-slate-500 uppercase block">Temp Range</span>
+                        <span className="text-slate-200 font-bold">
+                          {result.weatherTimeline.tomorrow.tempMin} - {result.weatherTimeline.tomorrow.tempMax}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-500 uppercase block">Rainfall</span>
+                        <span className="text-[#D4AF37] font-bold">{result.weatherTimeline.tomorrow.rainMm}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Restricted / Rejected Destinations */}
-              {result.rejectedCandidates && result.rejectedCandidates.length > 0 && (
-                <div className="p-6 bg-rose-950/40 border border-rose-500/40 rounded-3xl space-y-4 shadow-xl">
-                  <div className="flex items-center gap-2 border-b border-rose-900/50 pb-3">
-                    <XCircle className="w-5 h-5 text-rose-400" />
-                    <h3 className="text-base font-serif-luxury font-bold text-rose-200">
-                      Restricted / Filtered Destinations ({result.rejectedCandidates.length})
-                    </h3>
+              {/* 2. SUITABILITY VERDICT BANNER */}
+              <div className="p-6 sm:p-8 bg-slate-900/90 rounded-3xl border border-emerald-900/40 space-y-5 shadow-2xl">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold uppercase border tracking-wider ${(result.suitability.status || result.suitability.suitabilityStatus) === 'SUITABLE'
+                        ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
+                        : (result.suitability.status || result.suitability.suitabilityStatus) === 'CAUTION'
+                          ? 'bg-amber-950 text-amber-300 border-amber-500/40'
+                          : 'bg-rose-950 text-rose-300 border-rose-500/40'
+                        }`}
+                    >
+                      {result.suitability.status || result.suitability.suitabilityStatus}
+                    </span>
+                    <span className="text-xs font-mono text-slate-400">
+                      Viability & Safety Verdict
+                    </span>
                   </div>
 
-                  <div className="space-y-2">
-                    {result.rejectedCandidates.map((r: any, idx: number) => (
-                      <div key={idx} className="p-3 bg-[#0B132B] border border-rose-900/60 rounded-xl flex items-center justify-between text-xs font-mono">
-                        <span className="font-bold text-rose-200">{r.destinationName} ({r.region})</span>
-                        <span className="text-rose-400 italic text-[11px]">{r.rejectionReason || 'Restricted by active field advisory'}</span>
-                      </div>
-                    ))}
+                  <div className="flex items-center gap-2 font-mono">
+                    <span className="text-xs text-slate-400 uppercase">Suitability Score:</span>
+                    <span className="text-xl font-bold text-[#D4AF37]">
+                      {result.suitability.score ?? result.suitability.suitabilityScore}%
+                    </span>
                   </div>
                 </div>
-              )}
+
+                {/* Progress Bar for Score */}
+                <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-800">
+                  <div
+                    className={`h-full transition-all duration-700 ${(result.suitability.status || result.suitability.suitabilityStatus) === 'SUITABLE'
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                      : (result.suitability.status || result.suitability.suitabilityStatus) === 'CAUTION'
+                        ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
+                        : 'bg-gradient-to-r from-rose-500 to-red-400'
+                      }`}
+                    style={{ width: `${result.suitability.score ?? result.suitability.suitabilityScore ?? 90}%` }}
+                  />
+                </div>
+
+                {/* Verdict */}
+                <div className="space-y-1.5">
+                  <span className="text-xs font-mono text-[#C5A880] uppercase tracking-wider block font-bold">
+                    Meteorological Verdict:
+                  </span>
+                  <p className="text-sm text-slate-100 font-medium leading-relaxed bg-[#0B132B] p-4 rounded-2xl border border-slate-800">
+                    {result.suitability.verdict}
+                  </p>
+                </div>
+
+                {/* Reasoning */}
+                <div className="space-y-1.5">
+                  <span className="text-xs font-mono text-slate-400 uppercase tracking-wider block font-bold">
+                    Terrain & Safety Analysis:
+                  </span>
+                  <p className="text-xs text-slate-300 leading-relaxed bg-[#0B132B] p-4 rounded-2xl border border-slate-800">
+                    {result.suitability.reasoning}
+                  </p>
+                </div>
+
+                {/* Safety Tips List */}
+                {result.suitability.safetyTips && result.suitability.safetyTips.length > 0 && (
+                  <div className="space-y-2.5 pt-2">
+                    <span className="text-xs font-mono text-emerald-400 uppercase tracking-wider block font-bold flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Actionable Safety Advisories:</span>
+                    </span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {result.suitability.safetyTips.map((tip, tIdx) => (
+                        <div
+                          key={tIdx}
+                          className="p-3.5 bg-[#0B132B] rounded-2xl border border-slate-800 flex items-start gap-2.5 text-xs text-slate-200 font-sans"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                          <span className="leading-relaxed">{tip}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Handoff to Stage 03 Capacity & Fleet Dispatch */}
+              <div className="p-6 bg-slate-900/90 border border-emerald-900/50 rounded-3xl shadow-xl">
+                <button
+                  onClick={() => {
+                    const activeRoute = `Colombo -> ${result.destination}`;
+                    const activePax = incomingPax || 2;
+                    const activeBudget = incomingBudget || 3500;
+                    navigate(`/operations/capacity-dispatch?route=${encodeURIComponent(activeRoute)}&pax=${activePax}&budget=${activeBudget}&destination=${encodeURIComponent(result.destination)}`);
+                  }}
+                  className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white font-mono font-bold text-xs sm:text-sm uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all border border-emerald-400/40"
+                >
+                  <span>⚡ HANDOFF TO STAGE 03: CAPACITY & FLEET DISPATCH ➔</span>
+                </button>
+              </div>
             </div>
-          )
-        )}
+          ) : (
+            <div className="p-12 bg-slate-900/60 rounded-3xl border border-dashed border-slate-800 flex flex-col items-center justify-center text-center space-y-3 shadow-xl">
+              <CloudSun className="w-12 h-12 text-slate-600" />
+              <div className="space-y-1">
+                <p className="text-sm font-mono text-slate-300 font-bold">
+                  Enter any destination to analyze Yesterday, Today, and Tomorrow's live weather & suitability.
+                </p>
 
-        {/* PROMINENT HANDOFF TO STAGE 03 */}
-        {result && (
-          <div className="p-6 bg-slate-900/90 border border-emerald-900/50 rounded-3xl shadow-xl">
-            <button
-              onClick={() => {
-                const activeRoute = incomingRoute || 'Colombo -> Kandy -> Nuwara Eliya -> Yala';
-                const activePax = incomingPax || 2;
-                const activeBudget = incomingBudget || 3500;
-                navigate(`/operations/capacity-dispatch?route=${encodeURIComponent(activeRoute)}&pax=${activePax}&budget=${activeBudget}&theme=${encodeURIComponent(selectedThemes.join(','))}`);
-              }}
-              className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white font-mono font-bold text-xs sm:text-sm uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all border border-emerald-400/40"
-            >
-              <span>⚡ HANDOFF TO STAGE 03: CAPACITY & FLEET DISPATCH ➔</span>
-            </button>
-          </div>
-        )}
-
-      </div>
-    </motion.div>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
     </div>
   );
 };
+
+export default DestinationsSafetyPage;

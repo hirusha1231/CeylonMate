@@ -59,7 +59,6 @@ export const QuickInquiryBar: React.FC = () => {
 
   // Field 3: Guests Counter
   const [adults, setAdults] = useState<number>(2);
-  const [children, setChildren] = useState<number>(0);
 
   // Field 4: Travel Style
   const [selectedStyle, setSelectedStyle] = useState<StyleOption>(STYLES[0]);
@@ -148,7 +147,7 @@ export const QuickInquiryBar: React.FC = () => {
   const handleExploreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setActivePopover(null);
-    const guestsSummary = `${adults} Adults${children > 0 ? `, ${children} Children` : ''}`;
+    const guestsSummary = `${adults} Guest${adults > 1 ? 's' : ''}`;
     const params = new URLSearchParams({
       region: selectedRegion.title,
       dates: formattedDateRange(),
@@ -371,7 +370,7 @@ export const QuickInquiryBar: React.FC = () => {
             } hover:border-[#C5A880]/70 rounded-xl px-3.5 py-3 text-left transition-all flex items-center justify-between group`}
           >
             <span className="text-xs font-semibold text-stone-100 truncate pr-2">
-              {adults} Adult{adults > 1 ? 's' : ''}{children > 0 ? `, ${children} Child${children > 1 ? 'ren' : ''}` : ''}
+              {adults} Guest{adults > 1 ? 's' : ''}
             </span>
             <ChevronDown className={`w-3.5 h-3.5 text-[#C5A880] shrink-0 transition-transform ${
               activePopover === 'guests' ? 'rotate-180' : ''
@@ -392,11 +391,11 @@ export const QuickInquiryBar: React.FC = () => {
                   Traveler Party Composition
                 </div>
 
-                {/* Adults Stepper */}
+                {/* Guests Stepper */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-xs font-bold text-stone-100">Adults</div>
-                    <div className="text-[10px] text-stone-400">Ages 12+</div>
+                    <div className="text-xs font-bold text-stone-100">Number of Guests</div>
+                    <div className="text-[10px] text-stone-400">Total Party (Pax)</div>
                   </div>
                   <div className="flex items-center gap-3 bg-slate-900 p-1 rounded-xl border border-stone-700">
                     <button
@@ -410,35 +409,8 @@ export const QuickInquiryBar: React.FC = () => {
                     <span className="text-xs font-bold w-4 text-center">{adults}</span>
                     <button
                       type="button"
-                      disabled={adults >= 12}
-                      onClick={() => setAdults((prev) => Math.min(12, prev + 1))}
-                      className="p-1 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800 disabled:opacity-30"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Children Stepper */}
-                <div className="flex items-center justify-between border-t border-stone-800 pt-3">
-                  <div>
-                    <div className="text-xs font-bold text-stone-100">Children</div>
-                    <div className="text-[10px] text-stone-400">Ages 2-11</div>
-                  </div>
-                  <div className="flex items-center gap-3 bg-slate-900 p-1 rounded-xl border border-stone-700">
-                    <button
-                      type="button"
-                      disabled={children <= 0}
-                      onClick={() => setChildren((prev) => Math.max(0, prev - 1))}
-                      className="p-1 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800 disabled:opacity-30"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="text-xs font-bold w-4 text-center">{children}</span>
-                    <button
-                      type="button"
-                      disabled={children >= 6}
-                      onClick={() => setChildren((prev) => Math.min(6, prev + 1))}
+                      disabled={adults >= 20}
+                      onClick={() => setAdults((prev) => Math.min(20, prev + 1))}
                       className="p-1 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800 disabled:opacity-30"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -451,7 +423,7 @@ export const QuickInquiryBar: React.FC = () => {
                   <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
                     <span className="font-bold text-[#C5A880] block">Chauffeur Fleet Recommendation:</span>
-                    {adults + children <= 3
+                    {adults <= 3
                       ? '1-3 Guests: Mercedes-Benz E-Class Prestige Sedan'
                       : '4-6 Guests: Executive Toyota KDH Super GL VIP Van'}
                   </div>

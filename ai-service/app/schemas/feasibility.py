@@ -60,3 +60,37 @@ class FeasibilityCheckResponse(BaseModel):
     conflicts: List[str]
     active_circuit: Optional[str] = None
 
+
+class RouteOption(BaseModel):
+    id: str = "route_1"
+    name: str
+    via: str
+    distanceKm: float
+    estimatedDuration: str
+    terrainType: str
+    elevationMultiplier: str
+    isFastest: bool = True
+    keyHighlightsOrStops: List[str] = Field(default_factory=list)
+
+
+class DispatchedVehicle(BaseModel):
+    vehicleType: str
+    model: str
+    maxPax: int
+    luggageCapacity: int
+    terrainSuitabilityNote: str
+    estimatedDailyRateLkr: float
+
+
+class RouteLogisticsRequest(BaseModel):
+    origin: str
+    destination: str
+    passengers: Optional[int] = 2
+
+
+class RouteLogisticsResponse(BaseModel):
+    origin: str
+    destination: str
+    routes: List[RouteOption] = Field(default_factory=list)
+    dispatchedFleet: List[DispatchedVehicle] = Field(default_factory=list)
+

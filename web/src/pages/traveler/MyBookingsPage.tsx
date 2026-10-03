@@ -688,18 +688,17 @@ export const MyBookingsPage: React.FC = () => {
                                 Dedicated Private Guide
                               </span>
                             </div>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
-                              selectedBooking.guideAssignmentStatus === 'ACCEPTED_BY_GUIDE'
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${selectedBooking.guideAssignmentStatus === 'ACCEPTED_BY_GUIDE'
                                 ? 'bg-emerald-950 text-emerald-300 border-emerald-500/30'
                                 : selectedBooking.guideAssignmentStatus === 'REJECTED_BY_GUIDE'
-                                ? 'bg-rose-950 text-rose-300 border-rose-500/30'
-                                : 'bg-amber-950 text-amber-300 border-amber-500/30 animate-pulse'
-                            }`}>
+                                  ? 'bg-rose-950 text-rose-300 border-rose-500/30'
+                                  : 'bg-amber-950 text-amber-300 border-amber-500/30 animate-pulse'
+                              }`}>
                               {selectedBooking.guideAssignmentStatus === 'ACCEPTED_BY_GUIDE'
                                 ? '✓ Guide Confirmed'
                                 : selectedBooking.guideAssignmentStatus === 'REJECTED_BY_GUIDE'
-                                ? '⚠️ Guide Unavailable'
-                                : '⏳ Pending Guide Acceptance'}
+                                  ? '⚠️ Guide Unavailable'
+                                  : '⏳ Pending Guide Acceptance'}
                             </span>
                           </div>
 
@@ -749,13 +748,12 @@ export const MyBookingsPage: React.FC = () => {
                               <h4 className="text-stone-100 font-semibold font-mono text-xs uppercase tracking-wider">
                                 Estimated Tour Budget
                               </h4>
-                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
-                                selectedBooking.status === 'CONFIRMED'
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${selectedBooking.status === 'CONFIRMED'
                                   ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
                                   : selectedBooking.status === 'APPROVED_PENDING_PAYMENT'
-                                  ? 'bg-amber-950 text-amber-300 border-amber-500/40 animate-pulse'
-                                  : 'bg-slate-800 text-stone-300 border-stone-700'
-                              }`}>
+                                    ? 'bg-amber-950 text-amber-300 border-amber-500/40 animate-pulse'
+                                    : 'bg-slate-800 text-stone-300 border-stone-700'
+                                }`}>
                                 {selectedBooking.status === 'CONFIRMED' ? '✓ Fully Paid' : selectedBooking.status === 'APPROVED_PENDING_PAYMENT' ? 'Ready to Pay' : 'Concierge Quote'}
                               </span>
                             </div>
@@ -838,7 +836,7 @@ export const MyBookingsPage: React.FC = () => {
 
                       <div className="pt-4 border-t border-stone-800 flex justify-between items-center text-[11px] font-mono text-stone-500">
                         <span>SLTDA Guaranteed Operator #01492</span>
-                        <span>24/7 Concierge Hotline: +94 11 7311 611</span>
+                        <span>24/7 Concierge Hotline: +94 11 222 0000</span>
                       </div>
                     </div>
                   ) : (

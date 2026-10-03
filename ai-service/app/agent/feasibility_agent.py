@@ -1,9 +1,11 @@
 import math
 import re
 from typing import Dict, Any, List, Tuple
+from app.core.llm import generate_gemini_json, generate_gemini_text
 from app.schemas.feasibility import (
     FeasibilityCheckRequest, FeasibilityCheckResponse, FeasibilityStatus,
-    ItemFeasibilityResult, RouteSummary, RouteLeg, ResourceType
+    ItemFeasibilityResult, RouteSummary, RouteLeg, ResourceType,
+    RouteLogisticsRequest, RouteLogisticsResponse, RouteOption, DispatchedVehicle
 )
 from app.tools.capacity_tools import (
     search_guide_availability, search_transport_slots, search_attraction_slots,
@@ -34,8 +36,6 @@ DESTINATION_COORDS = {
 
 MOUNTAIN_DESTINATIONS = {"nuwara eliya", "kandy", "ella", "sinharaja", "central highlands"}
 
-# Comprehensive GIS Route Matrix for Sri Lanka
-# Key tuple: (origin_key, dest_key) -> (distance_km, base_duration_minutes, elevation_factor)
 SRI_LANKA_ROUTE_MATRIX: Dict[Tuple[str, str], Tuple[float, float, float]] = {
     ("colombo", "kandy"): (115.0, 195.0, 1.25),         # Kadugannawa Pass
     ("colombo", "galle"): (125.0, 120.0, 1.00),         # Southern Expressway
@@ -72,6 +72,7 @@ SRI_LANKA_ROUTE_MATRIX: Dict[Tuple[str, str], Tuple[float, float, float]] = {
     ("anuradhapura", "sigiriya"): (75.0, 90.0, 1.05),
 }
 
+
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     R = 6371.0
     dlat = math.radians(lat2 - lat1)
@@ -80,8 +81,8 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
     return R * c
 
+
 def get_leg_telemetry(origin: str, dest: str, coords_dict: Dict[str, Tuple[float, float]]) -> Tuple[float, float, float]:
-    """Retrieves distance (km), base duration (mins), and elevation factor for any pair."""
     k1 = origin.lower().strip()
     k2 = dest.lower().strip()
 
@@ -90,7 +91,6 @@ def get_leg_telemetry(origin: str, dest: str, coords_dict: Dict[str, Tuple[float
     if (k2, k1) in SRI_LANKA_ROUTE_MATRIX:
         return SRI_LANKA_ROUTE_MATRIX[(k2, k1)]
 
-    # Alias normalization
     n1 = k1.replace(" riviera", "").replace("cultural triangle", "sigiriya")
     n2 = k2.replace(" riviera", "").replace("cultural triangle", "sigiriya")
 
@@ -99,7 +99,6 @@ def get_leg_telemetry(origin: str, dest: str, coords_dict: Dict[str, Tuple[float
     if (n2, n1) in SRI_LANKA_ROUTE_MATRIX:
         return SRI_LANKA_ROUTE_MATRIX[(n2, n1)]
 
-    # Dynamic Haversine calculation with Sri Lanka road circuity factor
     c1 = coords_dict.get(k1) or coords_dict.get(n1) or (6.9271, 79.8612)
     c2 = coords_dict.get(k2) or coords_dict.get(n2) or (7.2906, 80.6337)
 
@@ -161,7 +160,6 @@ class ResourceFeasibilityAgent:
         circuit_raw = req.circuit_route or "Colombo -> Kandy -> Nuwara Eliya -> Yala"
         circuit_legs: List[RouteLeg] = []
         
-        # Tokenize circuit waypoints
         tokens = [t.strip() for t in re.split(r"->|→|;|,", circuit_raw) if t.strip()]
         waypoints = [re.sub(r"\(.*?\)", "", tok).strip() for tok in tokens if tok]
 
@@ -185,7 +183,6 @@ class ResourceFeasibilityAgent:
                 if leg_elev > 1.10:
                     has_mountain_route = True
 
-                # Format leg duration
                 l_hrs = int(leg_base_dur // 60)
                 l_mins = int(leg_base_dur % 60)
                 l_fmt = f"{l_hrs}h {l_mins:02d}m" if l_hrs > 0 else f"{l_mins}m"
@@ -198,7 +195,6 @@ class ResourceFeasibilityAgent:
                     formatted_duration=l_fmt
                 ))
         else:
-            # Fallback default single route telemetry if 1 or 0 waypoints passed
             leg_dist, leg_base_dur, leg_elev = get_leg_telemetry("Colombo", "Kandy", coords_dict)
             total_dist_km = leg_dist
             total_dur_mins = leg_base_dur * leg_elev
@@ -214,15 +210,14 @@ class ResourceFeasibilityAgent:
 
         # Terrain Elevation Factor string
         if max_elev_factor >= 1.30:
-            elevation_factor_str = f"{max_elev_factor:.2f}x Steep Hill Climb Active (Nuwara Eliya / Ella Highway)"
+            elevation_factor_str = f"{max_elev_factor:.2f}x Steep Hill Climb Active (Nuwara Eliya / Ella Mountain Corridor)"
         elif max_elev_factor >= 1.20:
-            elevation_factor_str = f"{max_elev_factor:.2f}x Mountain Precision Active (Kadugannawa / Pass)"
+            elevation_factor_str = f"{max_elev_factor:.2f}x Mountain Precision Active (Kadugannawa Pass Corridor)"
         elif max_elev_factor > 1.00:
             elevation_factor_str = f"{max_elev_factor:.2f}x Highway Precision Transit"
         else:
             elevation_factor_str = "1.00x Flat Coastal Highway Matrix"
 
-        # Format overall driving transit time
         tot_hrs = int(total_dur_mins // 60)
         tot_mins = int(total_dur_mins % 60)
         formatted_driving_time = f"{tot_hrs}h {tot_mins:02d}m" if tot_hrs > 0 else f"{tot_mins}m"
@@ -232,10 +227,8 @@ class ResourceFeasibilityAgent:
         matching_vehicle = None
 
         if fleet_items:
-            # Filter for active vehicles with sufficient passenger capacity
             eligible = [v for v in fleet_items if v.get("maxPassengers", 0) >= pax or v.get("MaxPassengers", 0) >= pax]
             if eligible:
-                # Sort by passenger capacity closest to requested pax count
                 eligible.sort(key=lambda x: x.get("maxPassengers", x.get("MaxPassengers", 99)))
                 matching_vehicle = eligible[0]
 
@@ -252,11 +245,23 @@ class ResourceFeasibilityAgent:
             else:
                 recommended_vehicle = "Toyota Coaster VIP Minibus (VIP COACH TRANSPORT - Up to 14 Pax)"
 
-        # 5. Driver Rest & Safety Telemetry
-        if total_dur_mins >= 240:
-            rest_note = "Mandatory 30-min chauffeur rest stop scheduled at midpoint to enforce SLTDA safety standards."
-        else:
-            rest_note = "Continuous drive within safety limits."
+        # 5. Gemini Logistics Reasoning Brief
+        gemini_prompt = f"""
+Given this Sri Lanka luxury route and resource deployment:
+Route Circuit: {circuit_raw}
+Total Distance: {total_dist_km:.1f} km, Estimated Drive Time: {formatted_driving_time}
+Terrain Elevation Factor: {elevation_factor_str} (Is Mountain Route: {has_mountain_route})
+Party Size: {pax} passengers
+Assigned Vehicle: {recommended_vehicle}
+
+Generate a concise, high-end logistics brief (1-2 sentences) explaining why this vehicle and transit pacing ensure maximum luxury and safety for this route.
+"""
+        driver_rest_text = "Mandatory 30-min chauffeur rest stop scheduled at midpoint to enforce SLTDA safety standards." if total_dur_mins >= 240 else "Continuous drive within safety limits."
+        
+        gemini_brief = await generate_gemini_text(
+            prompt=gemini_prompt,
+            system_instruction="You are CeylonMate's Agent 3: Senior Logistics & Dispatch Officer. Output concise, professional transit briefing."
+        )
 
         overall = FeasibilityStatus.FEASIBLE if not conflicts else FeasibilityStatus.PARTIALLY_FEASIBLE
 
@@ -270,7 +275,7 @@ class ResourceFeasibilityAgent:
                 terrain_elevation_factor=elevation_factor_str,
                 is_mountain_route=has_mountain_route,
                 recommended_fleet_vehicle=recommended_vehicle,
-                driver_rest_recommendation=rest_note,
+                driver_rest_recommendation=gemini_brief or driver_rest_text,
                 capacity_guarantee_status="100% Guaranteed Licensed Guide & Fleet Capacity Reserved",
                 is_fallback=False,
                 legs=circuit_legs
@@ -278,5 +283,96 @@ class ResourceFeasibilityAgent:
             conflicts=conflicts,
             active_circuit=circuit_raw
         )
+
+    async def compute_route_logistics(self, req: RouteLogisticsRequest) -> RouteLogisticsResponse:
+        origin = req.origin.strip()
+        destination = req.destination.strip()
+        passengers = req.passengers or 2
+
+        llm_prompt = f"""You are Agent 3: Route Logistics & Fleet Dispatcher for Sri Lanka.
+Origin: '{origin}'
+Destination: '{destination}'
+Passengers: {passengers}
+Analyze the terrain, roads, and transit between these two points in Sri Lanka.
+Return ONLY a valid JSON object matching this schema:
+{{
+  "origin": "{origin}",
+  "destination": "{destination}",
+  "routes": [
+    {{
+      "id": "route_1",
+      "name": "<Real route name, e.g. Southern Expressway or A2 Coastal Road>",
+      "via": "<Key cities/interchanges passed>",
+      "distanceKm": 125,
+      "estimatedDuration": "<e.g. 2h 15m>",
+      "terrainType": "<e.g. Flat Highway, Winding Incline, Coastal Traffic>",
+      "elevationMultiplier": "<e.g. 1.0x, 1.25x>",
+      "isFastest": true,
+      "keyHighlightsOrStops": ["<stop 1>", "<stop 2>"]
+    }}
+  ],
+  "dispatchedFleet": [
+    {{
+      "vehicleType": "<e.g. Luxury Sedan, High-Roof VIP Van, 4WD SUV>",
+      "model": "<e.g. Toyota Premio/Allion, Toyota KDH Super GL, Land Cruiser Prado>",
+      "maxPax": 4,
+      "luggageCapacity": 3,
+      "terrainSuitabilityNote": "<Why this vehicle fits this route>",
+      "estimatedDailyRateLkr": 35000
+    }}
+  ]
+}}"""
+
+        print(f"\n[AGENT 3 LOGISTICS] Computing route from '{origin}' to '{destination}' for {passengers} pax...")
+        gemini_res = await generate_gemini_json(
+            prompt=llm_prompt,
+            system_instruction="You are Agent 3: Route Logistics & Fleet Dispatcher for Sri Lanka. Analyze real Sri Lankan geography, actual highways/roads, realistic travel times, and recommend realistic vehicles. Return ONLY pure JSON matching the schema."
+        )
+        print(f"[AGENT 3 LOGISTICS] Raw Gemini JSON: {gemini_res}")
+
+        if gemini_res and isinstance(gemini_res, dict):
+            routes_data = gemini_res.get("routes") or []
+            fleet_data = gemini_res.get("dispatchedFleet") or []
+            
+            routes = []
+            for idx, r in enumerate(routes_data):
+                routes.append(RouteOption(
+                    id=str(r.get("id") or f"route_{idx + 1}"),
+                    name=str(r.get("name") or ""),
+                    via=str(r.get("via") or ""),
+                    distanceKm=float(r.get("distanceKm") or 0),
+                    estimatedDuration=str(r.get("estimatedDuration") or ""),
+                    terrainType=str(r.get("terrainType") or ""),
+                    elevationMultiplier=str(r.get("elevationMultiplier") or "1.0x"),
+                    isFastest=bool(r.get("isFastest", True)),
+                    keyHighlightsOrStops=list(r.get("keyHighlightsOrStops") or [])
+                ))
+            
+            dispatched_fleet = []
+            for f in fleet_data:
+                dispatched_fleet.append(DispatchedVehicle(
+                    vehicleType=str(f.get("vehicleType") or ""),
+                    model=str(f.get("model") or ""),
+                    maxPax=int(f.get("maxPax") or passengers),
+                    luggageCapacity=int(f.get("luggageCapacity") or 0),
+                    terrainSuitabilityNote=str(f.get("terrainSuitabilityNote") or ""),
+                    estimatedDailyRateLkr=float(f.get("estimatedDailyRateLkr") or 0)
+                ))
+            
+            return RouteLogisticsResponse(
+                origin=str(gemini_res.get("origin") or origin),
+                destination=str(gemini_res.get("destination") or destination),
+                routes=routes,
+                dispatchedFleet=dispatched_fleet
+            )
+
+        # In case of empty LLM response, return empty response (Zero hardcoding)
+        return RouteLogisticsResponse(
+            origin=origin,
+            destination=destination,
+            routes=[],
+            dispatchedFleet=[]
+        )
+
 
 feasibility_agent = ResourceFeasibilityAgent()

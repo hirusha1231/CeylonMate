@@ -752,7 +752,8 @@ export const PaymentGatewayPage: React.FC = () => {
             </div>
 
             {/* EMBEDDED PRINT STYLES - PRESERVES FULL COLOR AND LUXURY GRADIENTS IN PRINT */}
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style dangerouslySetInnerHTML={{
+              __html: `
               @media print {
                 * {
                   -webkit-print-color-adjust: exact !important;
@@ -879,7 +880,7 @@ export const PaymentGatewayPage: React.FC = () => {
                     <Calendar className="w-4 h-4 text-[#D4AF37]" />
                     <span>Expedition & Itinerary Details</span>
                   </h4>
-                  
+
                   <div className="space-y-2 font-sans">
                     <div className="flex justify-between py-1 border-b border-stone-800/60">
                       <span className="text-stone-400">Expedition Plan:</span>
@@ -1009,7 +1010,7 @@ export const PaymentGatewayPage: React.FC = () => {
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
                     <span>Certified Digital Security Seal</span>
                   </p>
-                  <p className="text-[11px] text-[#D4AF37]">24/7 Concierge Hotline: +94 11 7311 611</p>
+                  <p className="text-[11px] text-[#D4AF37]">24/7 Concierge Hotline: +94 11 222 0000</p>
                 </div>
               </div>
             </div>
