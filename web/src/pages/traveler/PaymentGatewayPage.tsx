@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck, Lock, CreditCard, CheckCircle2, ArrowLeft,
   Sparkles, Clock, RefreshCw, Car, User, Calendar, Users,
   QrCode, Building2, Smartphone, AlertCircle, Printer, Download,
-  Check, ChevronRight, ExternalLink, HelpCircle, Receipt, FileText
+  Check, ChevronRight, ChevronLeft, ExternalLink, HelpCircle, Receipt, FileText
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
@@ -23,13 +23,74 @@ export const PaymentGatewayPage: React.FC = () => {
   const [booking, setBooking] = useState<any>(null);
 
   // Payment Form State
-  const [paymentMethod, setPaymentMethod] = useState<'CARD' | 'WALLET' | 'BANK_QR'>('CARD');
   const [cardNumber, setCardNumber] = useState<string>('');
   const [cardHolder, setCardHolder] = useState<string>('');
   const [expiryDate, setExpiryDate] = useState<string>('');
   const [cvv, setCvv] = useState<string>('');
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
-  const [saveCard, setSaveCard] = useState<boolean>(true);
+
+  // Expiry Calendar Popover State
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1; // 1-12
+  const [selectedPickerYear, setSelectedPickerYear] = useState<number>(currentYear);
+
+  const MONTHS = [
+    { num: 1, label: '01', name: 'Jan' },
+    { num: 2, label: '02', name: 'Feb' },
+    { num: 3, label: '03', name: 'Mar' },
+    { num: 4, label: '04', name: 'Apr' },
+    { num: 5, label: '05', name: 'May' },
+    { num: 6, label: '06', name: 'Jun' },
+    { num: 7, label: '07', name: 'Jul' },
+    { num: 8, label: '08', name: 'Aug' },
+    { num: 9, label: '09', name: 'Sep' },
+    { num: 10, label: '10', name: 'Oct' },
+    { num: 11, label: '11', name: 'Nov' },
+    { num: 12, label: '12', name: 'Dec' },
+  ];
+
+  // Close calendar popover on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+    if (showDatePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDatePicker]);
+
+  const isDateExpired = (val: string): boolean => {
+    if (!val || val.length < 5 || !val.includes('/')) return false;
+    const [mStr, yStr] = val.split('/');
+    const m = parseInt(mStr, 10);
+    const y = parseInt('20' + yStr, 10);
+    if (isNaN(m) || isNaN(y) || m < 1 || m > 12) return true;
+    if (y < currentYear) return true;
+    if (y === currentYear && m < currentMonth) return true;
+    return false;
+  };
+
+  const isMonthDisabled = (monthNum: number, year: number): boolean => {
+    if (year < currentYear) return true;
+    if (year === currentYear && monthNum < currentMonth) return true;
+    return false;
+  };
+
+  const handleSelectMonthYear = (monthNum: number, year: number) => {
+    if (isMonthDisabled(monthNum, year)) return;
+    const mm = monthNum.toString().padStart(2, '0');
+    const yy = year.toString().slice(-2);
+    setExpiryDate(`${mm}/${yy}`);
+    setShowDatePicker(false);
+  };
 
   // 3D Secure / OTP Simulation
   const [showOtpModal, setShowOtpModal] = useState<boolean>(false);
@@ -139,32 +200,31 @@ export const PaymentGatewayPage: React.FC = () => {
   const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (paymentMethod === 'CARD') {
-      const cleanNum = cardNumber.replace(/\s/g, '');
-      if (cleanNum.length < 15) {
-        showToast('Validation Error', 'Please enter a valid 16-digit card number.', 'error');
-        return;
-      }
-      if (!cardHolder.trim()) {
-        showToast('Validation Error', 'Please enter the cardholder name.', 'error');
-        return;
-      }
-      if (expiryDate.length < 5) {
-        showToast('Validation Error', 'Please enter a valid expiry date (MM/YY).', 'error');
-        return;
-      }
-      if (cvv.length < 3) {
-        showToast('Validation Error', 'Please enter a valid 3-digit CVV/CVC code.', 'error');
-        return;
-      }
-
-      // Trigger 3D Secure 2.0 Simulated Bank Modal
-      setShowOtpModal(true);
-      setOtpTimer(45);
-    } else {
-      // Wallet or Direct Bank
-      processPaymentConfirmation();
+    const cleanNum = cardNumber.replace(/\s/g, '');
+    if (cleanNum.length < 15) {
+      showToast('Validation Error', 'Please enter a valid 16-digit card number.', 'error');
+      return;
     }
+    if (!cardHolder.trim()) {
+      showToast('Validation Error', 'Please enter the cardholder name.', 'error');
+      return;
+    }
+    if (expiryDate.length < 5) {
+      showToast('Validation Error', 'Please enter a valid expiry date (MM/YY).', 'error');
+      return;
+    }
+    if (isDateExpired(expiryDate)) {
+      showToast('Validation Error', 'Card has expired. Please select a valid future expiry date (MM/YY).', 'error');
+      return;
+    }
+    if (cvv.length < 3) {
+      showToast('Validation Error', 'Please enter a valid 3-digit CVV/CVC code.', 'error');
+      return;
+    }
+
+    // Trigger 3D Secure 2.0 Simulated Bank Modal
+    setShowOtpModal(true);
+    setOtpTimer(45);
   };
 
   const handleVerifyOtp = () => {
@@ -264,68 +324,29 @@ export const PaymentGatewayPage: React.FC = () => {
             {/* LEFT COLUMN: PAYMENT METHODS & FORM (7 COLS) */}
             <div className="lg:col-span-7 space-y-6">
 
-              {/* PAYMENT METHOD SELECTOR TABS */}
+              {/* PAYMENT CHANNEL SECTION */}
               <div className="bg-[#0F1A24] border border-stone-800 rounded-2xl p-6 shadow-2xl space-y-6">
                 <div className="border-b border-stone-800 pb-4 flex items-center justify-between">
-                  <h2 className="text-sm font-bold uppercase tracking-wider font-mono text-[#C5A880]">
-                    Select Payment Channel
-                  </h2>
-                  <span className="text-[11px] font-mono text-stone-400">
-                    Instant Bank Authorization
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-[#C5A880]">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold uppercase tracking-wider font-mono text-[#C5A880]">
+                        Credit / Debit Card Payment
+                      </h2>
+                      <p className="text-[11px] font-mono text-stone-400">
+                        Visa, MasterCard, American Express
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/30">
+                    Instant Settlement
                   </span>
                 </div>
 
-                {/* Tabs */}
-                <div className="grid grid-cols-3 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('CARD')}
-                    className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between gap-3 ${paymentMethod === 'CARD'
-                      ? 'bg-[#134E4A]/30 border-[#C5A880] ring-2 ring-[#C5A880]/30 shadow-lg text-white'
-                      : 'bg-slate-900/60 border-stone-800 text-stone-400 hover:border-stone-700 hover:text-stone-200'
-                      }`}
-                  >
-                    <CreditCard className={`w-5 h-5 ${paymentMethod === 'CARD' ? 'text-[#D4AF37]' : 'text-stone-400'}`} />
-                    <div>
-                      <p className="text-xs font-bold font-sans">Credit / Debit Card</p>
-                      <p className="text-[10px] font-mono text-stone-400">Visa, MC, AMEX</p>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('WALLET')}
-                    className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between gap-3 ${paymentMethod === 'WALLET'
-                      ? 'bg-[#134E4A]/30 border-[#C5A880] ring-2 ring-[#C5A880]/30 shadow-lg text-white'
-                      : 'bg-slate-900/60 border-stone-800 text-stone-400 hover:border-stone-700 hover:text-stone-200'
-                      }`}
-                  >
-                    <Smartphone className={`w-5 h-5 ${paymentMethod === 'WALLET' ? 'text-[#D4AF37]' : 'text-stone-400'}`} />
-                    <div>
-                      <p className="text-xs font-bold font-sans">Digital Wallets</p>
-                      <p className="text-[10px] font-mono text-stone-400">Apple Pay, Google</p>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('BANK_QR')}
-                    className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between gap-3 ${paymentMethod === 'BANK_QR'
-                      ? 'bg-[#134E4A]/30 border-[#C5A880] ring-2 ring-[#C5A880]/30 shadow-lg text-white'
-                      : 'bg-slate-900/60 border-stone-800 text-stone-400 hover:border-stone-700 hover:text-stone-200'
-                      }`}
-                  >
-                    <Building2 className={`w-5 h-5 ${paymentMethod === 'BANK_QR' ? 'text-[#D4AF37]' : 'text-stone-400'}`} />
-                    <div>
-                      <p className="text-xs font-bold font-sans">LankaPay / QR</p>
-                      <p className="text-[10px] font-mono text-stone-400">Genie, Direct Bank</p>
-                    </div>
-                  </button>
-                </div>
-
-                {/* TAB 1: CREDIT / DEBIT CARD */}
-                {paymentMethod === 'CARD' && (
-                  <form onSubmit={handleSubmitPayment} className="space-y-6 pt-2">
+                {/* CREDIT / DEBIT CARD FORM */}
+                <form onSubmit={handleSubmitPayment} className="space-y-6 pt-2">
 
                     {/* INTERACTIVE 3D VIRTUAL CARD PREVIEW */}
                     <div className="relative w-full max-w-md mx-auto h-52 select-none">
@@ -401,9 +422,11 @@ export const PaymentGatewayPage: React.FC = () => {
                         <input
                           type="text"
                           required
+                          name="cardHolder"
+                          autoComplete="off"
                           value={cardHolder}
                           onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
-                          placeholder="e.g. ALEXANDER V. STERLING"
+                          placeholder=""
                           className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-stone-800 text-stone-100 placeholder-stone-600 focus:outline-none focus:border-[#C5A880] font-mono text-sm"
                         />
                       </div>
@@ -416,10 +439,12 @@ export const PaymentGatewayPage: React.FC = () => {
                           <input
                             type="text"
                             required
+                            name="cardNumber"
+                            autoComplete="off"
                             maxLength={19}
                             value={cardNumber}
                             onChange={handleCardNumberChange}
-                            placeholder="4000 1234 5678 9010"
+                            placeholder=""
                             className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-stone-800 text-stone-100 placeholder-stone-600 focus:outline-none focus:border-[#C5A880] font-mono text-sm tracking-wider"
                           />
                           <span className="absolute right-3 top-3 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#070D14] border border-stone-700 text-[#C5A880]">
@@ -429,19 +454,171 @@ export const PaymentGatewayPage: React.FC = () => {
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-stone-300 font-semibold mb-1.5 uppercase font-mono text-[11px]">
-                            Expiry Date (MM/YY)
+                        <div className="relative" ref={calendarRef}>
+                          <label className="block text-stone-300 font-semibold mb-1.5 uppercase font-mono text-[11px] flex items-center justify-between">
+                            <span>Expiry Date (MM/YY)</span>
+                            <span className="text-[10px] text-[#C5A880] font-normal">Future Dates</span>
                           </label>
-                          <input
-                            type="text"
-                            required
-                            maxLength={5}
-                            value={expiryDate}
-                            onChange={handleExpiryChange}
-                            placeholder="08/28"
-                            className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-stone-800 text-stone-100 placeholder-stone-600 focus:outline-none focus:border-[#C5A880] font-mono text-sm tracking-wider"
-                          />
+                          <div className="relative">
+                            <input
+                              type="text"
+                              required
+                              name="expiryDate"
+                              autoComplete="off"
+                              maxLength={5}
+                              value={expiryDate}
+                              onChange={handleExpiryChange}
+                              onFocus={() => {
+                                if (expiryDate.length === 5 && expiryDate.includes('/')) {
+                                  const parsedY = parseInt('20' + expiryDate.split('/')[1], 10);
+                                  if (!isNaN(parsedY) && parsedY >= currentYear) {
+                                    setSelectedPickerYear(parsedY);
+                                  }
+                                }
+                              }}
+                              placeholder=""
+                              className={`w-full pl-4 pr-10 py-3 rounded-xl bg-slate-900 border text-stone-100 placeholder-stone-600 focus:outline-none font-mono text-sm tracking-wider ${
+                                expiryDate.length === 5 && isDateExpired(expiryDate)
+                                  ? 'border-rose-500/80 focus:border-rose-400 text-rose-200'
+                                  : 'border-stone-800 focus:border-[#C5A880]'
+                              }`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowDatePicker(!showDatePicker)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-stone-400 hover:text-[#C5A880] hover:bg-slate-800/80 transition-all cursor-pointer"
+                              title="Open Expiry Calendar"
+                            >
+                              <Calendar className="w-4 h-4 text-[#C5A880]" />
+                            </button>
+                          </div>
+
+                          {expiryDate.length === 5 && isDateExpired(expiryDate) && (
+                            <p className="text-[10px] text-rose-400 mt-1 flex items-center gap-1 font-mono">
+                              <AlertCircle className="w-3 h-3 shrink-0" />
+                              <span>Card expired. Please select a future date.</span>
+                            </p>
+                          )}
+
+                          {/* LUXURY EXPIRY CALENDAR POPOVER */}
+                          <AnimatePresence>
+                            {showDatePicker && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute z-50 left-0 sm:left-auto sm:right-0 mt-2 w-72 sm:w-80 bg-[#0B131F] border border-amber-500/30 rounded-2xl p-4 shadow-2xl backdrop-blur-xl space-y-4"
+                              >
+                                {/* Popover Header */}
+                                <div className="flex items-center justify-between border-b border-stone-800/80 pb-3">
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="w-4 h-4 text-[#C5A880]" />
+                                    <span className="text-xs font-bold font-serif-luxury tracking-wide text-white">
+                                      Select Expiry Date
+                                    </span>
+                                  </div>
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-amber-500/10 border border-amber-500/30 text-[#C5A880]">
+                                    Future Only
+                                  </span>
+                                </div>
+
+                                {/* Year Selector */}
+                                <div className="flex items-center justify-between bg-slate-900/90 border border-stone-800 rounded-xl px-2 py-1.5">
+                                  <button
+                                    type="button"
+                                    disabled={selectedPickerYear <= currentYear}
+                                    onClick={() => setSelectedPickerYear((prev) => Math.max(currentYear, prev - 1))}
+                                    className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                    title="Previous Year"
+                                  >
+                                    <ChevronLeft className="w-4 h-4" />
+                                  </button>
+                                  <div className="text-center font-mono font-bold text-sm text-stone-100 flex items-center gap-1.5">
+                                    <span>{selectedPickerYear}</span>
+                                    {selectedPickerYear === currentYear && (
+                                      <span className="text-[10px] text-[#C5A880] font-normal font-sans">(Current)</span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    disabled={selectedPickerYear >= currentYear + 15}
+                                    onClick={() => setSelectedPickerYear((prev) => prev + 1)}
+                                    className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                    title="Next Year"
+                                  >
+                                    <ChevronRight className="w-4 h-4" />
+                                  </button>
+                                </div>
+
+                                {/* Quick Year Pills */}
+                                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                                  {[0, 1, 2, 3, 4, 5].map((offset) => {
+                                    const yr = currentYear + offset;
+                                    const isSelected = selectedPickerYear === yr;
+                                    return (
+                                      <button
+                                        key={yr}
+                                        type="button"
+                                        onClick={() => setSelectedPickerYear(yr)}
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-all shrink-0 cursor-pointer ${
+                                          isSelected
+                                            ? 'bg-[#C5A880] text-slate-950 font-bold shadow'
+                                            : 'bg-slate-900 border border-stone-800 text-stone-400 hover:text-stone-200 hover:border-stone-700'
+                                        }`}
+                                      >
+                                        '{yr.toString().slice(-2)}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* 12 Months Grid */}
+                                <div className="grid grid-cols-3 gap-2 pt-1">
+                                  {MONTHS.map((m) => {
+                                    const disabled = isMonthDisabled(m.num, selectedPickerYear);
+                                    const formattedVal = `${m.label}/${selectedPickerYear.toString().slice(-2)}`;
+                                    const isSelected = expiryDate === formattedVal;
+
+                                    return (
+                                      <button
+                                        key={m.num}
+                                        type="button"
+                                        disabled={disabled}
+                                        onClick={() => handleSelectMonthYear(m.num, selectedPickerYear)}
+                                        className={`py-2 px-2 rounded-xl text-center transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                                          disabled
+                                            ? 'opacity-25 bg-slate-950/40 border border-stone-900 text-stone-600 cursor-not-allowed'
+                                            : isSelected
+                                            ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold shadow-lg ring-2 ring-amber-400/50'
+                                            : 'bg-slate-900/80 border border-stone-800 text-stone-200 hover:border-[#C5A880] hover:bg-slate-800/90'
+                                        }`}
+                                      >
+                                        <span className="text-[11px] font-mono font-bold leading-none">{m.label}</span>
+                                        <span className={`text-[10px] uppercase font-sans ${isSelected ? 'text-slate-900 font-semibold' : 'text-stone-400'}`}>
+                                          {m.name}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Popover Footer */}
+                                <div className="flex items-center justify-between pt-2 border-t border-stone-800/80 text-[11px]">
+                                  <span className="font-mono text-stone-400">
+                                    {expiryDate ? `Selected: ${expiryDate}` : 'No date chosen'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowDatePicker(false)}
+                                    className="text-[#C5A880] hover:underline font-bold cursor-pointer"
+                                  >
+                                    Done
+                                  </button>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
 
                         <div>
@@ -451,28 +628,18 @@ export const PaymentGatewayPage: React.FC = () => {
                           <input
                             type="password"
                             required
+                            name="cardCvv"
+                            autoComplete="new-password"
+                            inputMode="numeric"
                             maxLength={4}
                             value={cvv}
                             onFocus={() => setIsFlipped(true)}
                             onBlur={() => setIsFlipped(false)}
                             onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))}
-                            placeholder="•••"
+                            placeholder=""
                             className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-stone-800 text-stone-100 placeholder-stone-600 focus:outline-none focus:border-[#C5A880] font-mono text-sm tracking-widest"
                           />
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 pt-1">
-                        <input
-                          type="checkbox"
-                          id="saveCard"
-                          checked={saveCard}
-                          onChange={(e) => setSaveCard(e.target.checked)}
-                          className="w-4 h-4 rounded bg-slate-900 border-stone-700 text-[#C5A880] focus:ring-[#C5A880] cursor-pointer"
-                        />
-                        <label htmlFor="saveCard" className="text-stone-400 text-xs cursor-pointer select-none">
-                          Save card securely for future Ceylon VIP Concierge bookings
-                        </label>
                       </div>
                     </div>
 
@@ -486,73 +653,7 @@ export const PaymentGatewayPage: React.FC = () => {
                       <span>Authorize & Pay {formatPrice(grandTotalUsd)}</span>
                     </button>
                   </form>
-                )}
-
-                {/* TAB 2: DIGITAL WALLET */}
-                {paymentMethod === 'WALLET' && (
-                  <div className="py-8 text-center space-y-6">
-                    <div className="max-w-sm mx-auto p-6 rounded-2xl bg-slate-900/60 border border-stone-800 space-y-4">
-                      <Smartphone className="w-12 h-12 text-[#C5A880] mx-auto" />
-                      <h4 className="text-base font-serif-luxury font-bold text-white">
-                        1-Touch Instant Digital Wallet
-                      </h4>
-                      <p className="text-xs text-stone-400 leading-relaxed">
-                        Pay seamlessly using Apple Pay, Google Pay, or Samsung Wallet connected to your biometric device ID.
-                      </p>
-
-                      <div className="space-y-3 pt-2">
-                        <button
-                          type="button"
-                          onClick={processPaymentConfirmation}
-                          className="w-full py-3.5 bg-black hover:bg-stone-900 text-white font-bold text-xs uppercase tracking-wider rounded-xl border border-stone-700 shadow-xl flex items-center justify-center gap-2 cursor-pointer"
-                        >
-                          <span> Pay with Apple Pay</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={processPaymentConfirmation}
-                          className="w-full py-3.5 bg-white hover:bg-stone-100 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl shadow-xl flex items-center justify-center gap-2 cursor-pointer"
-                        >
-                          <span>G Pay (Google Wallet)</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 3: SRI LANKA LOCAL QR & BANK */}
-                {paymentMethod === 'BANK_QR' && (
-                  <div className="py-6 space-y-6">
-                    <div className="p-5 rounded-2xl bg-slate-900/60 border border-stone-800 flex flex-col sm:flex-row items-center gap-6">
-                      <div className="p-3 bg-white rounded-xl shrink-0 shadow-lg">
-                        <QrCode className="w-32 h-32 text-slate-950" />
-                        <span className="text-[10px] font-mono text-slate-800 block text-center mt-1 font-bold">
-                          LankaPay Universal QR
-                        </span>
-                      </div>
-                      <div className="space-y-2 text-xs">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-bold uppercase">
-                          Dialog Genie & FriMi Compatible
-                        </span>
-                        <h4 className="text-base font-bold font-serif-luxury text-white">
-                          Scan with any Sri Lankan Banking App
-                        </h4>
-                        <p className="text-stone-400 text-xs leading-relaxed">
-                          Scan the dynamic LankaPay QR with Commercial Bank, Sampath Vishwa, HNB, or Genie to clear your payment instantly in LKR (Rs. {(grandTotalUsd * 300).toLocaleString()}).
-                        </p>
-                        <button
-                          type="button"
-                          onClick={processPaymentConfirmation}
-                          className="mt-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold text-xs uppercase tracking-wider shadow-lg hover:brightness-110 cursor-pointer"
-                        >
-                          Confirm Transfer Received
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
 
               {/* SECURITY ASSURANCES BADGES */}
               <div className="grid grid-cols-3 gap-4 pt-2">
@@ -926,7 +1027,7 @@ export const PaymentGatewayPage: React.FC = () => {
                     <div className="flex justify-between py-1">
                       <span className="text-stone-400">Payment Channel:</span>
                       <span className="font-bold text-stone-200 font-mono">
-                        {paymentMethod === 'CARD' ? `${getCardType()} (•••• ${cardNumber.slice(-4) || '8842'})` : paymentMethod === 'WALLET' ? 'Digital Wallet (Apple Pay / Google Pay)' : 'LankaPay Direct QR / Instant Settlement'}
+                        {getCardType()} (•••• {cardNumber.slice(-4) || '8842'})
                       </span>
                     </div>
                   </div>

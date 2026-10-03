@@ -16,15 +16,13 @@ logger = logging.getLogger("ceylonmate.llm")
 logging.basicConfig(level=logging.INFO)
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "").strip()
-MODEL_NAME = os.getenv("MODEL_NAME", "gemini-3.5-flash").strip()
+MODEL_NAME = os.getenv("MODEL_NAME", "gemini-1.5-flash").strip()
 
 CANDIDATE_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
     "gemini-1.5-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-3.8-flash",
-    "gemini-3.5-flash"
+    "gemini-2.0-flash",
+    "gemini-1.5-pro",
+    "gemini-2.0-flash-lite",
 ]
 
 _genai_client = None
@@ -65,30 +63,34 @@ def _clean_json_text(text: str) -> str:
     return text.strip()
 
 
+def _is_valid_api_key(key: str) -> bool:
+    """Verifies that the Google API key is configured and has a valid Gemini format (starts with AIzaSy)."""
+    if not key or not key.startswith("AIzaSy"):
+        return False
+    return True
+
+
 def generate_gemini_json_sync(prompt: str, system_instruction: str = "") -> Optional[Dict[str, Any]]:
-    """Synchronous JSON generation prioritizing ultra-fast direct REST with SDK fallback."""
+    """Synchronous JSON generation prioritizing direct REST with automatic model failover."""
     api_key = os.getenv("GOOGLE_API_KEY", "").strip()
-    if not api_key:
-        logger.warning("[LLM JSON] GOOGLE_API_KEY is not set or empty in environment.")
+    if not _is_valid_api_key(api_key):
+        logger.info("[LLM JSON] Valid Gemini API key (AIzaSy...) not detected; utilizing deterministic local intelligence fallback.")
         return None
 
-    env_model = os.getenv("MODEL_NAME", "gemini-2.5-flash").strip()
+    env_model = os.getenv("MODEL_NAME", "gemini-1.5-flash").strip()
     fallback_pool = CANDIDATE_MODELS
-    models_to_try = [env_model] if env_model and env_model not in fallback_pool else []
+    models_to_try = [env_model] if env_model and env_model in fallback_pool else []
     for m in fallback_pool:
         if m not in models_to_try:
-            if m == env_model:
-                models_to_try.insert(0, m)
-            else:
-                models_to_try.append(m)
+            models_to_try.append(m)
 
     json_system = (system_instruction + "\n\n" if system_instruction else "") + (
         "CRITICAL DIRECTIVE: You are an expert Sri Lanka luxury travel AI. Respond ONLY with a valid raw JSON object matching the requested schema. "
         "No conversational text, no markdown fences."
     )
 
-    # 1. Fast Direct REST API (Primary for speed with automatic model failover)
-    for model in models_to_try[:2]:
+    # 1. Direct REST API
+    for model in models_to_try:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             payload = {
@@ -98,7 +100,7 @@ def generate_gemini_json_sync(prompt: str, system_instruction: str = "") -> Opti
                     "temperature": 0.2
                 }
             }
-            with httpx.Client(timeout=httpx.Timeout(2.5, connect=1.5)) as http_client:
+            with httpx.Client(timeout=httpx.Timeout(6.0, connect=3.0)) as http_client:
                 res = http_client.post(url, json=payload)
                 if res.status_code == 200:
                     data = res.json()
@@ -128,13 +130,18 @@ async def generate_gemini_json(prompt: str, system_instruction: str = "") -> Opt
 
 
 def generate_gemini_text_sync(prompt: str, system_instruction: str = "") -> str:
-    """Synchronous text generation prioritizing fast REST with SDK fallback."""
+    """Synchronous text generation prioritizing fast REST with failover."""
     api_key = os.getenv("GOOGLE_API_KEY", "").strip()
-    if not api_key:
+    if not _is_valid_api_key(api_key):
         return ""
 
-    env_model = os.getenv("MODEL_NAME", "gemini-3.5-flash").strip()
-    models_to_try = [env_model, "gemini-3.5-flash-lite", "gemini-3.8-flash"]
+    env_model = os.getenv("MODEL_NAME", "gemini-1.5-flash").strip()
+    fallback_pool = CANDIDATE_MODELS
+    models_to_try = [env_model] if env_model and env_model in fallback_pool else []
+    for m in fallback_pool:
+        if m not in models_to_try:
+            models_to_try.append(m)
+
     full_prompt = f"{system_instruction}\n\n{prompt}" if system_instruction else prompt
 
     # 1. Fast REST
@@ -145,7 +152,7 @@ def generate_gemini_text_sync(prompt: str, system_instruction: str = "") -> str:
                 "contents": [{"parts": [{"text": full_prompt}]}],
                 "generationConfig": {"temperature": 0.2}
             }
-            with httpx.Client(timeout=2.5) as http_client:
+            with httpx.Client(timeout=httpx.Timeout(6.0, connect=3.0)) as http_client:
                 res = http_client.post(url, json=payload)
                 if res.status_code == 200:
                     data = res.json()
@@ -154,9 +161,12 @@ def generate_gemini_text_sync(prompt: str, system_instruction: str = "") -> str:
                         parts = candidates[0].get("content", {}).get("parts", [])
                         if parts:
                             return parts[0].get("text", "").strip()
+                else:
+                    logger.warning(f"[LLM TEXT REST] Model {model} returned HTTP {res.status_code}, trying next model...")
+                    continue
         except Exception as ex:
-            logger.warning(f"[LLM TEXT REST] Model {model} err: {ex}")
-            break
+            logger.warning(f"[LLM TEXT REST] Model {model} err: {ex}, trying next model...")
+            continue
 
     return ""
 
@@ -165,3 +175,4 @@ async def generate_gemini_text(prompt: str, system_instruction: str = "") -> str
     """Async wrapper for generating text from Google Gemini."""
     import asyncio
     return await asyncio.to_thread(generate_gemini_text_sync, prompt, system_instruction)
+
