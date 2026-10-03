@@ -48,6 +48,38 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  Future<bool> register({
+    required String email,
+    required String password,
+    String? fullName,
+    String? phoneNumber,
+    String role = 'TRAVELER',
+  }) async {
+    if (busy) return false;
+    busy = true;
+    error = null;
+    notifyListeners();
+    try {
+      user = await gateway.register(
+        email: email,
+        password: password,
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+        role: role,
+      );
+      phase = AuthPhase.signedIn;
+      return true;
+    } catch (failure) {
+      user = null;
+      phase = AuthPhase.signedOut;
+      error = authError(failure);
+      return false;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> logout() async {
     busy = true;
     user = null;
