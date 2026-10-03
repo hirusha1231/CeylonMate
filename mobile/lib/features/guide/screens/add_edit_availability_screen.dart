@@ -340,7 +340,7 @@ class _AddEditAvailabilityScreenState extends State<AddEditAvailabilityScreen> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    value: _selectedStatus,
+                    initialValue: _selectedStatus,
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Slot Status *',
@@ -427,7 +427,7 @@ class _AddEditAvailabilityScreenState extends State<AddEditAvailabilityScreen> {
                       Expanded(
                         flex: 2,
                         child: DropdownButtonFormField<String>(
-                          value: _selectedCurrency,
+                          initialValue: _selectedCurrency,
                           decoration: const InputDecoration(
                             labelText: 'Currency',
                             border: OutlineInputBorder(),
