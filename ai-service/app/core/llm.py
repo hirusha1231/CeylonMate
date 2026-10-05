@@ -3,14 +3,15 @@ import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, List
-import httpx
-from dotenv import load_dotenv
-
-# Ensure robust loading of .env regardless of working directory
-_env_path = Path(__file__).resolve().parent.parent.parent / ".env"
-if _env_path.exists():
-    load_dotenv(dotenv_path=_env_path, override=False)
-load_dotenv(override=False)
+try:
+    from dotenv import load_dotenv
+    # Ensure robust loading of .env regardless of working directory
+    _env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+    if _env_path.exists():
+        load_dotenv(dotenv_path=_env_path, override=False)
+    load_dotenv(override=False)
+except ImportError:
+    pass
 
 logger = logging.getLogger("ceylonmate.llm")
 logging.basicConfig(level=logging.INFO)
