@@ -9,6 +9,9 @@ ai-service/.pytest_cache/
 mobile/.dart_tool/
 mobile/build/
 .env
+**/.env
+.env.*
+**/.env.*
 *.user
 
 .idea/
