@@ -40,7 +40,8 @@ async def interpret_objective_node(state: ObjectiveState) -> dict[str, Objective
     objective = _safe_objective(trip.objective)
     text = objective.casefold()
 
-    themes = [name for name, terms in reference.items() if any(term in text for term in terms)]
+    # Base rule-based theme extraction
+    extracted_themes = [name for name, terms in reference.items() if any(term in text for term in terms)]
     interests = list(dict.fromkeys(item.strip() for item in trip.interests if item.strip()))
     accessibility = [trip.accessibilityNeeds.strip()] if trip.accessibilityNeeds and trip.accessibilityNeeds.strip() else []
 
@@ -57,6 +58,8 @@ async def interpret_objective_node(state: ObjectiveState) -> dict[str, Objective
         roles: List[str] = []
         recommended: List[RecommendedDestination] = []
         pacing = "Moderate"
+        final_themes = extracted_themes
+        normalized_obj = objective
     else:
         steps = [
             "RESEARCH_DESTINATION_OPTIONS", "DRAFT_ITINERARY", "CHECK_RESOURCE_FEASIBILITY",
@@ -66,90 +69,101 @@ async def interpret_objective_node(state: ObjectiveState) -> dict[str, Objective
             "DESTINATION_RESEARCH_AGENT", "ITINERARY_PLANNING_AGENT",
             "RESOURCE_FEASIBILITY_AGENT", "QUOTATION_AGENT",
         ]
-
-        # Destination match fallback catalog
-        if any(w in text for w in ["beach", "coast", "ocean", "sea", "surf", "swim"]):
-            recommended = [
-                RecommendedDestination(name="Bentota Golden Beach Strip", region="South Western Coast", highlights="Pristine golden sands, luxury water sports & oceanfront private villas.", category="BEACH_AND_LEISURE"),
-                RecommendedDestination(name="Mirissa Marine & Coastal Bay", region="Southern Coast", highlights="Private whale watching yachts, sunset dining & coconut hill palm vistas.", category="BEACH_AND_CULINARY"),
-                RecommendedDestination(name="Weligama Bay Surfing Riviera", region="Southern Coast", highlights="Crescent bay surfing, fresh seafood grills & beachfront luxury cabanas.", category="BEACH_AND_LEISURE")
-            ]
-        elif any(w in text for w in ["tea", "mountain", "hill", "ella", "nuwara", "hiking", "cold"]):
-            recommended = [
-                RecommendedDestination(name="Ella Scenic Mountain Highlands", region="Central Highlands", highlights="Nine Arch Bridge panoramic train views, Little Adam's Peak & tea trails.", category="NATURE_AND_TEA"),
-                RecommendedDestination(name="Nuwara Eliya Colonial Tea Country", region="Central Highlands", highlights="Historic planter bungalows, tea factory tasting tours & misty lakes.", category="NATURE_AND_TEA"),
-                RecommendedDestination(name="Horton Plains & World's End", region="Central Highlands", highlights="Cloud forest trekking, dramatic 800m sheer drop & Baker's Falls.", category="SCENIC")
-            ]
-        elif any(w in text for w in ["safari", "wildlife", "animal", "leopard", "elephant", "yala"]):
-            recommended = [
-                RecommendedDestination(name="Yala Leopard Sanctuary", region="Southern Province", highlights="Dawn leopard tracking & modified luxury 4x4 private game drives.", category="WILDLIFE"),
-                RecommendedDestination(name="Udawalawe Elephant Reserve", region="Uva Province", highlights="Vast herds of wild elephants, transit home rehabilitation & reservoir views.", category="WILDLIFE")
-            ]
-        elif any(w in text for w in ["culture", "heritage", "temple", "history", "ancient", "sigiriya"]):
-            recommended = [
-                RecommendedDestination(name="Sigiriya Ancient Rock Citadel", region="Cultural Triangle", highlights="UNESCO 5th-century palace fortress, mirror wall & royal water gardens.", category="HERITAGE"),
-                RecommendedDestination(name="Kandy Royal Sacred City", region="Central Province", highlights="Temple of the Sacred Tooth Relic, Royal Botanical Gardens & cultural dance.", category="HERITAGE")
-            ]
-        else:
-            recommended = [
-                RecommendedDestination(name="Bentota Luxury Coastline", region="South Western Coast", highlights="Golden sand beaches, private lagoon river safaris & oceanfront resorts.", category="BEACH_AND_LEISURE"),
-                RecommendedDestination(name="Sigiriya Rock Fortress", region="Cultural Triangle", highlights="5th-century iconic UNESCO citadel with royal water gardens.", category="HERITAGE"),
-                RecommendedDestination(name="Ella Mountain Gap", region="Central Highlands", highlights="Tea estate hikes, Nine Arch Bridge and mist-clad mountain passes.", category="NATURE_AND_TEA")
-            ]
         pacing = "Moderate"
+        final_themes = extracted_themes
+        normalized_obj = objective
+        recommended: List[RecommendedDestination] = []
 
-        # Try dynamic LLM enrichment if API key is present
-        has_api_key = bool(os.getenv("GOOGLE_API_KEY", "").strip())
-        if has_api_key:
-            llm_prompt = f"""
-You are Agent 1 (Objective Interpretation) for CeylonMate Luxury Sri Lanka Tours.
-The traveler says: '{objective}'.
-Start Date: {trip.startDate}
-End Date: {trip.endDate}
-Party Size: {trip.partySize or 2} travelers
-Budget: {trip.budget} {trip.currency or "USD"}
-Interests: {", ".join(trip.interests) if trip.interests else "Not specified"}
+        # ---------------------------------------------------------------------
+        # Dynamic Gemini LLM Generation (Zero Hardcoding)
+        # ---------------------------------------------------------------------
+        llm_prompt = f"""You are Agent 1 (Objective & Destination Matcher) for CeylonMate Luxury Sri Lanka Tours.
+Analyze the traveler's request and dynamically synthesize bespoke Sri Lanka destination recommendations and travel parameters.
 
-Return a JSON object with:
+Traveler Input:
+- Raw Request: {trip.objective}
+- Cleaned Objective: {objective}
+- Start Date: {trip.startDate}
+- End Date: {trip.endDate}
+- Budget: {trip.budget} {trip.currency or 'USD'}
+- Party Size: {trip.partySize or 2}
+- Stated Interests: {', '.join(interests) if interests else 'Not specified'}
+- Accessibility Constraints: {', '.join(accessibility) if accessibility else 'None'}
+
+Return ONLY a JSON object strictly matching this schema:
 {{
+  "normalizedObjective": "Refined one-sentence luxury travel objective",
+  "themes": ["Extracted theme tags e.g. wildlife, culture, beaches, hill country, tea, heritage, wellness, culinary"],
+  "refinedInterests": ["List of extracted traveler interest keywords"],
   "pacing": "Relaxed | Moderate | Active",
   "destinations": [
     {{
-      "name": "Destination Name in Sri Lanka",
-      "region": "Geographic Region in Sri Lanka",
-      "highlights": "Key luxury highlights matching traveler intent",
-      "category": "BEACH_AND_CULINARY | BEACH_AND_LEISURE | WILDLIFE | HERITAGE | NATURE_AND_TEA | SCENIC"
+      "name": "Specific Sri Lanka destination name (e.g. Mirissa Marine Bay, Ella Scenic Highlands, Sigiriya Ancient Citadel)",
+      "region": "Sri Lankan geographic region (e.g. Southern Coast, Central Highlands, Cultural Triangle)",
+      "highlights": "Specific bespoke luxury activities and highlights matching traveler intent",
+      "category": "BEACH_AND_LEISURE | BEACH_AND_CULINARY | NATURE_AND_TEA | WILDLIFE | HERITAGE | WELLNESS | SCENIC"
     }}
   ]
-}}
-"""
-            try:
-                gemini_data = await generate_gemini_json(
-                    prompt=llm_prompt,
-                    system_instruction="You are CeylonMate's Agent 1: Lead Travel Concierge & Objective Interpretation Agent for Sri Lanka luxury tours."
-                )
-                if gemini_data and isinstance(gemini_data, dict):
-                    raw_destinations = gemini_data.get("destinations") or []
-                    custom_dest: List[RecommendedDestination] = []
-                    for d in raw_destinations:
-                        if isinstance(d, dict) and d.get("name"):
-                            custom_dest.append(RecommendedDestination(
-                                name=d.get("name", "Sri Lanka Destination"),
-                                region=d.get("region", "Sri Lanka"),
-                                highlights=d.get("highlights", "Scenic luxury experience"),
-                                category=d.get("category", "LEISURE")
-                            ))
-                    if custom_dest:
-                        recommended = custom_dest
-                    if gemini_data.get("pacing"):
-                        pacing = gemini_data.get("pacing")
-            except Exception as e:
-                logger.warning(f"Gemini enrichment skipped: {e}")
+}}"""
+
+        try:
+            gemini_data = await generate_gemini_json(
+                prompt=llm_prompt,
+                system_instruction="You are CeylonMate's Agent 1: Lead Travel Concierge & Destination Matcher for Sri Lanka luxury tours. Generate dynamic, non-hardcoded destination recommendations based on user input."
+            )
+            if gemini_data and isinstance(gemini_data, dict):
+                # Dynamically extract destinations from Gemini
+                raw_destinations = gemini_data.get("destinations") or []
+                for d in raw_destinations:
+                    if isinstance(d, dict) and d.get("name"):
+                        recommended.append(RecommendedDestination(
+                            name=str(d.get("name", "Sri Lanka Destination")),
+                            region=str(d.get("region", "Sri Lanka")),
+                            highlights=str(d.get("highlights", "Curated luxury experience tailored to your trip preferences.")),
+                            category=str(d.get("category", "RECOMMENDED"))
+                        ))
+
+                if gemini_data.get("pacing"):
+                    pacing = str(gemini_data.get("pacing"))
+
+                if gemini_data.get("themes") and isinstance(gemini_data.get("themes"), list):
+                    # Combine LLM themes with any keyword-matched themes
+                    llm_themes = [str(t).lower() for t in gemini_data.get("themes") if str(t).strip()]
+                    for t in llm_themes:
+                        if t not in final_themes:
+                            final_themes.append(t)
+
+                if gemini_data.get("refinedInterests") and isinstance(gemini_data.get("refinedInterests"), list):
+                    for in_item in gemini_data.get("refinedInterests"):
+                        in_str = str(in_item).strip()
+                        if in_str and in_str not in interests:
+                            interests.append(in_str)
+        except Exception as e:
+            logger.warning(f"[AGENT 1] Gemini dynamic generation exception: {e}")
+
+        # If LLM returned no destinations (or no API key), dynamically construct from input interests & objective
+        if not recommended:
+            dest_candidates: List[str] = []
+            if interests:
+                dest_candidates.extend(interests)
+            if final_themes:
+                dest_candidates.extend(final_themes)
+            if not dest_candidates:
+                dest_candidates = [objective] if objective else ["Sri Lanka Exploration"]
+
+            for item in dest_candidates[:4]:
+                clean_name = item.title() if isinstance(item, str) else "Bespoke Spot"
+                recommended.append(RecommendedDestination(
+                    name=f"{clean_name} Experience",
+                    region="Sri Lanka",
+                    highlights=f"Private luxury touring focused on {clean_name.lower()}.",
+                    category="BESPOKE_EXPERIENCE"
+                ))
 
     return {"output": ObjectiveInterpretationOutput(
-        normalizedObjective=objective,
-        regionsOrThemes=themes,
-        themes=themes,
+        normalizedObjective=normalized_obj,
+        regionsOrThemes=final_themes,
+        themes=final_themes,
         interests=interests,
         pacing=pacing,
         dateConstraints=DateConstraints(startDate=trip.startDate, endDate=trip.endDate),
