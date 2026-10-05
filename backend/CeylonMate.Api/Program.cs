@@ -16,6 +16,12 @@ ProgramHelper.LoadDotEnv();
 
 var builder = WebApplication.CreateBuilder(args);
 
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 var useInMemory = builder.Configuration.GetValue<bool>("UseInMemoryDatabase");
 builder.Services.AddDbContext<CeylonMateDbContext>(options =>
 {
@@ -74,16 +80,13 @@ builder.Services.AddOptions<JwtOptions>()
         "Jwt:SigningKey must contain at least 32 UTF-8 bytes.")
     .ValidateOnStart();
 
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddOptions<SeedUsersOptions>()
-        .Bind(builder.Configuration.GetSection(SeedUsersOptions.SectionName))
-        .ValidateDataAnnotations()
-        .Validate(x => !x.Enabled || x.Password.Length >= 12,
-            "SeedUsers:Password is required and must be at least 12 characters when seeding is enabled.")
-        .ValidateOnStart();
-    builder.Services.AddScoped<DevelopmentUserSeeder>();
-}
+builder.Services.AddOptions<SeedUsersOptions>()
+    .Bind(builder.Configuration.GetSection(SeedUsersOptions.SectionName))
+    .ValidateDataAnnotations()
+    .Validate(x => !x.Enabled || x.Password.Length >= 12,
+        "SeedUsers:Password is required and must be at least 12 characters when seeding is enabled.")
+    .ValidateOnStart();
+builder.Services.AddScoped<DevelopmentUserSeeder>();
 
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IRoutingAdapter, RoutingAdapter>();
@@ -160,12 +163,11 @@ var app = builder.Build();
 
 app.UseCors("AllowFrontend");
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
+app.UseSwagger();
+app.UseSwaggerUI();
 
-    await using var scope = app.Services.CreateAsyncScope();
+await using (var scope = app.Services.CreateAsyncScope())
+{
     var db = scope.ServiceProvider.GetRequiredService<CeylonMateDbContext>();
     if (db.Database.IsRelational())
     {
