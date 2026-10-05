@@ -1,16 +1,17 @@
 # Multi-stage Dockerfile for CeylonMate .NET 8 Web API
-# For Render when Root Directory is set to 'backend/CeylonMate.Api'
+# For Render when Root Directory is set to 'backend'
 
 # Stage 1: Build & Publish
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 # Copy csproj and restore dependencies
-COPY CeylonMate.Api.csproj ./
-RUN dotnet restore "CeylonMate.Api.csproj"
+COPY ["CeylonMate.Api/CeylonMate.Api.csproj", "CeylonMate.Api/"]
+RUN dotnet restore "CeylonMate.Api/CeylonMate.Api.csproj"
 
 # Copy source files and publish
-COPY . ./
+COPY . .
+WORKDIR "/src/CeylonMate.Api"
 RUN dotnet publish "CeylonMate.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # Stage 2: Runtime image
