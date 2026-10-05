@@ -55,6 +55,12 @@ public sealed class AdminUsersController(
             return NotFound(new { message = "User not found." });
         }
 
+        if (user.Role == UserRole.ADMIN && request?.IsActive == false)
+        {
+            logger.LogWarning("Toggle status rejected: Cannot suspend Administrator account {UserId}", id);
+            return BadRequest(new { message = "Administrator accounts cannot be suspended." });
+        }
+
         if (request != null && request.IsActive.HasValue)
         {
             user.IsActive = request.IsActive.Value;

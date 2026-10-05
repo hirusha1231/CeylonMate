@@ -8,9 +8,8 @@ public sealed class DestinationService(CeylonMateDbContext db)
     public async Task<List<DestinationResponse>> GetAllDestinationsAsync(string? category = null, string? region = null, string? search = null)
     {
         var query = db.Destinations
-            .Include(d => d.Attractions).ThenInclude(a => a.OpeningRules)
+            .Include(d => d.Attractions)
             .Include(d => d.Advisories)
-            .Include(d => d.GuideReports)
             .AsNoTracking()
             .AsQueryable();
 
@@ -28,9 +27,8 @@ public sealed class DestinationService(CeylonMateDbContext db)
     public async Task<DestinationResponse?> GetDestinationByIdAsync(Guid id)
     {
         var destination = await db.Destinations
-            .Include(d => d.Attractions).ThenInclude(a => a.OpeningRules)
+            .Include(d => d.Attractions)
             .Include(d => d.Advisories)
-            .Include(d => d.GuideReports)
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == id);
 

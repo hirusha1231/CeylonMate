@@ -147,19 +147,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
       currency: "USD",
       status: "AVAILABLE"
     },
-    {
-      id: "e1010000-0000-0000-0000-000000000004",
-      vehicleCatalogId: "e1010000-0000-0000-0000-000000000004",
-      vehicleModel: "Toyota Coaster VIP Minibus",
-      categoryBadge: "VIP COACH TRANSPORT",
-      imageUrl: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=1000&q=80",
-      maxPassengers: 14,
-      featureHighlight: "Panoramic VIP Coach",
-      dailyRateUsd: 250,
-      dailyRate: 250,
-      currency: "USD",
-      status: "AVAILABLE"
-    },
+
     {
       id: "e1010000-0000-0000-0000-000000000005",
       vehicleCatalogId: "e1010000-0000-0000-0000-000000000005",

@@ -18,6 +18,43 @@ namespace CeylonMate.Api.Controllers;
 [Authorize(Roles = "LOCAL_GUIDE,ADMIN")]
 public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalController> logger) : ControllerBase
 {
+    private static bool _schemaEnsured = false;
+    private async Task EnsureGuidePortalSchemaAsync(CancellationToken ct = default)
+    {
+        if (_schemaEnsured) return;
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS public.guide_field_reports (
+                    ""Id"" uuid NOT NULL PRIMARY KEY,
+                    ""GuideProfileId"" uuid NOT NULL,
+                    ""BookingId"" integer NULL,
+                    ""Location"" text NOT NULL,
+                    ""WeatherStatus"" text NOT NULL DEFAULT 'CLEAR',
+                    ""CrowdLevel"" text NOT NULL DEFAULT 'MODERATE',
+                    ""ConditionNote"" text NOT NULL DEFAULT '',
+                    ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS public.""GuideFieldReports"" (
+                    ""Id"" uuid NOT NULL PRIMARY KEY,
+                    ""GuideProfileId"" uuid NOT NULL,
+                    ""BookingId"" integer NULL,
+                    ""Location"" text NOT NULL,
+                    ""WeatherStatus"" text NOT NULL DEFAULT 'CLEAR',
+                    ""CrowdLevel"" text NOT NULL DEFAULT 'MODERATE',
+                    ""ConditionNote"" text NOT NULL DEFAULT '',
+                    ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+            ", ct);
+            _schemaEnsured = true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("Schema ensure notice: {Message}", ex.Message);
+        }
+    }
+
     private Guid GetUserId()
     {
         var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -181,14 +218,6 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
 
         Guid guideProfileId = guideProfile?.Id ?? Guid.Empty;
 
-        var guideSlotIds = guideProfileId != Guid.Empty
-            ? await db.GuideAvailabilitySlots
-                .AsNoTracking()
-                .Where(s => s.GuideProfileId == guideProfileId)
-                .Select(s => s.Id)
-                .ToListAsync(cancellationToken)
-            : new List<Guid>();
-
         var guideAvailabilityIds = (guideProfileId != Guid.Empty || currentUserId != Guid.Empty)
             ? await db.GuideAvailabilities
                 .AsNoTracking()
@@ -197,21 +226,23 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
                 .ToListAsync(cancellationToken)
             : new List<Guid>();
 
+        var guideName = guideProfile?.FullName?.Trim();
+
         var bookings = await db.Bookings
             .AsNoTracking()
-            .Where(b => b.GuideSlotId.HasValue && (
+            .Where(b => (b.GuideSlotId.HasValue && (
                 b.GuideSlotId.Value == guideProfileId ||
                 b.GuideSlotId.Value == currentUserId ||
-                guideSlotIds.Contains(b.GuideSlotId.Value) ||
                 guideAvailabilityIds.Contains(b.GuideSlotId.Value)
-            ))
+            )) || (!string.IsNullOrWhiteSpace(guideName) && b.TravelerNotes != null && b.TravelerNotes.Contains(guideName))
+               || (!string.IsNullOrWhiteSpace(guideName) && b.AgentNotes != null && b.AgentNotes.Contains(guideName)))
             .OrderByDescending(b => b.BookedAt)
             .ToListAsync(cancellationToken);
 
         var users = await db.Users.AsNoTracking().ToListAsync(cancellationToken);
         var journeys = await db.SignatureJourneys.AsNoTracking().ToListAsync(cancellationToken);
-        var vSlots = await db.TransportSlots.Include(s => s.VehicleCatalog).AsNoTracking().ToListAsync(cancellationToken);
-        var gSlots = await db.GuideAvailabilitySlots.AsNoTracking().ToListAsync(cancellationToken);
+        var fleetCatalogs = await db.VehicleFleetCatalogs.AsNoTracking().ToListAsync(cancellationToken);
+        var guideAvailabilities = await db.GuideAvailabilities.AsNoTracking().ToListAsync(cancellationToken);
 
         var tourDtos = bookings.Select(b => {
             var user = users.FirstOrDefault(u =>
@@ -258,25 +289,32 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
                 "Dedicated Private Chauffeur & Escort Service"
             };
 
-            var vSlot = b.VehicleSlotId.HasValue ? vSlots.FirstOrDefault(s => s.Id == b.VehicleSlotId.Value) : null;
-            var vehicleModel = vSlot?.VehicleCatalog?.VehicleModel;
-            if (string.IsNullOrWhiteSpace(vehicleModel) && b.VehicleCatalogId.HasValue)
+            VehicleFleetCatalog? fleet = null;
+            if (b.VehicleCatalogId.HasValue)
             {
-                var cat = db.VehicleFleetCatalogs.AsNoTracking().FirstOrDefault(c => c.Id == b.VehicleCatalogId.Value);
-                if (cat != null) vehicleModel = cat.VehicleModel;
+                fleet = fleetCatalogs.FirstOrDefault(f => f.Id == b.VehicleCatalogId.Value);
             }
-            if (string.IsNullOrWhiteSpace(vehicleModel)) vehicleModel = "Executive VIP Fleet Escort";
+            if (fleet == null && b.VehicleSlotId.HasValue)
+            {
+                fleet = fleetCatalogs.FirstOrDefault(f => f.Id == b.VehicleSlotId.Value);
+            }
 
-            var vehicleReg = vSlot?.VehicleCatalog?.CategoryBadge ?? "EXECUTIVE VIP FLEET";
-            var vehicleMaxPass = vSlot?.VehicleCatalog?.MaxPassengers ?? 6;
-            var vehiclePhoto = vSlot?.VehicleCatalog?.ImageUrl ?? "";
+            var vehicleModel = fleet?.VehicleModel;
+            if (string.IsNullOrWhiteSpace(vehicleModel))
+            {
+                vehicleModel = "Executive VIP Fleet Escort";
+            }
 
-            var gSlot = b.GuideSlotId.HasValue ? gSlots.FirstOrDefault(s => s.Id == b.GuideSlotId.Value) : null;
-            var dailyRate = gSlot?.DailyRateLkr ?? (guideProfile?.DefaultDailyRateLkr ?? 18000m);
+            var vehicleReg = fleet?.CategoryBadge ?? "EXECUTIVE VIP FLEET";
+            var vehicleMaxPass = fleet?.MaxPassengers ?? 6;
+            var vehiclePhoto = fleet?.ImageUrl ?? "";
+
+            var gAvail = b.GuideSlotId.HasValue ? guideAvailabilities.FirstOrDefault(g => g.Id == b.GuideSlotId.Value) : null;
+            var dailyRate = gAvail?.PriceAmount ?? (guideProfile?.DefaultDailyRateLkr > 0 ? guideProfile.DefaultDailyRateLkr : 18000m);
 
             int passengerCount = b.PassengerCount.HasValue && b.PassengerCount.Value > 0
                 ? b.PassengerCount.Value
-                : (b.Reservations.Count > 0 ? b.Reservations.Count : 2);
+                : 2;
 
             return new
             {
@@ -329,6 +367,7 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
     [HttpPost("field-reports")]
     public async Task<IActionResult> CreateFieldReport([FromBody] CreateFieldReportDto dto, CancellationToken cancellationToken)
     {
+        await EnsureGuidePortalSchemaAsync(cancellationToken);
         if (dto == null || string.IsNullOrWhiteSpace(dto.Location))
         {
             return BadRequest(new { message = "Location is required for field reports." });
@@ -404,18 +443,28 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
     [HttpGet("field-reports")]
     public async Task<IActionResult> GetFieldReports(CancellationToken cancellationToken)
     {
-        var reports = await db.GuideFieldReports
-            .AsNoTracking()
-            .OrderByDescending(r => r.CreatedAt)
-            .Take(30)
-            .ToListAsync(cancellationToken);
+        await EnsureGuidePortalSchemaAsync(cancellationToken);
+        try
+        {
+            var reports = await db.GuideFieldReports
+                .AsNoTracking()
+                .OrderByDescending(r => r.CreatedAt)
+                .Take(30)
+                .ToListAsync(cancellationToken);
 
-        return Ok(reports);
+            return Ok(reports);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("Could not fetch field reports: {Message}", ex.Message);
+            return Ok(new List<GuideFieldReport>());
+        }
     }
 
     [HttpDelete("field-reports/{reportId}")]
     public async Task<IActionResult> DeleteFieldReport(string reportId, CancellationToken cancellationToken)
     {
+        await EnsureGuidePortalSchemaAsync(cancellationToken);
         if (Guid.TryParse(reportId, out var gId))
         {
             var report = await db.GuideFieldReports.FirstOrDefaultAsync(r => r.Id == gId, cancellationToken);
@@ -504,10 +553,10 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
 
             if (booking.GuideSlotId.HasValue)
             {
-                var slot = await db.GuideAvailabilitySlots.FirstOrDefaultAsync(s => s.Id == booking.GuideSlotId.Value, cancellationToken);
+                var slot = await db.GuideAvailabilities.FirstOrDefaultAsync(s => s.Id == booking.GuideSlotId.Value, cancellationToken);
                 if (slot != null)
                 {
-                    slot.Status = "AVAILABLE";
+                    slot.Status = AvailabilityStatus.AVAILABLE;
                 }
             }
 

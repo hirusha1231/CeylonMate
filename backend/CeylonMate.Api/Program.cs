@@ -455,22 +455,7 @@ if (app.Environment.IsDevelopment())
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 },
-                new CeylonMate.Api.Models.VehicleFleetCatalog
-                {
-                    Id = Guid.NewGuid(),
-                    CategoryBadge = "VIP COACH TRANSPORT",
-                    VehicleModel = "Toyota Coaster VIP Minibus",
-                    Description = "Ideal for private delegation groups. Equipped with dual AC, microphone, panoramic windows, and dedicated luggage compartment.",
-                    ImageUrl = "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=1000&q=80",
-                    MaxPassengers = 14,
-                    FeatureHighlight = "Panoramic VIP Coach",
-                    LuggageCapacity = "12 Large Luggage",
-                    DailyRateUsd = 250.00m,
-                    IsActive = true,
-                    DisplayOrder = 4,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                },
+
                 new CeylonMate.Api.Models.VehicleFleetCatalog
                 {
                     Id = Guid.NewGuid(),

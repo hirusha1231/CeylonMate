@@ -107,7 +107,9 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
                 x.GuideProfile.LanguagesSpoken.ToLower().Contains(lang));
         }
 
-        var availableGuides = await guideQuery.Select(g => new GuideAvailabilityDto(
+        var rawGuides = await guideQuery.ToListAsync(ct);
+
+        var availableGuides = rawGuides.Select(g => new GuideAvailabilityDto(
             g.Id,
             g.LocalGuideUserId,
             g.GuideProfileId,
@@ -122,7 +124,7 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
             g.Notes,
             g.RowVersion,
             g.HeldUntilUtc
-        )).ToListAsync(ct);
+        )).ToList();
 
         // Search Transport
         var transportQuery = db.TransportSlots
@@ -333,7 +335,9 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
     {
         await ReleaseExpiredHoldsAsync(ct);
 
-        var query = db.GuideAvailabilities.AsNoTracking();
+        IQueryable<GuideAvailability> query = db.GuideAvailabilities
+            .AsNoTracking();
+
         if (guideUserId != Guid.Empty)
         {
             query = query.Where(x => x.LocalGuideUserId == guideUserId);
@@ -349,25 +353,118 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
             query = query.Where(x => x.EndTimeUtc <= endDate.Value);
         }
 
-        return await query
-            .OrderBy(x => x.StartTimeUtc)
-            .Select(g => new GuideAvailabilityDto(
+        var slots = await query.OrderBy(x => x.StartTimeUtc).ToListAsync(ct);
+
+        var guideUserIds = slots.Select(s => s.LocalGuideUserId).Distinct().ToList();
+        var users = guideUserIds.Count > 0
+            ? await db.Users.AsNoTracking().Where(u => guideUserIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, ct)
+            : new Dictionary<Guid, User>();
+        var profiles = guideUserIds.Count > 0
+            ? await db.GuideProfiles.AsNoTracking().Where(p => guideUserIds.Contains(p.UserId)).ToDictionaryAsync(p => p.UserId, ct)
+            : new Dictionary<Guid, GuideProfile>();
+
+        var activeBookings = await db.Bookings
+            .AsNoTracking()
+            .Where(b => b.Status != "CANCELLED" && b.Status != "CAPACITY_FLAGGED_REJECTED")
+            .OrderByDescending(b => b.BookedAt)
+            .ToListAsync(ct);
+
+        var today = DateTime.UtcNow.Date;
+        var result = new List<GuideAvailabilityDto>();
+
+        foreach (var g in slots)
+        {
+            users.TryGetValue(g.LocalGuideUserId, out var localUser);
+            profiles.TryGetValue(g.LocalGuideUserId, out var guideProfile);
+
+            var gName = !string.IsNullOrWhiteSpace(guideProfile?.FullName) && !guideProfile.FullName.Contains("@")
+                ? guideProfile.FullName
+                : (!string.IsNullOrWhiteSpace(localUser?.FullName) && !localUser.FullName.Contains("@")
+                    ? localUser.FullName
+                    : "Certified Guide");
+
+            var guideBookings = activeBookings.Where(b =>
+                (b.GuideSlotId.HasValue && (b.GuideSlotId.Value == g.Id || b.GuideSlotId.Value == g.GuideProfileId || b.GuideSlotId.Value == g.LocalGuideUserId)) ||
+                (!string.IsNullOrWhiteSpace(b.TravelerNotes) && b.TravelerNotes.Contains(gName)) ||
+                (!string.IsNullOrWhiteSpace(b.AgentNotes) && b.AgentNotes.Contains(gName))
+            ).ToList();
+
+            string? bookedFrom = null;
+            string? bookedUntil = null;
+            int bookedDays = 0;
+            string? availableAgain = null;
+            bool isCurrentlyBooked = false;
+            var currentStatus = g.Status;
+            var notes = g.Notes;
+            int bookedCap = g.BookedCapacity;
+
+            var currentOrUpcoming = guideBookings
+                .Select(b =>
+                {
+                    DateTime bStart = DateTime.TryParse(b.StartDate, out var ps) ? ps.Date : b.BookedAt.Date;
+                    int dur = b.TripDurationDays.GetValueOrDefault(1) > 0 ? b.TripDurationDays.GetValueOrDefault(1) : 1;
+                    DateTime bEnd = bStart.AddDays(dur - 1);
+                    return new { Booking = b, Start = bStart, End = bEnd, Duration = dur };
+                })
+                .Where(x => x.End >= today)
+                .OrderBy(x => x.Start)
+                .FirstOrDefault();
+
+            if (currentOrUpcoming != null)
+            {
+                var b = currentOrUpcoming.Booking;
+                bookedFrom = currentOrUpcoming.Start.ToString("yyyy-MM-dd");
+                bookedUntil = currentOrUpcoming.End.ToString("yyyy-MM-dd");
+                bookedDays = currentOrUpcoming.Duration;
+                availableAgain = currentOrUpcoming.End.AddDays(1).ToString("yyyy-MM-dd");
+
+                if (today <= currentOrUpcoming.End)
+                {
+                    isCurrentlyBooked = true;
+                    currentStatus = (b.Status == "CONFIRMED" || b.GuideAssignmentStatus == "ACCEPTED_BY_GUIDE")
+                        ? AvailabilityStatus.BOOKED
+                        : AvailabilityStatus.RESERVED;
+                    bookedCap = 1;
+                    notes = $"Booked: #{b.BookingReference} ({bookedDays} Days: {currentOrUpcoming.Start:dd MMM yyyy} - {currentOrUpcoming.End:dd MMM yyyy})";
+                }
+            }
+            else
+            {
+                // Booking period has ended -> automatically Available
+                if (currentStatus == AvailabilityStatus.BOOKED || currentStatus == AvailabilityStatus.RESERVED)
+                {
+                    currentStatus = AvailabilityStatus.AVAILABLE;
+                    bookedCap = 0;
+                }
+            }
+
+            result.Add(new GuideAvailabilityDto(
                 g.Id,
                 g.LocalGuideUserId,
                 g.GuideProfileId,
                 g.StartTimeUtc,
                 g.EndTimeUtc,
                 g.SlotType,
-                g.Status,
+                currentStatus,
                 g.MaxCapacity,
-                g.BookedCapacity,
+                bookedCap,
                 g.PriceAmount,
                 g.Currency,
-                g.Notes,
+                notes,
                 g.RowVersion,
-                g.HeldUntilUtc
-            ))
-            .ToListAsync(ct);
+                g.HeldUntilUtc,
+                bookedFrom,
+                bookedUntil,
+                bookedDays,
+                availableAgain,
+                isCurrentlyBooked,
+                gName,
+                localUser?.Email ?? (guideProfile?.User?.Email ?? ""),
+                guideProfile?.LicenseNumber ?? "SLTDA/CG/2026/0491"
+            ));
+        }
+
+        return result;
     }
 
     public async Task<GuideAvailabilityDto> AddGuideAvailabilityAsync(Guid guideUserId, CreateGuideAvailabilityRequestDto request, CancellationToken ct = default)

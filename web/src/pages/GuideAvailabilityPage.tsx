@@ -26,6 +26,7 @@ import { fadeInVariants, scaleInModalVariants } from '../utils/animations';
 export interface GuideSlot {
   id: string;
   localGuideUserId: string;
+  guideProfileId?: string;
   startTimeUtc: string;
   endTimeUtc: string;
   slotType: string;
@@ -36,6 +37,14 @@ export interface GuideSlot {
   currency: string;
   notes?: string;
   rowVersion?: string;
+  bookedFrom?: string | null;
+  bookedUntil?: string | null;
+  bookedDays?: number;
+  availableAgain?: string | null;
+  isCurrentlyBooked?: boolean;
+  guideName?: string | null;
+  guideEmail?: string | null;
+  licenseNumber?: string | null;
 }
 
 export interface GuideOption {
@@ -141,12 +150,8 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
       showToast('Validation Error', 'Please select a guide.', 'error');
       return;
     }
-    if (!createForm.startTime || !createForm.endTime) {
-      showToast('Validation Error', 'Please select both Start Date and End Date.', 'error');
-      return;
-    }
-    if (new Date(createForm.endTime) < new Date(createForm.startTime)) {
-      showToast('Validation Error', 'End Date must be at or after Start Date.', 'error');
+    if (!createForm.startTime) {
+      showToast('Validation Error', 'Please select a slot date.', 'error');
       return;
     }
     if (!createForm.slotType) {
@@ -158,11 +163,25 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
       return;
     }
 
+    const startUtc = new Date(createForm.startTime);
+    const endUtc = new Date(createForm.startTime);
+
+    if (createForm.slotType === 'HALF_DAY_MORNING') {
+      startUtc.setUTCHours(8, 0, 0, 0);
+      endUtc.setUTCHours(13, 0, 0, 0);
+    } else if (createForm.slotType === 'HALF_DAY_AFTERNOON') {
+      startUtc.setUTCHours(13, 0, 0, 0);
+      endUtc.setUTCHours(18, 0, 0, 0);
+    } else {
+      startUtc.setUTCHours(8, 0, 0, 0);
+      endUtc.setUTCHours(18, 0, 0, 0);
+    }
+
     setIsSubmitting(true);
     try {
       const payload = {
-        startTimeUtc: new Date(createForm.startTime).toISOString(),
-        endTimeUtc: new Date(createForm.endTime).toISOString(),
+        startTimeUtc: startUtc.toISOString(),
+        endTimeUtc: endUtc.toISOString(),
         slotType: createForm.slotType,
         maxCapacity: Number(createForm.maxCapacity) || 1,
         priceAmount: Number(createForm.priceAmount) || 15000,
@@ -299,6 +318,12 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
     if (statusFilter === 'ALL') return true;
     return s.status.toUpperCase() === statusFilter.toUpperCase();
   });
+
+  const formatDate = (dateStr?: string | null) => {
+    if (!dateStr) return 'N/A';
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
 
   const getStatusBadgeClass = (status: string) => {
     switch (status.toUpperCase()) {
@@ -439,8 +464,8 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-900/90 border-b border-stone-800 text-[11px] font-mono uppercase tracking-wider text-[#C5A880]">
-                    <th className="px-5 py-4 font-semibold">Available Date</th>
-                    <th className="px-5 py-4 font-semibold">Slot Type</th>
+                    <th className="px-5 py-4 font-semibold">Guide & Slot Date</th>
+                    <th className="px-5 py-4 font-semibold">Booking Period & Schedule</th>
                     <th className="px-5 py-4 font-semibold">Status</th>
                     <th className="px-5 py-4 font-semibold">Notes / Excerpt</th>
                     <th className="px-5 py-4 font-semibold text-right">Actions</th>
@@ -456,69 +481,104 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    filteredSlots.map((slot) => (
-                      <tr
-                        key={slot.id}
-                        className="hover:bg-white/[0.03] transition-colors group"
-                      >
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2 font-medium text-stone-100">
-                            <Calendar className="w-4 h-4 text-[#C5A880] shrink-0" />
-                            <span>{new Date(slot.startTimeUtc).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
-                          </div>
-                        </td>
+                    filteredSlots.map((slot) => {
+                      const isBooked = slot.status.toUpperCase() === 'BOOKED' || slot.isCurrentlyBooked;
+                      return (
+                        <tr
+                          key={slot.id}
+                          className="hover:bg-white/[0.03] transition-colors group"
+                        >
+                          <td className="px-5 py-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 font-medium text-stone-100">
+                                <Calendar className="w-4 h-4 text-[#C5A880] shrink-0" />
+                                <span>{formatDate(slot.startTimeUtc)}</span>
+                              </div>
+                              {slot.guideName && (
+                                <div className="text-[11px] text-[#C5A880] font-mono flex items-center gap-1">
+                                  <UserCheck className="w-3.5 h-3.5 text-[#C5A880]" />
+                                  <span>{slot.guideName}</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
 
-                        <td className="px-5 py-4">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900 border border-stone-700/80 text-stone-300 text-[11px] font-mono">
-                            {formatSlotType(slot.slotType)}
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase border shadow-sm ${getStatusBadgeClass(slot.status)}`}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                            {slot.status}
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-4 text-stone-300 max-w-xs truncate">
-                          {slot.notes ? (
-                            <span title={slot.notes}>{slot.notes}</span>
-                          ) : (
-                            <span className="text-stone-600 italic">No notes provided</span>
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {slot.status.toUpperCase() === 'BOOKED' ? (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-blue-300 text-[11px] font-mono">
-                                <Lock className="w-3.5 h-3.5 text-blue-400" />
-                                Locked (Booked)
-                              </span>
+                          <td className="px-5 py-4">
+                            {isBooked ? (
+                              <div className="bg-slate-900/90 border border-blue-500/30 rounded-xl p-2.5 space-y-1.5 min-w-[260px] shadow-inner">
+                                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                                  <div>
+                                    <span className="text-stone-400 text-[10px] uppercase block">Booked From</span>
+                                    <span className="text-white font-semibold">{formatDate(slot.bookedFrom || slot.startTimeUtc)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-stone-400 text-[10px] uppercase block">Booked Until</span>
+                                    <span className="text-white font-semibold">{formatDate(slot.bookedUntil || slot.endTimeUtc)}</span>
+                                  </div>
+                                </div>
+                                <div className="pt-1.5 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono">
+                                  <span className="text-blue-300 font-medium">
+                                    Booked Days: {slot.bookedDays && slot.bookedDays > 0 ? `${slot.bookedDays} Days` : '1 Day'}
+                                  </span>
+                                  <span className="text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30 text-[10px]">
+                                    Available Again: {formatDate(slot.availableAgain || slot.endTimeUtc)}
+                                  </span>
+                                </div>
+                              </div>
                             ) : (
-                              <>
-                                <button
-                                  onClick={() => openEditModal(slot)}
-                                  title="Edit Slot"
-                                  className="p-2 rounded-xl bg-slate-900/80 hover:bg-[#C5A880]/20 text-stone-300 hover:text-[#D4AF37] border border-stone-700/60 hover:border-[#C5A880]/60 transition-all shadow-sm cursor-pointer"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-
-                                <button
-                                  onClick={() => setDeletingSlot(slot)}
-                                  title="Delete Slot"
-                                  className="p-2 rounded-xl bg-slate-900/80 hover:bg-rose-950/60 text-stone-300 hover:text-rose-400 border border-stone-700/60 hover:border-rose-500/50 transition-all shadow-sm cursor-pointer"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
+                              <div className="text-stone-400 flex items-center gap-2 text-[11px] font-mono">
+                                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                <span className="text-emerald-300/90 font-medium">Available for booking</span>
+                              </div>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase border shadow-sm ${getStatusBadgeClass(slot.status)}`}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                              {slot.status}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4 text-stone-300 max-w-xs truncate">
+                            {slot.notes ? (
+                              <span title={slot.notes}>{slot.notes}</span>
+                            ) : (
+                              <span className="text-stone-600 italic">No notes provided</span>
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {isBooked ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-blue-300 text-[11px] font-mono">
+                                  <Lock className="w-3.5 h-3.5 text-blue-400" />
+                                  Locked (Booked)
+                                </span>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => openEditModal(slot)}
+                                    title="Edit Slot"
+                                    className="p-2 rounded-xl bg-slate-900/80 hover:bg-[#C5A880]/20 text-stone-300 hover:text-[#D4AF37] border border-stone-700/60 hover:border-[#C5A880]/60 transition-all shadow-sm cursor-pointer"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => setDeletingSlot(slot)}
+                                    title="Delete Slot"
+                                    className="p-2 rounded-xl bg-slate-900/80 hover:bg-rose-950/60 text-stone-300 hover:text-rose-400 border border-stone-700/60 hover:border-rose-500/50 transition-all shadow-sm cursor-pointer"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -581,41 +641,17 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
                   </select>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-stone-300 font-semibold mb-1">Start Date</label>
-                    <input
-                      type="date"
-                      value={createForm.startTime}
-                      onChange={(e) => setCreateForm({ ...createForm, startTime: e.target.value })}
-                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono scheme-dark"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-stone-300 font-semibold mb-1">End Date</label>
-                    <input
-                      type="date"
-                      value={createForm.endTime}
-                      onChange={(e) => setCreateForm({ ...createForm, endTime: e.target.value })}
-                      className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono scheme-dark"
-                    />
-                  </div>
-                </div>
-
                 <div>
-                  <label className="block text-stone-300 font-semibold mb-1">Slot Type</label>
-                  <select
-                    value={createForm.slotType}
-                    onChange={(e) => setCreateForm({ ...createForm, slotType: e.target.value })}
-                    className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none"
-                  >
-                    <option value="">Select Slot Duration...</option>
-                    <option value="FULL_DAY">Full Day</option>
-                    <option value="HALF_DAY_MORNING">Half Day (Morning)</option>
-                    <option value="HALF_DAY_AFTERNOON">Half Day (Afternoon)</option>
-                  </select>
+                  <label className="block text-stone-300 font-semibold mb-1">Slot Date</label>
+                  <input
+                    type="date"
+                    value={createForm.startTime}
+                    onChange={(e) => setCreateForm({ ...createForm, startTime: e.target.value })}
+                    className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3.5 py-2.5 text-stone-100 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none font-mono scheme-dark"
+                  />
                 </div>
+
+
 
                 <div>
                   <label className="block text-stone-300 font-semibold mb-1">Notes / Tour Excerpt (Letters Only)</label>

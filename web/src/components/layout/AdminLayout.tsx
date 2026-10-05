@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate, useLocation } from 'react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  LayoutDashboard, Users, MapPin, FileText, ArrowLeft, LogOut, Menu, X, Shield, Sparkles, Compass, User
+  LayoutDashboard, Users, ArrowLeft, LogOut, Menu, X, Shield, Sparkles, Compass, User
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../context/ToastContext';
@@ -25,8 +25,6 @@ export const AdminLayout: React.FC = () => {
   const navItems = [
     { to: '/admin', label: 'Overview Dashboard', icon: LayoutDashboard, end: true },
     { to: '/admin/users', label: 'Staff & User Directory', icon: Users, end: false },
-    { to: '/admin/destinations', label: 'Destinations & Quotas', icon: MapPin, end: false },
-    { to: '/admin/audit-logs', label: 'Audit & Concurrency Logs', icon: FileText, end: false },
     { to: '/account', label: 'My Account & Security', icon: User, end: false },
   ];
 

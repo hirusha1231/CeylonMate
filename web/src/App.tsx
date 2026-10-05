@@ -20,16 +20,12 @@ import { CapacityDispatchPage } from './pages/capacity/CapacityDispatchPage';
 import { AdminLayout } from './components/layout/AdminLayout';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { UserManagementPage } from './pages/admin/UserManagementPage';
-import { DestinationsMasterPage } from './pages/admin/DestinationsMasterPage';
-import { AuditLogsPage } from './pages/admin/AuditLogsPage';
 import { AgentSignatureJourneysPage } from './pages/agent/AgentSignatureJourneysPage';
 
 import { ScrollToTop } from './components/common/ScrollToTop';
 import { RequireAuth } from './auth/RequireAuth';
 import { AppLayout } from './components/AppLayout';
 import { StaffPage } from './pages/StaffPage';
-import { TripRequestsPage } from './features/trips/TripRequestsPage';
-import { TripDetailsPage } from './features/trips/TripDetailsPage';
 import { isStaffUserRole, getRoleRedirectPath } from './auth/types';
 
 // Guard for Public Consumer Pages: Staff members trying to view tourist pages are redirected to their staff console
@@ -100,8 +96,8 @@ function AnimatedAppRoutes() {
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/users" element={<UserManagementPage />} />
-          <Route path="/admin/destinations" element={<DestinationsMasterPage />} />
-          <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
+          <Route path="/admin/destinations" element={<Navigate to="/admin" replace />} />
+          <Route path="/admin/audit-logs" element={<Navigate to="/admin" replace />} />
         </Route>
       </Route>
 
@@ -114,8 +110,8 @@ function AnimatedAppRoutes() {
           </Route>
           <Route element={<RequireAuth roles={['TRAVEL_AGENT', 'ADMIN']} />}>
             <Route path="agents" element={<StaffPage kind="agents" />} />
-            <Route path="trips" element={<TripRequestsPage />} />
-            <Route path="trips/:id" element={<TripDetailsPage />} />
+            <Route path="trips" element={<Navigate to="/agent-portal" replace />} />
+            <Route path="trips/:id" element={<Navigate to="/agent-portal" replace />} />
             <Route path="signature-journeys" element={<AgentSignatureJourneysPage />} />
           </Route>
           <Route element={<RequireAuth roles={['ADMIN']} />}>

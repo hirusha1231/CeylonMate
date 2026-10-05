@@ -86,6 +86,8 @@ class RouteLogisticsRequest(BaseModel):
     origin: str
     destination: str
     passengers: Optional[int] = 2
+    startDate: Optional[str] = None
+    durationDays: Optional[int] = None
 
 
 class RouteLogisticsResponse(BaseModel):

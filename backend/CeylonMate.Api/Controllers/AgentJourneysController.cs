@@ -29,6 +29,7 @@ public class AgentJourneysController : ControllerBase
     public async Task<IActionResult> GetAllSignatureJourneys(CancellationToken cancellationToken)
     {
         var journeys = await _db.SignatureJourneys
+            .Where(x => x.Slug == null || !x.Slug.StartsWith("bespoke-"))
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
 

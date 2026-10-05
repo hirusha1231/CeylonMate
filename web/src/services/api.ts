@@ -61,7 +61,7 @@ api.interceptors.response.use(
 export function apiError(error: unknown): string {
   if (axios.isAxiosError(error)) {
     if (!error.response || error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED') {
-      return "Unable to reach backend server (port 5084). Please verify connectivity.";
+      return "Unable to reach.";
     }
     if (error.response?.status === 409) {
       return "This email address is already registered. Please sign in instead.";
@@ -92,7 +92,7 @@ export function apiError(error: unknown): string {
     }
     return `Server Error (${error.response.status}). Please retry.`;
   }
-  return "Unable to reach backend server (port 5084). Please verify connectivity.";
+  return "Unable to reach.";
 }
 
 export async function checkServerHealth(): Promise<boolean> {

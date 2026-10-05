@@ -17,7 +17,7 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
     public DbSet<TransportSlot> TransportSlots => Set<TransportSlot>();
     public DbSet<AttractionSlot> AttractionSlots => Set<AttractionSlot>();
 
-    // Member 4 - Workflow & Itinerary/Booking
+    public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<WorkflowExecution> WorkflowExecutions => Set<WorkflowExecution>();
     public DbSet<WorkflowStep> WorkflowSteps => Set<WorkflowStep>();
     public DbSet<Itinerary> Itineraries => Set<Itinerary>();
@@ -25,11 +25,9 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
     public DbSet<ItineraryItem> ItineraryItems => Set<ItineraryItem>();
     public DbSet<Quotation> Quotations => Set<Quotation>();
     public DbSet<QuotationItem> QuotationItems => Set<QuotationItem>();
-    public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<Reservation> Reservations => Set<Reservation>();
     public DbSet<ApprovalDecision> ApprovalDecisions => Set<ApprovalDecision>();
 
-    // Destinations Module
     public DbSet<Destination> Destinations => Set<Destination>();
     public DbSet<Attraction> Attractions => Set<Attraction>();
     public DbSet<AttractionOpeningRule> AttractionOpeningRules => Set<AttractionOpeningRule>();
@@ -41,14 +39,14 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
     public DbSet<GuideAvailabilitySlot> GuideAvailabilitySlots => Set<GuideAvailabilitySlot>();
     public DbSet<GuideFieldReport> GuideFieldReports => Set<GuideFieldReport>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<TravelerProfile> TravelerProfiles => Set<TravelerProfile>();
+    public DbSet<TripRequest> TripRequests => Set<TripRequest>();
+    public DbSet<TripRequestStatusHistory> TripRequestStatusHistories => Set<TripRequestStatusHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyConfiguration(new TravelerProfileConfiguration());
-        modelBuilder.ApplyConfiguration(new TripRequestConfiguration());
-        modelBuilder.ApplyConfiguration(new TripRequestStatusHistoryConfiguration());
-        modelBuilder.ApplyConfiguration(new WorkflowExecutionConfiguration());
         base.OnModelCreating(modelBuilder);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(CeylonMateDbContext).Assembly);
 
         var user = modelBuilder.Entity<User>();
         user.ToTable("users");
@@ -167,15 +165,6 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
                   .HasForeignKey(x => x.DestinationId)
                   .OnDelete(DeleteBehavior.Cascade);
 
-        var openingRule = modelBuilder.Entity<AttractionOpeningRule>();
-        openingRule.ToTable("attraction_opening_rules");
-        openingRule.HasKey(x => x.Id);
-        openingRule.Property(x => x.DayOfWeek).HasConversion<string>().HasMaxLength(16).IsRequired();
-        openingRule.HasOne(x => x.Attraction)
-                   .WithMany(x => x.OpeningRules)
-                   .HasForeignKey(x => x.AttractionId)
-                   .OnDelete(DeleteBehavior.Cascade);
-
         var advisory = modelBuilder.Entity<DestinationAdvisory>();
         advisory.ToTable("destination_advisories");
         advisory.HasKey(x => x.Id);
@@ -186,18 +175,6 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
                 .WithMany(x => x.Advisories)
                 .HasForeignKey(x => x.DestinationId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-        var guideReport = modelBuilder.Entity<LocalGuideReport>();
-        guideReport.ToTable("local_guide_reports");
-        guideReport.HasKey(x => x.Id);
-        guideReport.Property(x => x.ReportType).HasConversion<string>().HasMaxLength(32).IsRequired();
-        guideReport.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
-        guideReport.Property(x => x.Latitude).HasPrecision(9, 6);
-        guideReport.Property(x => x.Longitude).HasPrecision(9, 6);
-        guideReport.HasOne(x => x.Destination)
-                   .WithMany(x => x.GuideReports)
-                   .HasForeignKey(x => x.DestinationId)
-                   .OnDelete(DeleteBehavior.Cascade);
 
         var signatureJourney = modelBuilder.Entity<SignatureJourney>();
         signatureJourney.ToTable("signature_journeys");
@@ -224,18 +201,17 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
         fleetCatalog.Property(x => x.VehicleModel).HasMaxLength(200).IsRequired();
         fleetCatalog.Property(x => x.DailyRateUsd).HasPrecision(18, 2);
 
-        var guideAvailabilitySlot = modelBuilder.Entity<GuideAvailabilitySlot>();
-        guideAvailabilitySlot.ToTable("guide_availability_slots");
-        guideAvailabilitySlot.HasKey(x => x.Id);
-        guideAvailabilitySlot.Property(x => x.DailyRateLkr).HasPrecision(18, 2);
+        var capacityNotification = modelBuilder.Entity<CapacityNotification>();
+        capacityNotification.ToTable("capacity_notifications");
+        capacityNotification.HasKey(x => x.Id);
 
         var guideFieldReport = modelBuilder.Entity<GuideFieldReport>();
         guideFieldReport.ToTable("guide_field_reports");
         guideFieldReport.HasKey(x => x.Id);
 
-        var capacityNotification = modelBuilder.Entity<CapacityNotification>();
-        capacityNotification.ToTable("capacity_notifications");
-        capacityNotification.HasKey(x => x.Id);
+        var guideAvailabilitySlot = modelBuilder.Entity<GuideAvailabilitySlot>();
+        guideAvailabilitySlot.ToTable("guide_availability_slots");
+        guideAvailabilitySlot.HasKey(x => x.Id);
 
         var notification = modelBuilder.Entity<Notification>();
         notification.ToTable("notifications");

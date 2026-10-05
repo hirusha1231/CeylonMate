@@ -17,7 +17,6 @@ import {
   Calendar,
   Clock,
   Car,
-  Zap,
   Bell,
   Lock
 } from 'lucide-react';
@@ -46,6 +45,11 @@ export interface GuideSlot {
   currency: string;
   notes?: string;
   rowVersion?: string;
+  bookedFrom?: string | null;
+  bookedUntil?: string | null;
+  bookedDays?: number;
+  availableAgain?: string | null;
+  isCurrentlyBooked?: boolean;
 }
 
 export interface GuideOption {
@@ -94,7 +98,7 @@ const initialCreateGuideForm = {
   guideId: '',
   startTime: '',
   endTime: '',
-  slotType: '',
+  slotType: 'FULL_DAY',
   priceAmount: '',
   maxCapacity: '',
   notes: ''
@@ -349,30 +353,29 @@ export const CapacityDeskPage: React.FC = () => {
       showToast('Validation Failed', 'Please select a certified local guide.', 'error');
       return;
     }
-    if (!createGuideForm.startTime || !createGuideForm.endTime) {
-      showToast('Validation Failed', 'Please choose a starting date and end date.', 'error');
-      return;
-    }
-    if (new Date(createGuideForm.endTime) <= new Date(createGuideForm.startTime)) {
-      showToast('Validation Failed', 'End date must be after the starting date.', 'error');
-      return;
-    }
-    if (!createGuideForm.slotType) {
-      showToast('Validation Failed', 'Please select a slot duration type.', 'error');
+    if (!createGuideForm.startTime) {
+      showToast('Validation Failed', 'Please choose a slot date.', 'error');
       return;
     }
     if (createGuideForm.notes && /\d/.test(createGuideForm.notes)) {
       showToast('Validation Failed', 'Tour Excerpt / Notes must contain letters only. Numbers are not allowed.', 'error');
       return;
     }
+
+    const slotType = createGuideForm.slotType || 'FULL_DAY';
+    const startUtc = new Date(createGuideForm.startTime);
+    startUtc.setUTCHours(8, 0, 0, 0);
+    const endUtc = new Date(createGuideForm.startTime);
+    endUtc.setUTCHours(18, 0, 0, 0);
+
     setSubmitting(true);
     try {
       const payload = {
         guideId: createGuideForm.guideId,
         localGuideUserId: createGuideForm.guideId,
-        startTimeUtc: new Date(createGuideForm.startTime).toISOString(),
-        endTimeUtc: new Date(createGuideForm.endTime).toISOString(),
-        slotType: createGuideForm.slotType,
+        startTimeUtc: startUtc.toISOString(),
+        endTimeUtc: endUtc.toISOString(),
+        slotType: slotType,
         priceAmount: 0,
         maxCapacity: 1,
         currency: 'LKR',
@@ -417,12 +420,8 @@ export const CapacityDeskPage: React.FC = () => {
   const handleUpdateGuideSlot = async () => {
     if (!editingGuideSlot) return;
 
-    if (!editGuideForm.startTime || !editGuideForm.endTime) {
-      showToast('Validation Failed', 'Please choose valid starting date and end date.', 'error');
-      return;
-    }
-    if (new Date(editGuideForm.endTime) < new Date(editGuideForm.startTime)) {
-      showToast('Validation Failed', 'End date must be at or after starting date.', 'error');
+    if (!editGuideForm.startTime) {
+      showToast('Validation Failed', 'Please choose a valid date.', 'error');
       return;
     }
     if (editGuideForm.notes && /\d/.test(editGuideForm.notes)) {
@@ -432,14 +431,20 @@ export const CapacityDeskPage: React.FC = () => {
 
     setSubmitting(true);
     try {
+      const startDate = new Date(editGuideForm.startTime);
+      const endDate = editGuideForm.endTime ? new Date(editGuideForm.endTime) : new Date(startDate);
+      if (endDate < startDate) {
+        endDate.setTime(startDate.getTime());
+      }
+
       const payload = {
-        startTimeUtc: new Date(editGuideForm.startTime).toISOString(),
-        endTimeUtc: new Date(editGuideForm.endTime).toISOString(),
-        slotType: editGuideForm.slotType,
+        startTimeUtc: startDate.toISOString(),
+        endTimeUtc: endDate.toISOString(),
+        slotType: editGuideForm.slotType || editingGuideSlot.slotType || 'FULL_DAY',
         status: editGuideForm.status,
-        priceAmount: Number(editGuideForm.priceAmount),
-        maxCapacity: Number(editGuideForm.maxCapacity),
-        currency: 'LKR',
+        priceAmount: Number(editingGuideSlot.priceAmount ?? editGuideForm.priceAmount ?? 0),
+        maxCapacity: Number(editingGuideSlot.maxCapacity ?? editGuideForm.maxCapacity ?? 1),
+        currency: editingGuideSlot.currency || 'LKR',
         notes: editGuideForm.notes,
         rowVersion: editingGuideSlot.rowVersion
       };
@@ -471,18 +476,22 @@ export const CapacityDeskPage: React.FC = () => {
       try {
         await api.patch(`/api/capacity/guides/slots/${slot.id}/status`, { status: newStatus });
       } catch {
-        const payload = {
-          startTimeUtc: slot.startTimeUtc,
-          endTimeUtc: slot.endTimeUtc,
-          slotType: slot.slotType,
-          status: newStatus,
-          priceAmount: slot.priceAmount,
-          maxCapacity: slot.maxCapacity,
-          currency: slot.currency || 'LKR',
-          notes: slot.notes,
-          rowVersion: slot.rowVersion
-        };
-        await api.put(`/api/guides/slots/${slot.id}`, payload);
+        try {
+          await api.patch(`/api/capacity/guides/slots/${slot.id}/toggle-block`);
+        } catch {
+          const payload = {
+            startTimeUtc: slot.startTimeUtc,
+            endTimeUtc: slot.endTimeUtc,
+            slotType: slot.slotType,
+            status: newStatus,
+            priceAmount: slot.priceAmount,
+            maxCapacity: slot.maxCapacity,
+            currency: slot.currency || 'LKR',
+            notes: slot.notes,
+            rowVersion: slot.rowVersion
+          };
+          await api.put(`/api/capacity/guides/slots/${slot.id}`, payload);
+        }
       }
 
       showToast(newStatus === 'BLOCKED' ? 'Slot Blocked' : 'Slot Unblocked', `Guide slot status changed to ${newStatus}.`, 'info');
@@ -506,15 +515,26 @@ export const CapacityDeskPage: React.FC = () => {
     try {
       try {
         await api.delete(`/api/capacity/guides/slots/${deletingGuideSlot.id}`);
-      } catch {
-        await api.delete(`/api/guides/slots/${deletingGuideSlot.id}`);
+      } catch (firstErr: any) {
+        if (firstErr?.response?.status === 404) {
+          // If 404 on capacity route, try /api/guides/slots
+          await api.delete(`/api/guides/slots/${deletingGuideSlot.id}`);
+        } else {
+          throw firstErr;
+        }
       }
 
       showToast('Guide Slot Removed', 'Availability slot deleted successfully.', 'success');
       setDeletingGuideSlot(null);
       fetchGuideSlots();
     } catch (e: any) {
-      showToast('Delete Failed', apiError(e), 'error');
+      if (e?.response?.status === 404) {
+        showToast('Guide Slot Removed', 'Availability slot deleted successfully.', 'success');
+        setDeletingGuideSlot(null);
+        fetchGuideSlots();
+      } else {
+        showToast('Delete Failed', apiError(e), 'error');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -876,11 +896,10 @@ export const CapacityDeskPage: React.FC = () => {
         <div className="flex items-center gap-2 p-1.5 bg-[#0F1A24]/90 border border-[#C5A880]/30 rounded-2xl w-fit shadow-xl">
           <button
             onClick={() => setActiveTab('GUIDES')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 cursor-pointer ${
-              activeTab === 'GUIDES'
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 cursor-pointer ${activeTab === 'GUIDES'
                 ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-semibold shadow-md'
                 : 'text-stone-300 hover:text-white hover:bg-white/5'
-            }`}
+              }`}
           >
             <UserCheck className="w-4 h-4" />
             <span>Guide Availability</span>
@@ -888,11 +907,10 @@ export const CapacityDeskPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('TRANSPORT')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 cursor-pointer ${
-              activeTab === 'TRANSPORT'
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 cursor-pointer ${activeTab === 'TRANSPORT'
                 ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-semibold shadow-md'
                 : 'text-stone-300 hover:text-white hover:bg-white/5'
-            }`}
+              }`}
           >
             <Bus className="w-4 h-4" />
             <span>Transport Inventory</span>
@@ -900,16 +918,6 @@ export const CapacityDeskPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleReleaseExpiredHolds}
-            disabled={releasingHolds}
-            className="px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold text-xs flex items-center gap-2 shadow-lg hover:border-amber-400 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-            title="Release 15-minute temporary checkout seat holds that have expired"
-          >
-            <Zap className={`w-4 h-4 text-amber-400 ${releasingHolds ? 'animate-bounce' : ''}`} />
-            <span>Release Expired Holds</span>
-          </button>
-
           <button
             onClick={() => setIsFleetModalOpen(true)}
             className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-[#C5A880]/40 text-[#C5A880] font-bold text-xs flex items-center gap-2 shadow-lg shadow-[#C5A880]/10 hover:border-[#C5A880] transition-all cursor-pointer"
@@ -975,11 +983,10 @@ export const CapacityDeskPage: React.FC = () => {
                   <button
                     key={st}
                     onClick={() => setGuideFilter(st)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                      guideFilter === st
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${guideFilter === st
                         ? 'bg-[#C5A880]/20 text-[#C5A880] border border-[#C5A880] shadow-sm'
                         : 'text-stone-400 hover:text-white bg-slate-900/60 border border-stone-800'
-                    }`}
+                      }`}
                   >
                     {st}
                   </button>
@@ -1001,7 +1008,6 @@ export const CapacityDeskPage: React.FC = () => {
                     <tr className="bg-slate-900/80 text-[#C5A880]/90 text-xs tracking-wider uppercase font-semibold font-mono border-b border-[#C5A880]/20">
                       <th className="px-5 py-4">Guide Details</th>
                       <th className="px-5 py-4">Schedule Window</th>
-                      <th className="px-5 py-4">Duration Type</th>
                       <th className="px-5 py-4">Status</th>
                       <th className="px-5 py-4 text-right">Actions</th>
                     </tr>
@@ -1009,14 +1015,14 @@ export const CapacityDeskPage: React.FC = () => {
                   <tbody className="divide-y divide-stone-800/80 text-sm">
                     {loading ? (
                       <tr>
-                        <td colSpan={5} className="px-5 py-12 text-center text-stone-400">
+                        <td colSpan={4} className="px-5 py-12 text-center text-stone-400">
                           <RefreshCw className="w-6 h-6 text-[#C5A880] animate-spin mx-auto mb-2" />
                           <span>Loading guide availability roster...</span>
                         </td>
                       </tr>
                     ) : filteredGuideSlots.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-5 py-12 text-center text-stone-400 font-sans">
+                        <td colSpan={4} className="px-5 py-12 text-center text-stone-400 font-sans">
                           <Users className="w-8 h-8 text-stone-600 mx-auto mb-2" />
                           <p className="text-stone-300 font-medium">No guide availability slots found.</p>
                           <p className="text-xs text-stone-500 mt-1">Click "+ Add Guide Slot" to create a schedule.</p>
@@ -1046,16 +1052,45 @@ export const CapacityDeskPage: React.FC = () => {
                             </td>
 
                             <td className="px-5 py-4">
-                              <div className="text-xs text-stone-300 flex items-center gap-1.5 font-medium">
-                                <Calendar className="w-3.5 h-3.5 text-[#C5A880]" />
-                                {new Date(slot.startTimeUtc).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                              </div>
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <span className="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/30 text-[#C5A880] font-mono">
-                                {formatSlotType(slot.slotType)}
-                              </span>
+                              {isBooked || slot.status.toUpperCase() === 'RESERVED' || slot.bookedFrom ? (
+                                <div className="space-y-1.5 font-mono text-xs">
+                                  <div className="flex items-center gap-2 text-stone-200">
+                                    <span className="text-stone-400 font-sans">Booked From:</span>
+                                    <span className="font-semibold text-[#C5A880]">
+                                      {slot.bookedFrom ? new Date(slot.bookedFrom).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : new Date(slot.startTimeUtc).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-stone-200">
+                                    <span className="text-stone-400 font-sans">Booked Until:</span>
+                                    <span className="font-semibold text-[#C5A880]">
+                                      {slot.bookedUntil ? new Date(slot.bookedUntil).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : new Date(slot.endTimeUtc).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-stone-300">
+                                    <span className="text-stone-400 font-sans">Booked Days:</span>
+                                    <span className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold">
+                                      {slot.bookedDays && slot.bookedDays > 0 ? `${slot.bookedDays} Days` : 'Multi-Day'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-emerald-300 pt-0.5">
+                                    <span className="text-stone-400 font-sans">Available Again:</span>
+                                    <span className="font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                                      {slot.availableAgain ? new Date(slot.availableAgain).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : new Date(new Date(slot.endTimeUtc).getTime() + 86400000).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-1">
+                                  <div className="text-xs text-stone-300 flex items-center gap-1.5 font-medium">
+                                    <Calendar className="w-3.5 h-3.5 text-[#C5A880]" />
+                                    {new Date(slot.startTimeUtc).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                  </div>
+                                  <div className="text-[11px] text-emerald-400 font-mono flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    Available for assignment
+                                  </div>
+                                </div>
+                              )}
                             </td>
 
                             <td className="px-5 py-4">
@@ -1070,11 +1105,12 @@ export const CapacityDeskPage: React.FC = () => {
                                   BLOCKED
                                 </span>
                               ) : isBooked ? (
-                                <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-slate-800 text-slate-300 border border-slate-700 w-fit">
+                                <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 w-fit font-mono">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
                                   BOOKED
                                 </span>
                               ) : (
-                                <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-amber-950/60 text-amber-400 border border-amber-500/30 w-fit">
+                                <span className="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-amber-950/60 text-amber-400 border border-amber-500/30 w-fit font-mono">
                                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
                                   {slot.status}
                                 </span>
@@ -1093,11 +1129,10 @@ export const CapacityDeskPage: React.FC = () => {
                                     {/* 3 Icon Actions: [Block/Unblock], [Edit], [Delete] */}
                                     <button
                                       onClick={() => patchGuideSlotStatus(slot)}
-                                      className={`p-2 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
-                                        isAvailable
+                                      className={`p-2 rounded-lg text-xs font-medium transition-all cursor-pointer border ${isAvailable
                                           ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
                                           : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                      }`}
+                                        }`}
                                       title={isAvailable ? 'Block Slot' : 'Unblock Slot'}
                                     >
                                       <Slash className="w-4 h-4" />
@@ -1176,11 +1211,10 @@ export const CapacityDeskPage: React.FC = () => {
                   <button
                     key={st}
                     onClick={() => setTransportFilter(st)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                      transportFilter === st
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${transportFilter === st
                         ? 'bg-[#C5A880]/20 text-[#C5A880] border border-[#C5A880] shadow-sm'
                         : 'text-[#C5A880]/70 hover:text-white bg-slate-900/60 border border-stone-800'
-                    }`}
+                      }`}
                   >
                     {st}
                   </button>
@@ -1247,62 +1281,30 @@ export const CapacityDeskPage: React.FC = () => {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="flex items-center gap-1.5 text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      <Calendar className="w-3.5 h-3.5" />
-                      Starting Date
-                    </label>
-                    <input
-                      type="date"
-                      value={createGuideForm.startTime}
-                      onChange={(e) => setCreateGuideForm({ ...createGuideForm, startTime: e.target.value })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 scheme-dark focus:outline-none focus:border-[#C5A880] transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="flex items-center gap-1.5 text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      <Calendar className="w-3.5 h-3.5" />
-                      End Date
-                    </label>
-                    <input
-                      type="date"
-                      value={createGuideForm.endTime}
-                      onChange={(e) => setCreateGuideForm({ ...createGuideForm, endTime: e.target.value })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 scheme-dark focus:outline-none focus:border-[#C5A880] transition-colors"
-                    />
-                  </div>
+                <div>
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                    <Calendar className="w-3.5 h-3.5" />
+                    Slot Date
+                  </label>
+                  <input
+                    type="date"
+                    value={createGuideForm.startTime}
+                    onChange={(e) => setCreateGuideForm({ ...createGuideForm, startTime: e.target.value })}
+                    className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 scheme-dark focus:outline-none focus:border-[#C5A880] transition-colors"
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Slot Duration Type
-                    </label>
-                    <select
-                      value={createGuideForm.slotType}
-                      onChange={(e) => setCreateGuideForm({ ...createGuideForm, slotType: e.target.value })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors cursor-pointer"
-                    >
-                      <option value="" className="bg-[#0F1A24]">Select Slot Duration...</option>
-                      <option value="FULL_DAY" className="bg-[#0F1A24]">Full Day</option>
-                      <option value="HALF_DAY_MORNING" className="bg-[#0F1A24]">Half Day (Morning)</option>
-                      <option value="HALF_DAY_AFTERNOON" className="bg-[#0F1A24]">Half Day (Afternoon)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Tour Excerpt / Notes (Letters Only)
-                    </label>
-                    <input
-                      type="text"
-                      value={createGuideForm.notes}
-                      placeholder="e.g. Kandy Cultural and Heritage Tour"
-                      onChange={(e) => setCreateGuideForm({ ...createGuideForm, notes: e.target.value.replace(/[0-9]/g, '') })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
+                    Tour Excerpt / Notes (Letters Only)
+                  </label>
+                  <input
+                    type="text"
+                    value={createGuideForm.notes}
+                    placeholder="e.g. Kandy Cultural and Heritage Tour"
+                    onChange={(e) => setCreateGuideForm({ ...createGuideForm, notes: e.target.value.replace(/[0-9]/g, '') })}
+                    className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors placeholder:text-slate-500"
+                  />
                 </div>
               </div>
 
@@ -1351,7 +1353,7 @@ export const CapacityDeskPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Starting Date
+                      Date
                     </label>
                     <input
                       type="date"
@@ -1361,20 +1363,6 @@ export const CapacityDeskPage: React.FC = () => {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      End Date
-                    </label>
-                    <input
-                      type="date"
-                      value={editGuideForm.endTime}
-                      onChange={(e) => setEditGuideForm({ ...editGuideForm, endTime: e.target.value })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors scheme-dark"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
                       Status
@@ -1389,18 +1377,6 @@ export const CapacityDeskPage: React.FC = () => {
                       <option value="BOOKED" className="bg-[#0F1A24]">BOOKED</option>
                       <option value="BLOCKED" className="bg-[#0F1A24]">BLOCKED</option>
                     </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-[#C5A880] uppercase tracking-wider mb-1.5">
-                      Price Amount (LKR)
-                    </label>
-                    <input
-                      type="number"
-                      value={editGuideForm.priceAmount}
-                      onChange={(e) => setEditGuideForm({ ...editGuideForm, priceAmount: Number(e.target.value) })}
-                      className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors"
-                    />
                   </div>
                 </div>
 

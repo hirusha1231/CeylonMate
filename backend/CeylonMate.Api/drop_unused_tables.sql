@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS "QuotationItems" CASCADE;
+DROP TABLE IF EXISTS "Quotations" CASCADE;
+DROP TABLE IF EXISTS "ItineraryItems" CASCADE;
+DROP TABLE IF EXISTS "ItineraryDays" CASCADE;
+DROP TABLE IF EXISTS "Itineraries" CASCADE;
+DROP TABLE IF EXISTS "WorkflowSteps" CASCADE;
+DROP TABLE IF EXISTS "workflow_executions" CASCADE;
+DROP TABLE IF EXISTS "ApprovalDecisions" CASCADE;
+DROP TABLE IF EXISTS "Reservations" CASCADE;
+DROP TABLE IF EXISTS "attraction_opening_rules" CASCADE;
+DROP TABLE IF EXISTS "guide_availability_slots" CASCADE;
+DROP TABLE IF EXISTS "guide_field_reports" CASCADE;
+DROP TABLE IF EXISTS "local_guide_reports" CASCADE;

@@ -24,7 +24,15 @@ public record GuideAvailabilityDto(
     string Currency,
     string? Notes,
     byte[] RowVersion,
-    DateTimeOffset? HeldUntilUtc = null
+    DateTimeOffset? HeldUntilUtc = null,
+    string? BookedFrom = null,
+    string? BookedUntil = null,
+    int BookedDays = 0,
+    string? AvailableAgain = null,
+    bool IsCurrentlyBooked = false,
+    string? GuideName = null,
+    string? GuideEmail = null,
+    string? LicenseNumber = null
 );
 
 public record TransportSlotDto(

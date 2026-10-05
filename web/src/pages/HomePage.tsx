@@ -177,24 +177,6 @@ export const HomePage: React.FC = () => {
                 <ArrowRight className="w-4 h-4" />
               </motion.button>
             </Link>
-            <Link to="/operations/destinations-safety">
-              <motion.button
-                {...buttonPressProps}
-                className="px-6 py-4 rounded-xl bg-[#0F1A24]/90 hover:bg-[#134E4A]/80 border border-emerald-500/50 text-emerald-300 hover:text-white font-semibold text-sm tracking-wide backdrop-blur-md transition-all flex items-center gap-2.5 cursor-pointer shadow-xl"
-              >
-                <CloudSun className="w-4 h-4 text-emerald-400" />
-                <span>Destination & Safety Hub</span>
-              </motion.button>
-            </Link>
-            <Link to="/operations/capacity-dispatch">
-              <motion.button
-                {...buttonPressProps}
-                className="px-6 py-4 rounded-xl bg-[#0F1A24]/90 hover:bg-[#1C1405]/90 border border-amber-500/50 text-amber-300 hover:text-white font-semibold text-sm tracking-wide backdrop-blur-md transition-all flex items-center gap-2.5 cursor-pointer shadow-xl"
-              >
-                <Gauge className="w-4 h-4 text-[#D4AF37]" />
-                <span>Capacity & Fleet Dispatch</span>
-              </motion.button>
-            </Link>
             <a href="#signature-collections">
               <motion.button
                 {...buttonPressProps}
