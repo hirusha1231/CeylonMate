@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers.objective_interpretation import router as objective_router
 from app.routers.destination_suitability import router as destination_suitability_router
@@ -21,6 +22,10 @@ app.include_router(destination_suitability_router)
 app.include_router(feasibility_router)
 app.include_router(itinerary_validation_router)
 app.include_router(concierge_pricing_router)
+
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="/docs")
 
 @app.get("/health")
 def health() -> dict[str, str]:
