@@ -1,5 +1,5 @@
 import httpx
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 
 BACKEND_BASE_URL = "http://localhost:5084/api"
 
