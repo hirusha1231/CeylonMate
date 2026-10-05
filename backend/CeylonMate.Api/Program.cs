@@ -12,6 +12,8 @@ using Microsoft.OpenApi.Models;
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
+ProgramHelper.LoadDotEnv();
+
 var builder = WebApplication.CreateBuilder(args);
 
 var useInMemory = builder.Configuration.GetValue<bool>("UseInMemoryDatabase");
@@ -24,9 +26,16 @@ builder.Services.AddDbContext<CeylonMateDbContext>(options =>
     }
     else
     {
-        var connStr = builder.Configuration.GetConnectionString("CeylonMate")
-            ?? throw new InvalidOperationException("ConnectionStrings:CeylonMate is required.");
-        options.UseNpgsql(connStr);
+        var rawConnStr = Environment.GetEnvironmentVariable("DATABASE_CONNECTION_STRING")
+            ?? Environment.GetEnvironmentVariable("DATABASE_URL")
+            ?? Environment.GetEnvironmentVariable("SUPABASE_DB_URL")
+            ?? builder.Configuration["DATABASE_CONNECTION_STRING"]
+            ?? builder.Configuration["DATABASE_URL"]
+            ?? builder.Configuration.GetConnectionString("CeylonMate")
+            ?? throw new InvalidOperationException("Supabase / PostgreSQL connection string is required.");
+
+        var normalizedConnStr = ProgramHelper.NormalizePostgresConnectionString(rawConnStr);
+        options.UseNpgsql(normalizedConnStr);
     }
 });
 
@@ -160,6 +169,15 @@ if (app.Environment.IsDevelopment())
     var db = scope.ServiceProvider.GetRequiredService<CeylonMateDbContext>();
     if (db.Database.IsRelational())
     {
+        try
+        {
+            await db.Database.MigrateAsync();
+        }
+        catch (Exception ex)
+        {
+            app.Logger.LogWarning(ex, "Automatic migration error: {Message}", ex.Message);
+        }
+
         try
         {
             await db.Database.ExecuteSqlRawAsync(@"
@@ -534,5 +552,100 @@ public sealed class StreamJsonOutputFormatter : Microsoft.AspNetCore.Mvc.Formatt
         var response = context.HttpContext.Response;
         var type = context.ObjectType ?? context.Object?.GetType() ?? typeof(object);
         await System.Text.Json.JsonSerializer.SerializeAsync(response.Body, context.Object, type, _jsonOptions, context.HttpContext.RequestAborted);
+    }
+}
+
+public static partial class ProgramHelper
+{
+    public static void LoadDotEnv()
+    {
+        var currentDir = Directory.GetCurrentDirectory();
+        var candidates = new[]
+        {
+            Path.Combine(currentDir, ".env"),
+            Path.Combine(currentDir, "backend", ".env"),
+            Path.Combine(currentDir, "..", ".env"),
+            Path.Combine(AppContext.BaseDirectory, ".env"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".env"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "backend", ".env")
+        };
+
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path))
+            {
+                foreach (var line in File.ReadAllLines(path))
+                {
+                    var trimmed = line.Trim();
+                    if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith('#'))
+                        continue;
+
+                    var eqIdx = trimmed.IndexOf('=');
+                    if (eqIdx > 0)
+                    {
+                        var key = trimmed.Substring(0, eqIdx).Trim();
+                        var val = trimmed.Substring(eqIdx + 1).Trim().Trim('"', '\'');
+                        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+                        {
+                            Environment.SetEnvironmentVariable(key, val);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public static string NormalizePostgresConnectionString(string rawConnStr)
+    {
+        if (string.IsNullOrWhiteSpace(rawConnStr))
+            return rawConnStr;
+
+        rawConnStr = rawConnStr.Trim().Trim('"', '\'');
+
+        if (rawConnStr.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+            rawConnStr.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            var schemeEnd = rawConnStr.IndexOf("://", StringComparison.Ordinal);
+            var withoutScheme = rawConnStr.Substring(schemeEnd + 3);
+
+            var queryIdx = withoutScheme.IndexOf('?');
+            if (queryIdx >= 0)
+            {
+                withoutScheme = withoutScheme.Substring(0, queryIdx);
+            }
+
+            var atIdx = withoutScheme.LastIndexOf('@');
+            if (atIdx >= 0)
+            {
+                var userInfo = withoutScheme.Substring(0, atIdx);
+                var hostAndPath = withoutScheme.Substring(atIdx + 1);
+
+                var colonIdx = userInfo.IndexOf(':');
+                var user = colonIdx >= 0 ? userInfo.Substring(0, colonIdx) : userInfo;
+                var password = colonIdx >= 0 ? userInfo.Substring(colonIdx + 1) : "";
+
+                var slashIdx = hostAndPath.IndexOf('/');
+                var hostPort = slashIdx >= 0 ? hostAndPath.Substring(0, slashIdx) : hostAndPath;
+                var database = slashIdx >= 0 ? hostAndPath.Substring(slashIdx + 1) : "postgres";
+
+                var hostColonIdx = hostPort.IndexOf(':');
+                var host = hostColonIdx >= 0 ? hostPort.Substring(0, hostColonIdx) : hostPort;
+                var port = hostColonIdx >= 0 ? hostPort.Substring(hostColonIdx + 1) : "5432";
+
+                user = Uri.UnescapeDataString(user);
+                password = Uri.UnescapeDataString(password);
+
+                return $"Host={host};Port={port};Database={database};Username={user};Password={password};SSL Mode=Require;Trust Server Certificate=true;";
+            }
+        }
+
+        if (!rawConnStr.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase) &&
+            (rawConnStr.Contains("supabase.co", StringComparison.OrdinalIgnoreCase) ||
+             rawConnStr.Contains("supabase.com", StringComparison.OrdinalIgnoreCase)))
+        {
+            rawConnStr += ";SSL Mode=Require;Trust Server Certificate=true;";
+        }
+
+        return rawConnStr;
     }
 }
