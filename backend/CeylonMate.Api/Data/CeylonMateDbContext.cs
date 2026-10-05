@@ -39,10 +39,14 @@ public sealed class CeylonMateDbContext(DbContextOptions<CeylonMateDbContext> op
     public DbSet<GuideAvailabilitySlot> GuideAvailabilitySlots => Set<GuideAvailabilitySlot>();
     public DbSet<GuideFieldReport> GuideFieldReports => Set<GuideFieldReport>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<TravelerProfile> TravelerProfiles => Set<TravelerProfile>();
+    public DbSet<TripRequest> TripRequests => Set<TripRequest>();
+    public DbSet<TripRequestStatusHistory> TripRequestStatusHistories => Set<TripRequestStatusHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(CeylonMateDbContext).Assembly);
 
         var user = modelBuilder.Entity<User>();
         user.ToTable("users");

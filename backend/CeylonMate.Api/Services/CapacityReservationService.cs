@@ -336,9 +336,7 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
         await ReleaseExpiredHoldsAsync(ct);
 
         IQueryable<GuideAvailability> query = db.GuideAvailabilities
-            .AsNoTracking()
-            .Include(x => x.LocalGuideUser)
-            .Include(x => x.GuideProfile);
+            .AsNoTracking();
 
         if (guideUserId != Guid.Empty)
         {
@@ -357,6 +355,14 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
 
         var slots = await query.OrderBy(x => x.StartTimeUtc).ToListAsync(ct);
 
+        var guideUserIds = slots.Select(s => s.LocalGuideUserId).Distinct().ToList();
+        var users = guideUserIds.Count > 0
+            ? await db.Users.AsNoTracking().Where(u => guideUserIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, ct)
+            : new Dictionary<Guid, User>();
+        var profiles = guideUserIds.Count > 0
+            ? await db.GuideProfiles.AsNoTracking().Where(p => guideUserIds.Contains(p.UserId)).ToDictionaryAsync(p => p.UserId, ct)
+            : new Dictionary<Guid, GuideProfile>();
+
         var activeBookings = await db.Bookings
             .AsNoTracking()
             .Where(b => b.Status != "CANCELLED" && b.Status != "CAPACITY_FLAGGED_REJECTED")
@@ -368,10 +374,13 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
 
         foreach (var g in slots)
         {
-            var gName = !string.IsNullOrWhiteSpace(g.GuideProfile?.FullName) && !g.GuideProfile.FullName.Contains("@")
-                ? g.GuideProfile.FullName
-                : (!string.IsNullOrWhiteSpace(g.LocalGuideUser?.FullName) && !g.LocalGuideUser.FullName.Contains("@")
-                    ? g.LocalGuideUser.FullName
+            users.TryGetValue(g.LocalGuideUserId, out var localUser);
+            profiles.TryGetValue(g.LocalGuideUserId, out var guideProfile);
+
+            var gName = !string.IsNullOrWhiteSpace(guideProfile?.FullName) && !guideProfile.FullName.Contains("@")
+                ? guideProfile.FullName
+                : (!string.IsNullOrWhiteSpace(localUser?.FullName) && !localUser.FullName.Contains("@")
+                    ? localUser.FullName
                     : "Certified Guide");
 
             var guideBookings = activeBookings.Where(b =>
@@ -450,8 +459,8 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
                 availableAgain,
                 isCurrentlyBooked,
                 gName,
-                g.LocalGuideUser?.Email ?? (g.GuideProfile?.User?.Email ?? ""),
-                g.GuideProfile?.LicenseNumber ?? "SLTDA/CG/2026/0491"
+                localUser?.Email ?? (guideProfile?.User?.Email ?? ""),
+                guideProfile?.LicenseNumber ?? "SLTDA/CG/2026/0491"
             ));
         }
 
