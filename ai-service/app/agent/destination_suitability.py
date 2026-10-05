@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from typing import List, Dict, Any
 
@@ -20,12 +21,30 @@ class DestinationSuitabilityAgent:
     async def evaluate_candidates(self, req: DestinationSuitabilityRequest) -> DestinationSuitabilityResponse:
         themes = [t.lower() for t in (req.regionsOrThemes or []) + (req.interests or [])]
 
-        # 1. Gather baseline catalog & live operational data
         matched_catalog_dests = []
         for d in DESTINATION_CATALOG:
             matched = [t for t in themes if t in d["region"].lower() or t in d["category"].lower() or any(t in dt.lower() for dt in d.get("themes", []))]
             if matched or len(themes) == 0:
                 matched_catalog_dests.append(d)
+
+        # Augment with any custom destination names provided in request
+        custom_names = [r for r in (req.regionsOrThemes or []) if isinstance(r, str) and len(r.strip()) > 1]
+        for cn in custom_names:
+            clean_cn = cn.strip()
+            if not any(clean_cn.lower() in d["name"].lower() for d in matched_catalog_dests):
+                slug = re.sub(r'[^a-zA-Z0-9]+', '-', clean_cn.lower()).strip('-')
+                matched_catalog_dests.append({
+                    "id": f"dest-{slug}",
+                    "name": clean_cn,
+                    "region": "Sri Lanka",
+                    "category": "bespoke",
+                    "themes": [clean_cn.lower()],
+                    "attractions": [
+                        {"id": f"attr-{slug}-01", "name": f"{clean_cn} Sightseeing", "price": 30.0, "status": "OPEN", "accessibility": "Standard access"}
+                    ],
+                    "advisories": [],
+                    "guideReports": []
+                })
 
         if not matched_catalog_dests:
             matched_catalog_dests = DESTINATION_CATALOG[:4]
