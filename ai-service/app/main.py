@@ -17,6 +17,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def handle_vercel_prefixes(request: Request, call_next):
+    path = request.scope.get("path", "")
+    for prefix in ("/api/index.py", "/api/index", "/api"):
+        if path == prefix or path == prefix + "/":
+            request.scope["path"] = "/"
+            break
+        elif path.startswith(prefix + "/"):
+            request.scope["path"] = path[len(prefix):]
+            break
+    return await call_next(request)
+
 app.include_router(objective_router)
 app.include_router(destination_suitability_router)
 app.include_router(feasibility_router)

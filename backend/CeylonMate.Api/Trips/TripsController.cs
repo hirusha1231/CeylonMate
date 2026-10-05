@@ -12,11 +12,19 @@ namespace CeylonMate.Api.Trips;
 [ApiController]
 [Route("api/trips")]
 [Authorize]
-public sealed class TripsController(TripService trips) : ControllerBase
+public sealed class TripsController(TripService trips, IConfiguration? configuration = null) : ControllerBase
 {
     private const string StaffRoles = "TRAVEL_AGENT,ADMIN";
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private bool IsStaff => User.IsInRole(nameof(UserRole.TRAVEL_AGENT)) || User.IsInRole(nameof(UserRole.ADMIN));
+
+    private string GetAgentBaseUrl()
+    {
+        var url = configuration?["AgenticService:BaseUrl"]
+            ?? Environment.GetEnvironmentVariable("AGENTIC_SERVICE_BASE_URL")
+            ?? "http://localhost:8000";
+        return url.TrimEnd('/');
+    }
 
     [HttpPost]
     [Authorize(Roles = nameof(UserRole.TRAVELER))]
@@ -148,7 +156,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
             };
 
             var content1 = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload1), System.Text.Encoding.UTF8, "application/json");
-            var resp1 = await client.PostAsync("http://localhost:8000/agent/objective-interpretation/interpret", content1, ct);
+            var resp1 = await client.PostAsync($"{GetAgentBaseUrl()}/agent/objective-interpretation/interpret", content1, ct);
             var json1 = await resp1.Content.ReadAsStringAsync(ct);
 
             var extractedThemes = new List<string>();
@@ -187,7 +195,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
             };
 
             var content2 = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload2), System.Text.Encoding.UTF8, "application/json");
-            var resp2 = await client.PostAsync("http://localhost:8000/agent/destination-suitability/evaluate", content2, ct);
+            var resp2 = await client.PostAsync($"{GetAgentBaseUrl()}/agent/destination-suitability/evaluate", content2, ct);
             var json2 = await resp2.Content.ReadAsStringAsync(ct);
 
             // -----------------------------------------------------------------
@@ -210,7 +218,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
             };
 
             var content3 = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload3), System.Text.Encoding.UTF8, "application/json");
-            var resp3 = await client.PostAsync("http://localhost:8000/agent/feasibility/check", content3, ct);
+            var resp3 = await client.PostAsync($"{GetAgentBaseUrl()}/agent/feasibility/check", content3, ct);
             var json3 = await resp3.Content.ReadAsStringAsync(ct);
 
             // Query dynamic unbooked vehicles from DB
@@ -465,7 +473,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
             };
 
             var content4 = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload4), System.Text.Encoding.UTF8, "application/json");
-            var resp4 = await client.PostAsync("http://localhost:8000/agent/itinerary-validation/validate", content4, ct);
+            var resp4 = await client.PostAsync($"{GetAgentBaseUrl()}/agent/itinerary-validation/validate", content4, ct);
             var json4 = await resp4.Content.ReadAsStringAsync(ct);
 
             // -----------------------------------------------------------------
@@ -511,7 +519,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
         {
             return StatusCode(503, new
             {
-                message = "Python AI Multi-Agent pipeline error on http://localhost:8000.",
+                message = $"Python AI Multi-Agent pipeline error on {GetAgentBaseUrl()}.",
                 error = ex.Message
             });
         }
@@ -535,7 +543,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
             };
 
             var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json");
-            var resp = await client.PostAsync("http://localhost:8000/agent/destination-suitability/inspect", content, ct);
+            var resp = await client.PostAsync($"{GetAgentBaseUrl()}/agent/destination-suitability/inspect", content, ct);
             var json = await resp.Content.ReadAsStringAsync(ct);
 
             return Content(json, "application/json");
@@ -544,7 +552,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
         {
             return StatusCode(503, new
             {
-                message = "Failed to communicate with Agent 2 Python service on http://localhost:8000.",
+                message = $"Failed to communicate with Agent 2 Python service on {GetAgentBaseUrl()}.",
                 error = ex.Message
             });
         }
@@ -572,7 +580,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
             };
 
             var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json");
-            var resp = await client.PostAsync("http://localhost:8000/agent/feasibility/route-logistics", content, ct);
+            var resp = await client.PostAsync($"{GetAgentBaseUrl()}/agent/feasibility/route-logistics", content, ct);
             var json = await resp.Content.ReadAsStringAsync(ct);
 
             return Content(json, "application/json");
@@ -581,7 +589,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
         {
             return StatusCode(503, new
             {
-                message = "Failed to communicate with Agent 3 Python service on http://localhost:8000.",
+                message = $"Failed to communicate with Agent 3 Python service on {GetAgentBaseUrl()}.",
                 error = ex.Message
             });
         }
@@ -600,7 +608,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
             client.Timeout = TimeSpan.FromSeconds(30);
 
             var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(request), System.Text.Encoding.UTF8, "application/json");
-            var resp = await client.PostAsync("http://localhost:8000/agent/concierge-pricing/synthesize", content, ct);
+            var resp = await client.PostAsync($"{GetAgentBaseUrl()}/agent/concierge-pricing/synthesize", content, ct);
             var json = await resp.Content.ReadAsStringAsync(ct);
 
             return Content(json, "application/json");
@@ -609,7 +617,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
         {
             return StatusCode(503, new
             {
-                message = "Failed to communicate with Agent 4 Python service on http://localhost:8000.",
+                message = $"Failed to communicate with Agent 4 Python service on {GetAgentBaseUrl()}.",
                 error = ex.Message
             });
         }
@@ -661,7 +669,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
             };
 
             var content1 = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload1), System.Text.Encoding.UTF8, "application/json");
-            var resp1 = await client.PostAsync("http://localhost:8000/agent/objective-interpretation/interpret", content1, ct);
+            var resp1 = await client.PostAsync($"{GetAgentBaseUrl()}/agent/objective-interpretation/interpret", content1, ct);
             var json1 = await resp1.Content.ReadAsStringAsync(ct);
 
             var extractedThemes = new List<string>();
@@ -698,7 +706,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
                 accessibilityConstraints = new List<string>()
             };
             var content2 = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload2), System.Text.Encoding.UTF8, "application/json");
-            var resp2 = await client.PostAsync("http://localhost:8000/agent/destination-suitability/evaluate", content2, ct);
+            var resp2 = await client.PostAsync($"{GetAgentBaseUrl()}/agent/destination-suitability/evaluate", content2, ct);
             var json2 = await resp2.Content.ReadAsStringAsync(ct);
 
             // -------------------------------------------------------------
@@ -716,7 +724,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
                 }
             };
             var content3 = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload3), System.Text.Encoding.UTF8, "application/json");
-            var resp3 = await client.PostAsync("http://localhost:8000/agent/feasibility/check", content3, ct);
+            var resp3 = await client.PostAsync($"{GetAgentBaseUrl()}/agent/feasibility/check", content3, ct);
             var json3 = await resp3.Content.ReadAsStringAsync(ct);
 
             // Live DB queries for available vehicles & guides
@@ -794,7 +802,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
                 }
             };
             var content4 = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload4), System.Text.Encoding.UTF8, "application/json");
-            var resp4 = await client.PostAsync("http://localhost:8000/agent/itinerary-validation/validate", content4, ct);
+            var resp4 = await client.PostAsync($"{GetAgentBaseUrl()}/agent/itinerary-validation/validate", content4, ct);
             var json4 = await resp4.Content.ReadAsStringAsync(ct);
 
             // -------------------------------------------------------------
@@ -839,7 +847,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
         {
             return StatusCode(503, new
             {
-                message = "Python AI Microservice pipeline error on http://localhost:8000.",
+                message = $"Python AI Microservice pipeline error on {GetAgentBaseUrl()}.",
                 error = ex.Message
             });
         }
@@ -869,7 +877,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
         {
             var json = System.Text.Json.JsonSerializer.Serialize(payload);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-            var response = await client.PostAsync("http://localhost:8000/agent/destination-suitability/evaluate", content, ct);
+            var response = await client.PostAsync($"{GetAgentBaseUrl()}/agent/destination-suitability/evaluate", content, ct);
 
             if (response.IsSuccessStatusCode)
             {
@@ -900,7 +908,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
         {
             var json = System.Text.Json.JsonSerializer.Serialize(request);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-            var response = await client.PostAsync("http://localhost:8000/agent/feasibility/check", content, ct);
+            var response = await client.PostAsync($"{GetAgentBaseUrl()}/agent/feasibility/check", content, ct);
 
             if (response.IsSuccessStatusCode)
             {
@@ -931,7 +939,7 @@ public sealed class TripsController(TripService trips) : ControllerBase
         {
             var json = System.Text.Json.JsonSerializer.Serialize(request);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-            var response = await client.PostAsync("http://localhost:8000/agent/itinerary-validation/validate", content, ct);
+            var response = await client.PostAsync($"{GetAgentBaseUrl()}/agent/itinerary-validation/validate", content, ct);
 
             if (response.IsSuccessStatusCode)
             {
