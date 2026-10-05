@@ -22,18 +22,6 @@ export const AgentDeskSubNav: React.FC<AgentDeskSubNavProps> = ({ activeTab }) =
       </Link>
 
       <Link
-        to="/staff/trips"
-        className={`px-5 py-2.5 rounded-xl font-medium text-xs md:text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${
-          activeTab === 'trips'
-            ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold shadow-lg shadow-[#C5A880]/20'
-            : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
-        }`}
-      >
-        <FileText className="w-4 h-4" />
-        <span>Bespoke Proposals</span>
-      </Link>
-
-      <Link
         to="/staff/signature-journeys"
         className={`px-5 py-2.5 rounded-xl font-medium text-xs md:text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${
           activeTab === 'collections'
@@ -44,7 +32,6 @@ export const AgentDeskSubNav: React.FC<AgentDeskSubNavProps> = ({ activeTab }) =
         <Compass className="w-4 h-4" />
         <span>Curated Master Collections</span>
       </Link>
-
     </div>
   );
 };

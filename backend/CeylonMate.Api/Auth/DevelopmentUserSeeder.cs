@@ -223,19 +223,7 @@ public sealed class DevelopmentUserSeeder(
                 DisplayOrder = 3,
                 VehicleType = VehicleType.SUV
             },
-            new
-            {
-                CategoryBadge = "VIP COACH TRANSPORT",
-                VehicleModel = "Toyota Coaster VIP Minibus",
-                Description = "Ideal for private delegation groups. Equipped with dual AC, microphone, panoramic windows, and dedicated luggage compartment.",
-                ImageUrl = "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=1000&q=80",
-                MaxPassengers = 14,
-                FeatureHighlight = "Panoramic VIP Coach",
-                LuggageCapacity = "12 Large Luggage",
-                DailyRateUsd = 250.00m,
-                DisplayOrder = 4,
-                VehicleType = VehicleType.MINIBUS
-            },
+
             new
             {
                 CategoryBadge = "PREMIUM LUXURY SUV",

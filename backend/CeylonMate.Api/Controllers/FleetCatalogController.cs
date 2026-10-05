@@ -24,13 +24,72 @@ public class FleetCatalogController : ControllerBase
 
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> GetPublicFleetCatalog(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPublicFleetCatalog(
+        [FromQuery] string? startDate,
+        [FromQuery] string? endDate,
+        [FromQuery] int? durationDays,
+        [FromQuery] int? passengers,
+        CancellationToken cancellationToken)
     {
-        var fleet = await _db.VehicleFleetCatalogs
-            .Where(x => x.IsActive)
+        var query = _db.VehicleFleetCatalogs
+            .Where(x => x.IsActive);
+
+        if (passengers.HasValue && passengers.Value > 0)
+        {
+            query = query.Where(x => x.MaxPassengers >= passengers.Value);
+        }
+
+        var fleet = await query
             .OrderBy(x => x.DisplayOrder)
             .ThenByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
+
+        // Date availability filtering against active bookings
+        if (!string.IsNullOrWhiteSpace(startDate) && DateTime.TryParse(startDate, out var parsedStart))
+        {
+            var startDt = parsedStart.Date;
+            int days = (durationDays.HasValue && durationDays.Value > 0) ? durationDays.Value : 1;
+            if (!string.IsNullOrWhiteSpace(endDate) && DateTime.TryParse(endDate, out var parsedEnd))
+            {
+                days = Math.Max(1, (int)(parsedEnd.Date - startDt).TotalDays);
+            }
+            var endDt = startDt.AddDays(days);
+
+            var activeBookings = await _db.Bookings
+                .AsNoTracking()
+                .Where(b => b.Status != "CANCELLED" && b.Status != "REJECTED" && b.Status != "CAPACITY_FLAGGED_REJECTED")
+                .ToListAsync(cancellationToken);
+
+            var bookedVehicleIds = new HashSet<Guid>();
+            var bookedVehicleNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var b in activeBookings)
+            {
+                if (!string.IsNullOrWhiteSpace(b.StartDate) && DateTime.TryParse(b.StartDate, out var bStart))
+                {
+                    int bDays = b.TripDurationDays.GetValueOrDefault(1) > 0 ? b.TripDurationDays.GetValueOrDefault(1) : 1;
+                    var bEnd = bStart.Date.AddDays(bDays);
+                    if (startDt < bEnd && endDt > bStart.Date)
+                    {
+                        if (b.VehicleCatalogId.HasValue) bookedVehicleIds.Add(b.VehicleCatalogId.Value);
+                        if (b.VehicleSlotId.HasValue) bookedVehicleIds.Add(b.VehicleSlotId.Value);
+
+                        if (!string.IsNullOrWhiteSpace(b.TravelerNotes))
+                        {
+                            var parts = b.TravelerNotes.Split("||");
+                            if (parts.Length >= 3 && !string.IsNullOrWhiteSpace(parts[2]))
+                            {
+                                bookedVehicleNames.Add(parts[2].Trim());
+                            }
+                        }
+                    }
+                }
+            }
+
+            fleet = fleet
+                .Where(v => !bookedVehicleIds.Contains(v.Id) && !bookedVehicleNames.Contains(v.VehicleModel))
+                .ToList();
+        }
 
         return Ok(fleet);
     }

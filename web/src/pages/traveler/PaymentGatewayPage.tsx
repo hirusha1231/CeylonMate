@@ -16,7 +16,7 @@ export const PaymentGatewayPage: React.FC = () => {
   const { bookingId } = useParams<{ bookingId: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { formatPrice, currency } = useCurrency();
+  const { formatPrice, convertPrice, currency } = useCurrency();
 
   // Booking data
   const [loading, setLoading] = useState<boolean>(true);
@@ -135,31 +135,16 @@ export const PaymentGatewayPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Failed to load booking:', err);
-      // Fallback mock booking if database not seeded
-      setBooking({
-        id: bookingId || '101',
-        reference: `CM-2026-${bookingId || '7842'}`,
-        title: 'Cultural Triangle & Royal Heritage Luxury Expedition',
-        packageTitle: 'Cultural Triangle & Royal Heritage Luxury Expedition',
-        destinationsCovered: 'Sigiriya • Kandy • Nuwara Eliya • Yala',
-        packageHeroImageUrl: 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?q=80&w=1600&auto=format&fit=crop',
-        startDate: '2026-10-15',
-        tripDurationDays: 7,
-        passengerCount: 2,
-        finalPriceQuoteUsd: 2450,
-        finalPriceQuoteLkr: 750000,
-        vehicleModel: 'Toyota KDH Super GL VIP Van',
-        vehicle: {
-          modelName: 'Toyota KDH Super GL VIP Van',
-          categoryBadge: 'EXECUTIVE VIP GROUP TRANSPORT',
-          photoUrl: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80'
-        },
-        hasGuide: true,
-        guide: {
-          fullName: 'Chaminda Silva (Senior Heritage Naturalist)',
-          licenseNumber: 'SLTDA/NTG/2024/0981'
+      try {
+        const tripRes = await api.get(`/api/trips/${bookingId}`);
+        if (tripRes.data) {
+          setBooking(tripRes.data);
+        } else {
+          showToast('Notice', 'Unable to retrieve booking details.', 'error');
         }
-      });
+      } catch {
+        showToast('Notice', 'Unable to retrieve booking details.', 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -207,6 +192,10 @@ export const PaymentGatewayPage: React.FC = () => {
     }
     if (!cardHolder.trim()) {
       showToast('Validation Error', 'Please enter the cardholder name.', 'error');
+      return;
+    }
+    if (!/^[a-zA-Z\s]+$/.test(cardHolder.trim())) {
+      showToast('Validation Error', 'Cardholder Full Name must contain letters only.', 'error');
       return;
     }
     if (expiryDate.length < 5) {
@@ -278,13 +267,68 @@ export const PaymentGatewayPage: React.FC = () => {
     );
   }
 
-  const bDays = booking?.tripDurationDays || 5;
+  const bDays = booking?.tripDurationDays || booking?.durationDays || 5;
   const hasGuideReq = booking?.hasGuide !== false && booking?.guideAssignmentStatus !== 'NOT_REQUIRED';
-  const guideRateUsd = hasGuideReq ? bDays * 50 : 0;
-  const vehicleRateUsd = bDays * 120;
-  const budgetSubtotal = guideRateUsd + vehicleRateUsd;
-  const vat = Math.round(budgetSubtotal * 0.05);
-  const grandTotalUsd = Number(booking?.finalPriceQuoteUsd || booking?.totalUsd || (budgetSubtotal + vat));
+
+  // Real daily vehicle rate from booking or vehicle catalog
+  const vehicleDailyRate = Number(
+    booking?.vehicleDailyRateUsd ||
+    booking?.vehicle?.dailyRateUsd ||
+    booking?.vehicle?.dailyRate ||
+    (booking?.vehicleModel?.includes('Mercedes') ? 150 :
+     booking?.vehicleModel?.includes('Safari') ? 180 :
+     booking?.vehicleModel?.includes('Minibus') ? 250 :
+     booking?.vehicleModel?.includes('Range Rover') ? 220 :
+     booking?.vehicleModel?.includes('Bus') || booking?.vehicleModel?.includes('Coach') ? 350 : 120)
+  );
+
+  // Real daily guide rate ($50/day standard SLTDA rate)
+  const guideDailyRate = hasGuideReq
+    ? Number(
+        booking?.guideDailyRateUsd ||
+        booking?.guide?.dailyRateUsd ||
+        (booking?.guide?.dailyRate ? (booking.guide.dailyRate > 1000 ? Math.round(booking.guide.dailyRate / 300) : booking.guide.dailyRate) : 50)
+      )
+    : 0;
+
+  const fallbackVehicleTotal = vehicleDailyRate * bDays;
+  const fallbackGuideTotal = guideDailyRate * bDays;
+  const fallbackSubtotal = fallbackVehicleTotal + fallbackGuideTotal;
+  const fallbackVat = Math.round(fallbackSubtotal * 0.05);
+  const fallbackGrandTotal = fallbackSubtotal + fallbackVat;
+
+  const rawGrandTotalUsd = Number(
+    booking?.finalPriceQuoteUsd && Number(booking.finalPriceQuoteUsd) > 0
+      ? booking.finalPriceQuoteUsd
+      : (booking?.totalUsd && Number(booking.totalUsd) > 0
+          ? booking.totalUsd
+          : (booking?.finalPriceQuoteLkr && Number(booking.finalPriceQuoteLkr) > 0
+              ? convertPrice(Number(booking.finalPriceQuoteLkr), 'LKR', 'USD')
+              : (booking?.budget && Number(booking.budget) > 0
+                  ? Number(booking.budget)
+                  : (booking?.startingPriceUsd && Number(booking.startingPriceUsd) > 0
+                      ? Number(booking.startingPriceUsd)
+                      : (booking?.package?.startingPriceUsd && Number(booking.package.startingPriceUsd) > 0
+                          ? Number(booking.package.startingPriceUsd)
+                          : 0))))));
+
+  const grandTotalUsd = rawGrandTotalUsd > 0 ? rawGrandTotalUsd : fallbackGrandTotal;
+  const grandTotalLkr = Number(
+    booking?.finalPriceQuoteLkr && Number(booking.finalPriceQuoteLkr) > 0
+      ? booking.finalPriceQuoteLkr
+      : (grandTotalUsd > 0 ? convertPrice(grandTotalUsd, 'USD', 'LKR') : convertPrice(fallbackGrandTotal, 'USD', 'LKR'))
+  );
+
+  const guideRateUsd = rawGrandTotalUsd > 0
+    ? (hasGuideReq ? Math.round(rawGrandTotalUsd * 0.20) : 0)
+    : fallbackGuideTotal;
+  const vehicleRateUsd = rawGrandTotalUsd > 0
+    ? Math.round(rawGrandTotalUsd * (hasGuideReq ? 0.75 : 0.95))
+    : fallbackVehicleTotal;
+  const vat = rawGrandTotalUsd > 0
+    ? Math.max(0, grandTotalUsd - (guideRateUsd + vehicleRateUsd))
+    : fallbackVat;
+  const budgetSubtotal = grandTotalUsd - vat;
 
   return (
     <div className="min-h-screen bg-[#070D14] text-stone-100 font-sans pb-20 pt-8 selection:bg-[#C5A880]/30">
@@ -349,11 +393,12 @@ export const PaymentGatewayPage: React.FC = () => {
                 <form onSubmit={handleSubmitPayment} className="space-y-6 pt-2">
 
                     {/* INTERACTIVE 3D VIRTUAL CARD PREVIEW */}
-                    <div className="relative w-full max-w-md mx-auto h-52 select-none">
+                    <div className="relative w-full max-w-md mx-auto h-52 select-none" style={{ perspective: 1000 }}>
                       <motion.div
                         className="w-full h-full relative rounded-2xl p-6 flex flex-col justify-between shadow-2xl border border-amber-500/30 overflow-hidden bg-gradient-to-br from-[#1C2C3F] via-[#0F1A24] to-[#0A121A]"
                         animate={{ rotateY: isFlipped ? 180 : 0 }}
                         transition={{ duration: 0.6 }}
+                        style={{ transformStyle: 'preserve-3d' }}
                       >
                         {/* Shimmer overlay */}
                         <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent pointer-events-none" />
@@ -397,7 +442,7 @@ export const PaymentGatewayPage: React.FC = () => {
                           </div>
                         ) : (
                           /* CARD BACK */
-                          <div className="relative z-10 flex flex-col justify-between h-full">
+                          <div className="relative z-10 flex flex-col justify-between h-full" style={{ transform: 'rotateY(180deg)' }}>
                             <div className="w-full h-10 bg-black/80 -mx-6 mt-1" />
                             <div className="space-y-1">
                               <span className="text-[9px] uppercase text-stone-400 block text-right">CVV / CVC</span>
@@ -425,7 +470,10 @@ export const PaymentGatewayPage: React.FC = () => {
                           name="cardHolder"
                           autoComplete="off"
                           value={cardHolder}
-                          onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                          onChange={(e) => {
+                            const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, '').toUpperCase();
+                            setCardHolder(lettersOnly);
+                          }}
                           placeholder=""
                           className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-stone-800 text-stone-100 placeholder-stone-600 focus:outline-none focus:border-[#C5A880] font-mono text-sm"
                         />
@@ -690,16 +738,16 @@ export const PaymentGatewayPage: React.FC = () => {
                 {/* Journey Package Card */}
                 <div className="flex items-start gap-4 p-3.5 rounded-xl bg-slate-900 border border-stone-800">
                   <img
-                    src={booking?.packageHeroImageUrl || 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?q=80&w=1600&auto=format&fit=crop'}
+                    src={booking?.packageHeroImageUrl || booking?.package?.heroImageUrl || booking?.heroImageUrl || 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?q=80&w=1600&auto=format&fit=crop'}
                     alt="Expedition"
-                    className="w-16 h-16 object-cover rounded-lg border border-stone-700 shrink-0 bg-slate-950"
+                    className="w-16 h-16 object-cover rounded-lg border border-stone-700 shrink-0 bg-slate-950 shadow-md"
                   />
-                  <div className="space-y-1 flex-1">
-                    <h4 className="font-bold text-sm font-serif-luxury text-white leading-snug">
-                      {booking?.packageTitle || booking?.title || 'Bespoke Luxury Signature Expedition'}
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <h4 className="font-bold text-sm font-serif-luxury text-white leading-snug truncate">
+                      {booking?.packageTitle || booking?.title || booking?.package?.title || 'Curated Luxury Signature Expedition'}
                     </h4>
-                    <p className="text-[11px] text-[#C5A880] font-mono">
-                      {booking?.destinationsCovered || 'Sigiriya • Kandy • Nuwara Eliya • Yala'}
+                    <p className="text-[11px] text-[#C5A880] font-mono line-clamp-2">
+                      {booking?.destinationsCovered || booking?.destinations || booking?.package?.destinationsCovered || 'Colombo • Cultural Corridor • Southern Coast'}
                     </p>
                   </div>
                 </div>
@@ -796,7 +844,7 @@ export const PaymentGatewayPage: React.FC = () => {
                         {formatPrice(grandTotalUsd)}
                       </span>
                       <span className="text-[10px] text-stone-400">
-                        ≈ LKR {(grandTotalUsd * 300).toLocaleString()}
+                        ≈ {formatPrice(grandTotalLkr, 'LKR')}
                       </span>
                     </div>
                   </div>
@@ -1058,17 +1106,17 @@ export const PaymentGatewayPage: React.FC = () => {
                             <span className="text-stone-400 text-[11px]">{booking?.guide?.fullName || booking?.guideName || 'Licensed SLTDA Guide'}</span>
                           </td>
                           <td className="p-3.5 text-center font-bold text-stone-300">{bDays} Days</td>
-                          <td className="p-3.5 text-right text-stone-400">{formatPrice(50)}/day</td>
+                          <td className="p-3.5 text-right text-stone-400">{formatPrice(Math.round(guideRateUsd / bDays))}/day</td>
                           <td className="p-3.5 text-right font-bold text-[#F3E5AB]">{formatPrice(guideRateUsd)}</td>
                         </tr>
                       )}
                       <tr>
                         <td className="p-3.5">
                           <strong className="text-white block font-serif-luxury text-sm">{booking?.vehicle?.modelName || booking?.vehicleModel || 'Private VIP Vehicle Escort'}</strong>
-                          <span className="text-stone-400 text-[11px]">Chauffeur Drive, Fuel, Highway Tolls & Amenities</span>
+                          <span className="text-stone-400 text-[11px]">Chauffeur Drive, Fuel & Amenities</span>
                         </td>
                         <td className="p-3.5 text-center font-bold text-stone-300">{bDays} Days</td>
-                        <td className="p-3.5 text-right text-stone-400">{formatPrice(120)}/day</td>
+                        <td className="p-3.5 text-right text-stone-400">{formatPrice(Math.round(vehicleRateUsd / bDays))}/day</td>
                         <td className="p-3.5 text-right font-bold text-[#F3E5AB]">{formatPrice(vehicleRateUsd)}</td>
                       </tr>
                       <tr className="bg-slate-900/60">

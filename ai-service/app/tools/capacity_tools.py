@@ -142,10 +142,22 @@ async def get_route_estimate(origin_lat: float, origin_lng: float, dest_lat: flo
         pass
     return {"distanceKm": 25.0, "durationMinutes": 40.0, "isFallback": True}
 
-async def get_fleet_catalog() -> list[Dict[str, Any]]:
+async def get_fleet_catalog(
+    start_date: Optional[str] = None,
+    duration_days: Optional[int] = None,
+    passengers: Optional[int] = None
+) -> list[Dict[str, Any]]:
+    params: Dict[str, Any] = {}
+    if start_date:
+        params["startDate"] = start_date
+    if duration_days:
+        params["durationDays"] = duration_days
+    if passengers:
+        params["passengers"] = passengers
+
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            res = await client.get(f"{BACKEND_BASE_URL}/fleet/catalog")
+            res = await client.get(f"{BACKEND_BASE_URL}/fleet/catalog", params=params)
             if res.status_code == 200:
                 data = res.json()
                 if isinstance(data, list):

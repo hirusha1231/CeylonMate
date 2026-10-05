@@ -201,12 +201,27 @@ public sealed class AuthController(
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<UserResponse>> Me(CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub")
+            ?? User.FindFirstValue("id")
+            ?? User.FindFirstValue("nameid");
+
+        User? user = null;
+        if (!string.IsNullOrWhiteSpace(userIdStr) && Guid.TryParse(userIdStr, out var userId))
         {
-            return Unauthorized();
+            user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId, cancellationToken);
         }
 
-        var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId, cancellationToken);
+        if (user is null)
+        {
+            var email = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email");
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                var norm = NormalizeEmail(email);
+                user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.NormalizedEmail == norm || x.Email == email, cancellationToken);
+            }
+        }
+
         return user is null
             ? Unauthorized()
             : Ok(new UserResponse(user.Id, user.Email, user.Role, user.FullName));

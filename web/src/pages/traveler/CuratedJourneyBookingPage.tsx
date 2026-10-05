@@ -38,7 +38,9 @@ interface GuideOption {
   currency: string;
   status: string;
   imageUrl?: string;
+  photoUrl?: string;
   rating?: number;
+  reviewCount?: number;
 }
 
 interface VehicleOption {
@@ -309,6 +311,12 @@ export const CuratedJourneyBookingPage: React.FC = () => {
   const dynamicTotalQuote = dynamicSubtotal + dynamicPlatformFee + dynamicVat;
 
   const handleRaiseBookingRequest = async () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (!startDate || startDate < todayStr) {
+      showToast('Validation Error', 'Trip Start Date must not be a past date.', 'error');
+      return;
+    }
+
     if (!selectedVehicle) {
       showToast('Validation Error', 'Please select a private VIP vehicle escort for your curated journey.', 'error');
       return;
@@ -316,11 +324,24 @@ export const CuratedJourneyBookingPage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const rawPkg = journey?.id || packageId;
-      const pkgIdNum = typeof rawPkg === 'number' ? rawPkg : (parseInt(String(rawPkg), 10) || 101);
+      const pkgTitle = journey?.title || 'Curated Signature Expedition';
+      const pkgDestinations = journey?.destinationsCovered || 'Colombo • Cultural Corridor • Southern Coast';
+      const pkgVehicle = selectedVehicle.vehicleModel || 'Executive Fleet Transport';
+      const pkgGuide = selectedGuide?.guideName || 'Self-Guided Chauffeur Only';
+      const pkgTagline = journey?.tagline || 'Curated Luxury Sri Lankan Expedition';
+      const pkgImage = journey?.heroImageUrl || '';
+
+      const encodedNotes = `${pkgTitle} || ${pkgDestinations} || ${pkgVehicle} || ${pkgGuide} || ${Math.round(dynamicTotalQuote)} || ${Math.round(dynamicTotalQuote * 300)} || ${pkgTagline} || ${pkgImage}${travelerNotes.trim() ? ` || ${travelerNotes.trim()}` : ''}`;
 
       const payload = {
-        packageId: pkgIdNum,
+        packageId: journey?.id || packageId,
+        packageTitle: pkgTitle,
+        packageTagline: pkgTagline,
+        destinationsCovered: pkgDestinations,
+        packageHeroImageUrl: pkgImage,
+        packageSlug: journey?.slug || packageId,
+        vehicleModel: pkgVehicle,
+        selectedGuide: pkgGuide,
         guideSlotId: selectedGuide?.id || null,
         vehicleId: selectedVehicle?.id || null,
         vehicleSlotId: selectedVehicle?.id || null,
@@ -328,9 +349,11 @@ export const CuratedJourneyBookingPage: React.FC = () => {
         pickupTime: pickupTime,
         passengerCount: passengerCount,
         tripDurationDays: tripDays,
-        notes: travelerNotes.trim(),
-        travelerNotes: travelerNotes.trim(),
-        totalCalculatedQuote: dynamicTotalQuote
+        notes: encodedNotes,
+        travelerNotes: encodedNotes,
+        totalCalculatedQuote: dynamicTotalQuote,
+        finalPriceQuoteUsd: dynamicTotalQuote,
+        finalPriceQuoteLkr: dynamicTotalQuote * 300
       };
 
       await api.post('/api/bookings/raise-curated-request', payload);
@@ -519,10 +542,28 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                   <label className="block text-xs font-mono font-semibold text-stone-300 mb-1.5">Trip Start Date</label>
                   <input
                     type="date"
+                    min={new Date().toISOString().slice(0, 10)}
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3 py-2.5 text-stone-100 focus:border-[#C5A880] outline-none font-mono text-xs"
+                    onChange={(e) => {
+                      const todayStr = new Date().toISOString().slice(0, 10);
+                      const val = e.target.value;
+                      if (val && val < todayStr) {
+                        showToast('Invalid Date', 'Trip Start Date must not be a past date.', 'error');
+                      }
+                      setStartDate(val);
+                    }}
+                    className={`w-full bg-slate-900 border rounded-xl px-3 py-2.5 text-stone-100 focus:border-[#C5A880] outline-none font-mono text-xs transition-colors ${
+                      startDate && startDate < new Date().toISOString().slice(0, 10)
+                        ? 'border-rose-500 focus:border-rose-500 text-rose-200'
+                        : 'border-stone-700'
+                    }`}
                   />
+                  {startDate && startDate < new Date().toISOString().slice(0, 10) && (
+                    <p className="text-[10px] text-rose-400 font-mono mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      <span>Start Date must not be a past date.</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -566,127 +607,6 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                     className="w-full bg-slate-900 border border-stone-700 rounded-xl px-3 py-2.5 text-stone-100 focus:border-[#C5A880] outline-none text-xs font-mono"
                   />
                 </div>
-              </div>
-            </div>
-
-            {/* AI AGENT 1 & AGENT 2 LIVE TELEMETRY COCKPIT */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* AGENT 1 PANEL: Objective Interpretation & NLP Profiling */}
-              <div className="bg-[#0F1A24] border border-stone-800 rounded-2xl p-6 space-y-4">
-                <div className="flex items-center justify-between border-b border-stone-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Cpu className="w-4 h-4 text-[#D4AF37]" />
-                    <h3 className="text-xs font-mono font-bold text-stone-200 uppercase tracking-wider">
-                      Agent 1: Objective Interpretation & NLP
-                    </h3>
-                  </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-500/30">
-                    Active
-                  </span>
-                </div>
-
-                {evaluatingAgents && !agentTelemetry ? (
-                  <div className="py-8 text-center text-xs font-mono text-stone-400 flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
-                    <span>Parsing semantic objectives and pacing...</span>
-                  </div>
-                ) : (
-                  <div className="space-y-3.5 text-xs font-sans">
-                    <div>
-                      <span className="text-stone-400 block font-mono text-[10px] mb-1 uppercase">Normalized NLP Objective</span>
-                      <p className="text-stone-200 font-mono bg-slate-950 p-3 rounded-xl border border-stone-800/80 leading-relaxed text-[11px]">
-                        {agentTelemetry?.agent1_Objective?.normalizedObjective ||
-                          `Curated signature expedition across ${journey.destinationsCovered || 'Sri Lanka'} customized for ${passengerCount} traveler(s) over ${tripDays} days.`}
-                      </p>
-                    </div>
-
-                    {agentTelemetry?.agent1_Objective?.regionsOrThemes && (
-                      <div>
-                        <span className="text-stone-400 block font-mono text-[10px] mb-1.5 uppercase">Extracted Themes & Regional Nodes</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {agentTelemetry.agent1_Objective.regionsOrThemes.map((th, i) => (
-                            <span key={i} className="px-2.5 py-1 rounded-lg bg-slate-900 border border-stone-700 text-[#C5A880] font-mono text-[10px] font-bold">
-                              #{th}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {agentTelemetry?.agent1_Objective?.recommendedDestinations && agentTelemetry.agent1_Objective.recommendedDestinations.length > 0 && (
-                      <div>
-                        <span className="text-stone-400 block font-mono text-[10px] mb-1.5 uppercase">Lexicon Matched Attractions</span>
-                        <div className="space-y-1.5">
-                          {agentTelemetry.agent1_Objective.recommendedDestinations.slice(0, 3).map((rd, i) => (
-                            <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 border border-stone-800 text-[11px]">
-                              <span className="text-stone-200 font-bold">{rd.name}</span>
-                              <span className="text-stone-400 font-mono text-[10px]">{rd.region} • {rd.category}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* AGENT 2 PANEL: Destination Suitability & Real-Time Weather */}
-              <div className="bg-[#0F1A24] border border-stone-800 rounded-2xl p-6 space-y-4">
-                <div className="flex items-center justify-between border-b border-stone-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <CloudSun className="w-4 h-4 text-emerald-400" />
-                    <h3 className="text-xs font-mono font-bold text-stone-200 uppercase tracking-wider">
-                      Agent 2: Destination Suitability & Weather
-                    </h3>
-                  </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-500/30">
-                    Live Telemetry
-                  </span>
-                </div>
-
-                {evaluatingAgents && !agentTelemetry ? (
-                  <div className="py-8 text-center text-xs font-mono text-stone-400 flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
-                    <span>Evaluating weather summaries & SLTDA road reports...</span>
-                  </div>
-                ) : (
-                  <div className="space-y-3.5 text-xs font-sans">
-                    {/* Suitability Score Banner */}
-                    <div className="p-3 bg-[#134E4A]/30 border border-emerald-500/30 rounded-xl flex items-center justify-between">
-                      <div>
-                        <span className="text-stone-400 block font-mono text-[10px]">Multi-Criteria Suitability Score</span>
-                        <span className="text-lg font-bold font-mono text-emerald-300">
-                          {primaryCandidate ? `${Math.round(primaryCandidate.suitabilityScore * 100)}% Match` : '96% Match'}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-stone-400 block font-mono text-[10px]">Opening Status</span>
-                        <span className="text-xs font-mono text-emerald-400 font-bold flex items-center gap-1 justify-end">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          {primaryCandidate?.openingStatus || 'OPEN & ACCESSIBLE'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Live Weather Forecast */}
-                    <div>
-                      <span className="text-stone-400 block font-mono text-[10px] mb-1 uppercase">Live Weather Forecast for {startDate}</span>
-                      <div className="p-2.5 bg-slate-950 rounded-xl border border-stone-800 text-[11px] font-mono text-stone-200 flex items-center gap-2">
-                        <CloudSun className="w-4 h-4 text-[#D4AF37] shrink-0" />
-                        <span>{primaryCandidate?.weatherSummary || 'Sunny / Dry Conditions, 27°C (Ideal for Highland & Coastal Touring)'}</span>
-                      </div>
-                    </div>
-
-                    {/* Active Advisories & Safety Clearance */}
-                    <div>
-                      <span className="text-stone-400 block font-mono text-[10px] mb-1 uppercase">Active Advisories & Road Status</span>
-                      <div className="p-2.5 bg-slate-950 rounded-xl border border-stone-800 text-[11px] font-mono text-emerald-400 flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>Clear Highway Conditions • Southern Expressway & Central Passes Cleared for Private VIP Escort</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -742,24 +662,32 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 rounded-full bg-slate-800 border border-stone-700 overflow-hidden shrink-0 flex items-center justify-center text-[#C5A880]">
-                          {g.imageUrl ? (
-                            <img src={g.imageUrl} alt={g.guideName} className="w-full h-full object-cover" />
-                          ) : (
-                            <User className="w-7 h-7" />
-                          )}
+                        <div className="w-16 h-16 rounded-2xl bg-slate-800 border-2 border-[#C5A880]/30 overflow-hidden shrink-0 flex items-center justify-center text-[#C5A880] shadow-lg relative">
+                          <img
+                            src={g.imageUrl || g.photoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400'}
+                            alt={g.guideName}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400';
+                            }}
+                          />
                         </div>
 
-                        <div className="flex-1 space-y-0.5">
+                        <div className="flex-1 space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="font-serif-luxury font-bold text-stone-100 text-base">
                               {g.guideName}
                             </span>
                             {isSelected && <CheckCircle2 className="w-5 h-5 text-[#D4AF37] shrink-0" />}
                           </div>
-                          <span className="text-xs font-mono text-emerald-400 block">
-                            {g.licenseNumber}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono text-emerald-400 block font-semibold">
+                              {g.licenseNumber || 'SLTDA/CG/2026/0491'}
+                            </span>
+                            <span className="text-[10px] font-mono text-[#D4AF37] bg-[#D4AF37]/10 px-2 py-0.5 rounded border border-[#D4AF37]/30">
+                              ★ {g.rating ? g.rating.toFixed(1) : '5.0'}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -789,59 +717,6 @@ export const CuratedJourneyBookingPage: React.FC = () => {
         {/* ========================================================================= */}
         {currentStep === 3 && (
           <div className="space-y-6">
-            {/* AGENT 3 GIS ROUTE & MOUNTAIN ELEVATION PHYSICS HUD */}
-            <div className="bg-[#0F1A24] border border-stone-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-stone-800 pb-3">
-                <div className="flex items-center gap-2">
-                  <Gauge className="w-4 h-4 text-[#D4AF37]" />
-                  <h3 className="text-xs font-mono font-bold text-stone-200 uppercase tracking-wider">
-                    Agent 3: GIS Route Matrix & Mountain Physics Telemetry
-                  </h3>
-                </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-500/30">
-                  Computed via Haversine GIS
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="p-3.5 bg-slate-950 rounded-xl border border-stone-800/80 space-y-1">
-                  <span className="text-stone-400 block font-mono text-[10px] uppercase">Terrain Physics Factor</span>
-                  <p className="text-xs font-mono font-bold text-[#D4AF37]">
-                    {routeSummary?.terrain_elevation_factor || '1.25x Mountain Precision Active (Kadugannawa / Pass)'}
-                  </p>
-                </div>
-
-                <div className="p-3.5 bg-slate-950 rounded-xl border border-stone-800/80 space-y-1">
-                  <span className="text-stone-400 block font-mono text-[10px] uppercase">Total Circuit Distance</span>
-                  <p className="text-xs font-mono font-bold text-stone-100">
-                    {routeSummary?.total_distance_km ? `${routeSummary.total_distance_km} km` : '285.0 km'} • {routeSummary?.formatted_driving_time || '5h 45m'} transit
-                  </p>
-                </div>
-
-                <div className="p-3.5 bg-slate-950 rounded-xl border border-stone-800/80 space-y-1">
-                  <span className="text-stone-400 block font-mono text-[10px] uppercase">Driver Safety Recommendation</span>
-                  <p className="text-[11px] font-mono text-emerald-400">
-                    {routeSummary?.driver_rest_recommendation || 'Mandatory 30-min chauffeur rest stop scheduled at midpoint.'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Waypoint Route Legs */}
-              {routeSummary?.legs && routeSummary.legs.length > 0 && (
-                <div className="pt-2">
-                  <span className="text-stone-400 block font-mono text-[10px] mb-2 uppercase">Evaluated Circuit Legs</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {routeSummary.legs.map((leg, i) => (
-                      <div key={i} className="p-2.5 bg-slate-900/60 border border-stone-800 rounded-xl text-xs font-mono flex items-center justify-between">
-                        <span className="text-stone-300 font-semibold">{leg.origin} → {leg.destination}</span>
-                        <span className="text-[#C5A880] text-[11px]">{leg.distance_km} km ({leg.formatted_duration})</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* LIVE VIP VEHICLE FLEET PICKER */}
             <div className="bg-[#0F1A24] border border-stone-800 rounded-2xl p-6 space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-800 pb-3">

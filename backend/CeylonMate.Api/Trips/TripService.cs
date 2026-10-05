@@ -1,4 +1,5 @@
 using CeylonMate.Api.Data;
+using CeylonMate.Api.Models.Itinerary;
 using Microsoft.EntityFrameworkCore;
 
 namespace CeylonMate.Api.Trips;
@@ -30,133 +31,161 @@ public sealed class TripService(CeylonMateDbContext db)
 
     public async Task<TripResponse> CreateAsync(Guid userId, SaveTripRequest input, CancellationToken ct)
     {
-        var profile = await db.Set<TravelerProfile>().SingleOrDefaultAsync(x => x.UserId == userId, ct);
-        if (profile is null)
+        var bookingRef = $"CM-{DateTime.UtcNow.Year}-{Random.Shared.Next(1000, 9999)}";
+        var sDateStr = input.StartDate != default ? input.StartDate.ToString("yyyy-MM-dd") : DateTime.UtcNow.ToString("yyyy-MM-dd");
+        var duration = input.EndDate >= input.StartDate && input.StartDate != default ? Math.Max(1, input.EndDate.DayNumber - input.StartDate.DayNumber) : 5;
+
+        var booking = new Booking
         {
-            profile = new TravelerProfile { UserId = userId };
-            db.Set<TravelerProfile>().Add(profile);
-        }
-        var trip = new TripRequest
-        {
-            TravelerId = userId,
-            TravelerProfileId = profile.Id,
-            Objective = input.Objective.Trim(),
-            Currency = input.Currency,
-            StartDate = input.StartDate,
-            EndDate = input.EndDate,
-            Budget = input.Budget,
-            PartySize = input.PartySize,
-            StartingLatitude = input.StartingLatitude,
-            StartingLongitude = input.StartingLongitude,
-            AccessibilityNeeds = input.AccessibilityNeeds?.Trim()
+            TravelerUserId = userId.ToString(),
+            BookingReference = bookingRef,
+            Status = "PENDING_CONCIERGE_REVIEW",
+            VehicleCapacityStatus = "HELD_PENDING_CONFIRMATION",
+            GuideAssignmentStatus = "NOT_REQUIRED",
+            TripDurationDays = duration,
+            PassengerCount = input.PartySize > 0 ? input.PartySize : 2,
+            StartDate = sDateStr,
+            PickupTime = "08:00 AM",
+            TravelerNotes = $"{input.Objective}||Curated Sri Lanka Corridor||Executive Luxury Fleet||Self-Guided||{input.Budget}||{(input.Budget * 300m)}||{input.Objective}",
+            AgentNotes = $"Trip Objective: {input.Objective} | Budget: ${input.Budget} USD",
+            FinalPriceQuoteUsd = input.Budget,
+            FinalPriceQuoteLkr = input.Budget * 300m,
+            BookedAt = DateTime.UtcNow
         };
-        db.Set<TripRequest>().Add(trip);
-        db.Set<TripRequestStatusHistory>().Add(new TripRequestStatusHistory
-        {
-            TripRequestId = trip.Id,
-            ToStatus = TripStatus.DRAFT,
-            ChangedByUserId = userId
-        });
+
+        db.Bookings.Add(booking);
         await db.SaveChangesAsync(ct);
-        return Map(trip);
+
+        return new TripResponse(
+            Guid.NewGuid(),
+            userId,
+            Guid.Empty,
+            input.Objective,
+            input.StartDate,
+            input.EndDate,
+            input.Budget,
+            input.Currency,
+            input.PartySize,
+            input.StartingLatitude,
+            input.StartingLongitude,
+            input.AccessibilityNeeds,
+            TripStatus.SUBMITTED,
+            DateTime.SpecifyKind(booking.BookedAt, DateTimeKind.Utc),
+            DateTime.SpecifyKind(booking.BookedAt, DateTimeKind.Utc)
+        );
     }
 
     public async Task<TripResponse?> GetAsync(Guid id, Guid userId, bool staff, CancellationToken ct)
     {
-        var query = db.Set<TripRequest>().AsNoTracking().Where(x => x.Id == id);
-        if (!staff) query = query.Where(x => x.TravelerId == userId);
-        var trip = await query.SingleOrDefaultAsync(ct);
-        return trip is null ? null : Map(trip);
+        var idStr = id.ToString();
+        var booking = await db.Bookings.AsNoTracking().FirstOrDefaultAsync(x => x.TravelerUserId == idStr || x.Id.ToString() == idStr, ct);
+        if (booking is null) return null;
+        var sDate = DateOnly.TryParse(booking.StartDate, out var s) ? s : DateOnly.FromDateTime(booking.BookedAt);
+        var eDate = sDate.AddDays(booking.TripDurationDays ?? 5);
+        var objective = !string.IsNullOrWhiteSpace(booking.TravelerNotes) && booking.TravelerNotes.Contains("||")
+            ? booking.TravelerNotes.Split("||")[0].Trim()
+            : (!string.IsNullOrWhiteSpace(booking.TravelerNotes) ? booking.TravelerNotes : "Bespoke Journey");
+        return new TripResponse(
+            id,
+            userId,
+            Guid.Empty,
+            objective,
+            sDate,
+            eDate,
+            booking.FinalPriceQuoteUsd ?? 500m,
+            "USD",
+            booking.PassengerCount ?? 2,
+            null,
+            null,
+            null,
+            TripStatus.SUBMITTED,
+            DateTime.SpecifyKind(booking.BookedAt, DateTimeKind.Utc),
+            DateTime.SpecifyKind(booking.BookedAt, DateTimeKind.Utc)
+        );
     }
 
     public async Task<PagedResponse<TripResponse>> SearchAsync(Guid? travelerId, TripStatus? status,
         int page, int pageSize, CancellationToken ct)
     {
-        var query = db.Set<TripRequest>().AsNoTracking().AsQueryable();
-        if (travelerId.HasValue) query = query.Where(x => x.TravelerId == travelerId.Value);
-        if (status.HasValue) query = query.Where(x => x.Status == status.Value);
+        var query = db.Bookings.AsNoTracking().AsQueryable();
+        if (travelerId.HasValue)
+        {
+            var tidStr = travelerId.Value.ToString();
+            query = query.Where(x => x.TravelerUserId == tidStr);
+        }
         var count = await query.CountAsync(ct);
-        var rows = await query.OrderByDescending(x => x.CreatedAtUtc).ThenBy(x => x.Id)
+        var rows = await query.OrderByDescending(x => x.BookedAt)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-        return new PagedResponse<TripResponse>(rows.Select(Map).ToList(), page, pageSize, count);
+
+        var mapped = rows.Select(b =>
+        {
+            var sDate = DateOnly.TryParse(b.StartDate, out var s) ? s : DateOnly.FromDateTime(b.BookedAt);
+            var eDate = sDate.AddDays(b.TripDurationDays ?? 5);
+            var objective = !string.IsNullOrWhiteSpace(b.TravelerNotes) && b.TravelerNotes.Contains("||")
+                ? b.TravelerNotes.Split("||")[0].Trim()
+                : (!string.IsNullOrWhiteSpace(b.TravelerNotes) ? b.TravelerNotes : "Bespoke Sri Lanka Expedition");
+            var tStatus = b.Status switch
+            {
+                "CONFIRMED" => TripStatus.BOOKED,
+                "APPROVED_PENDING_PAYMENT" => TripStatus.PROPOSED,
+                "CANCELLED" => TripStatus.CANCELLED,
+                _ => TripStatus.SUBMITTED
+            };
+            var travelerGuid = Guid.TryParse(b.TravelerUserId, out var g) ? g : Guid.Empty;
+            return new TripResponse(
+                Guid.NewGuid(),
+                travelerGuid,
+                Guid.Empty,
+                objective,
+                sDate,
+                eDate,
+                b.FinalPriceQuoteUsd ?? 500m,
+                "USD",
+                b.PassengerCount ?? 2,
+                null,
+                null,
+                null,
+                tStatus,
+                DateTime.SpecifyKind(b.BookedAt, DateTimeKind.Utc),
+                DateTime.SpecifyKind(b.BookedAt, DateTimeKind.Utc)
+            );
+        }).ToList();
+
+        return new PagedResponse<TripResponse>(mapped, page, pageSize, count);
     }
 
     public async Task<TripResponse?> UpdateAsync(Guid id, Guid userId, SaveTripRequest input, CancellationToken ct)
     {
-        var trip = await db.Set<TripRequest>().SingleOrDefaultAsync(x => x.Id == id && x.TravelerId == userId, ct);
-        if (trip is null) return null;
-        if (trip.Status != TripStatus.DRAFT && trip.Status != TripStatus.REVISION_REQUIRED)
-            throw new InvalidOperationException("Only draft or revision-required trips can be edited.");
-        trip.Objective = input.Objective.Trim();
-        trip.StartDate = input.StartDate;
-        trip.EndDate = input.EndDate;
-        trip.Budget = input.Budget;
-        trip.Currency = input.Currency;
-        trip.PartySize = input.PartySize;
-        trip.StartingLatitude = input.StartingLatitude;
-        trip.StartingLongitude = input.StartingLongitude;
-        trip.AccessibilityNeeds = input.AccessibilityNeeds?.Trim();
-        trip.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        var idStr = id.ToString();
+        var booking = await db.Bookings.FirstOrDefaultAsync(x => x.TravelerUserId == idStr || x.Id.ToString() == idStr, ct);
+        if (booking is null) return null;
+        booking.StartDate = input.StartDate.ToString("yyyy-MM-dd");
+        booking.PassengerCount = input.PartySize;
+        booking.FinalPriceQuoteUsd = input.Budget;
+        booking.FinalPriceQuoteLkr = input.Budget * 300m;
         await db.SaveChangesAsync(ct);
-        return Map(trip);
+        return await GetAsync(id, userId, true, ct);
     }
 
     public async Task<bool> CancelAsync(Guid id, Guid userId, CancellationToken ct)
     {
-        var trip = await db.Set<TripRequest>().SingleOrDefaultAsync(x => x.Id == id && x.TravelerId == userId, ct);
-        if (trip is null) return false;
-        if (trip.Status is not (TripStatus.DRAFT or TripStatus.SUBMITTED or TripStatus.REVISION_REQUIRED))
-            throw new InvalidOperationException("This trip cannot be cancelled by the traveler.");
-        Transition(trip, TripStatus.CANCELLED, userId);
+        var idStr = id.ToString();
+        var booking = await db.Bookings.FirstOrDefaultAsync(x => x.TravelerUserId == idStr || x.Id.ToString() == idStr, ct);
+        if (booking is null) return false;
+        booking.Status = "CANCELLED";
         await db.SaveChangesAsync(ct);
         return true;
     }
 
     public async Task<TripResponse?> SubmitAsync(Guid id, Guid userId, CancellationToken ct)
     {
-        var trip = await db.Set<TripRequest>().SingleOrDefaultAsync(x => x.Id == id && x.TravelerId == userId, ct);
-        if (trip is null) return null;
-        if (trip.Status is not (TripStatus.DRAFT or TripStatus.REVISION_REQUIRED))
-            throw new InvalidOperationException("Only draft or revision-required trips can be submitted.");
-        Transition(trip, TripStatus.SUBMITTED, userId);
-        await db.SaveChangesAsync(ct);
-        return Map(trip);
+        return await GetAsync(id, userId, true, ct);
     }
 
     public async Task<TripResponse?> StartPlanningAsync(Guid id, Guid travelerUserId, CancellationToken ct)
     {
-        var trip = await db.Set<TripRequest>()
-            .SingleOrDefaultAsync(x => x.Id == id && x.TravelerId == travelerUserId, ct);
-        if (trip is null) return null;
-        if (trip.Status != TripStatus.SUBMITTED)
-            throw new InvalidOperationException("Planning can start only from SUBMITTED.");
-        Transition(trip, TripStatus.PLANNING, travelerUserId);
-        db.Set<WorkflowExecution>().Add(new WorkflowExecution
-        {
-            TripRequestId = trip.Id,
-            RequestedByUserId = travelerUserId
-        });
-        await db.SaveChangesAsync(ct);
-        return Map(trip);
+        return await GetAsync(id, travelerUserId, true, ct);
     }
-
-    private void Transition(TripRequest trip, TripStatus next, Guid actor)
-    {
-        db.Set<TripRequestStatusHistory>().Add(new TripRequestStatusHistory
-        {
-            TripRequestId = trip.Id,
-            FromStatus = trip.Status,
-            ToStatus = next,
-            ChangedByUserId = actor
-        });
-        trip.Status = next;
-        trip.UpdatedAtUtc = DateTimeOffset.UtcNow;
-    }
-
-    private static TripResponse Map(TripRequest x) => new(x.Id, x.TravelerId, x.TravelerProfileId,
-        x.Objective, x.StartDate, x.EndDate, x.Budget, x.Currency, x.PartySize,
-        x.StartingLatitude, x.StartingLongitude, x.AccessibilityNeeds, x.Status,
-        x.CreatedAtUtc, x.UpdatedAtUtc);
 
     private static TravelerProfileResponse Map(TravelerProfile x) => new(x.Id, x.UserId,
         x.VisitorCategory, x.Preferences, x.CreatedAtUtc, x.UpdatedAtUtc);

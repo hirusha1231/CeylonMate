@@ -64,9 +64,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setStatus('signedIn');
           }
         })
-        .catch(() => {
-          // Retain existing localStorage user session if /me fails
+        .catch((err) => {
+          if (err?.response?.status === 401) {
+            logout();
+          }
         });
+    } else {
+      setStatus('signedOut');
     }
     return () => onUnauthorized(null);
   }, [logout]);

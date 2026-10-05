@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { motion } from 'framer-motion';
 import {
-  Users, CalendarCheck, Wind, Server, Database, Cpu, ArrowRight, Activity, MapPin, FileText, Sparkles, RefreshCw, Car
+  Users, CalendarCheck, Wind, Server, Database, Cpu, ArrowRight, Activity, Sparkles, RefreshCw, Car
 } from 'lucide-react';
 import { AnimatedCounter } from '../../components/common/Counter';
 import { ApiDisconnectedBanner } from '../../components/common/ApiDisconnectedBanner';
@@ -183,59 +183,20 @@ export const AdminDashboardPage: React.FC = () => {
           </motion.div>
         </Link>
 
-        <Link to="/admin/destinations">
+        <Link to="/account">
           <motion.div
             {...hoverLiftProps}
             className="p-6 bg-[#0F1A24] border border-stone-800 hover:border-[#C5A880]/50 rounded-2xl space-y-3 group transition-all h-full"
-          >
-            <div className="w-10 h-10 rounded-xl bg-[#134E4A]/30 text-[#C5A880] flex items-center justify-center">
-              <MapPin className="w-5 h-5" />
-            </div>
-            <h4 className="text-lg font-serif-luxury font-bold text-stone-100 group-hover:text-[#C5A880] transition-colors flex items-center justify-between">
-              <span>Destinations</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-[#C5A880]" />
-            </h4>
-            <p className="text-xs text-stone-400 leading-relaxed">
-              Maintain Sri Lanka's master attraction inventory, foreign/local pass pricing, and daily capacity caps.
-            </p>
-          </motion.div>
-        </Link>
-
-        <div
-          onClick={() => setIsFleetModalOpen(true)}
-          className="cursor-pointer"
-        >
-          <motion.div
-            {...hoverLiftProps}
-            className="p-6 bg-[#0F1A24] border border-[#C5A880]/30 hover:border-[#C5A880] rounded-2xl space-y-3 group transition-all h-full"
           >
             <div className="w-10 h-10 rounded-xl bg-[#134E4A]/30 text-[#D4AF37] flex items-center justify-center">
-              <Car className="w-5 h-5" />
+              <Sparkles className="w-5 h-5" />
             </div>
             <h4 className="text-lg font-serif-luxury font-bold text-stone-100 group-hover:text-[#C5A880] transition-colors flex items-center justify-between">
-              <span>Fleet Showcase</span>
+              <span>Account & Security</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-[#C5A880]" />
             </h4>
             <p className="text-xs text-stone-400 leading-relaxed">
-              Publish & update VIP vehicle showcase models, passenger capacities, photos, and feature highlights on public frontend.
-            </p>
-          </motion.div>
-        </div>
-
-        <Link to="/admin/audit-logs">
-          <motion.div
-            {...hoverLiftProps}
-            className="p-6 bg-[#0F1A24] border border-stone-800 hover:border-[#C5A880]/50 rounded-2xl space-y-3 group transition-all h-full"
-          >
-            <div className="w-10 h-10 rounded-xl bg-[#134E4A]/30 text-sky-400 flex items-center justify-center">
-              <FileText className="w-5 h-5" />
-            </div>
-            <h4 className="text-lg font-serif-luxury font-bold text-stone-100 group-hover:text-[#C5A880] transition-colors flex items-center justify-between">
-              <span>Audit & Logs</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-[#C5A880]" />
-            </h4>
-            <p className="text-xs text-stone-400 leading-relaxed">
-              Inspect critical system transactions, monitor active 15-minute holds, and trigger hold releases.
+              Update admin security credentials, personal contact info, and system administrator settings.
             </p>
           </motion.div>
         </Link>

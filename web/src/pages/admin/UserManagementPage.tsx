@@ -80,6 +80,7 @@ export const UserManagementPage: React.FC = () => {
   };
 
   const handleOpenStatusModal = (user: UserDto) => {
+    if (user.role === 'ADMIN') return;
     setStatusModalUser(user);
   };
 
@@ -264,17 +265,24 @@ export const UserManagementPage: React.FC = () => {
                       </td>
                       <td className="p-4 font-mono text-stone-400">{u.createdAt}</td>
                       <td className="p-4 text-right space-x-2">
-                        <button
-                          onClick={() => handleOpenStatusModal(u)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all inline-flex items-center gap-1.5 ${
-                            isUserActive
-                              ? 'border-rose-500/50 text-rose-400 hover:bg-rose-950/30'
-                              : 'border-emerald-500/50 text-emerald-400 hover:bg-emerald-950/30'
-                          }`}
-                        >
-                          {isUserActive ? <UserX className="w-3.5 h-3.5" /> : <Shield className="w-3.5 h-3.5" />}
-                          <span>{isUserActive ? 'Suspend' : 'Activate'}</span>
-                        </button>
+                        {u.role === 'ADMIN' ? (
+                          <span className="px-2.5 py-1 text-[11px] font-mono text-stone-500 bg-stone-900/80 border border-stone-800 rounded-lg inline-flex items-center gap-1.5 cursor-default">
+                            <Shield className="w-3 h-3 text-amber-500/60" />
+                            Admin
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenStatusModal(u)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all inline-flex items-center gap-1.5 ${
+                              isUserActive
+                                ? 'border-rose-500/50 text-rose-400 hover:bg-rose-950/30'
+                                : 'border-emerald-500/50 text-emerald-400 hover:bg-emerald-950/30'
+                            }`}
+                          >
+                            {isUserActive ? <UserX className="w-3.5 h-3.5" /> : <Shield className="w-3.5 h-3.5" />}
+                            <span>{isUserActive ? 'Suspend' : 'Activate'}</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

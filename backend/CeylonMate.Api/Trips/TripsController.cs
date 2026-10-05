@@ -264,40 +264,147 @@ public sealed class TripsController(TripService trips) : ControllerBase
                 })
                 .ToList();
 
-            // Query dynamic certified guides from DB
+            // Check booked guides during trip window
+            var bookedGuideSlotIds = new HashSet<Guid>();
+            foreach (var b in activeBookings)
+            {
+                if (!string.IsNullOrWhiteSpace(b.StartDate) && DateTime.TryParse(b.StartDate, out var bStart))
+                {
+                    var bDays = (b.TripDurationDays.HasValue && b.TripDurationDays.Value > 0) ? b.TripDurationDays.Value : 1;
+                    var bEnd = bStart.AddDays(bDays);
+                    if (bStart < tripEndDt && bEnd > tripStartDt)
+                    {
+                        if (b.GuideSlotId.HasValue) bookedGuideSlotIds.Add(b.GuideSlotId.Value);
+                    }
+                }
+            }
+
+            var defaultPortraits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "saman", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400" },
+                { "dilshan", "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400" },
+                { "nirosha", "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=400" },
+                { "anura", "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=400" },
+                { "kasun", "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=400" }
+            };
+
+            var fallbackList = new[]
+            {
+                "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400",
+                "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400",
+                "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=400",
+                "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=400",
+                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400"
+            };
+
+            string ResolveGuidePhoto(string? explicitPhoto, string guideName, int idx)
+            {
+                if (!string.IsNullOrWhiteSpace(explicitPhoto) && explicitPhoto.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                {
+                    return explicitPhoto;
+                }
+                foreach (var kv in defaultPortraits)
+                {
+                    if (guideName.Contains(kv.Key, StringComparison.OrdinalIgnoreCase))
+                        return kv.Value;
+                }
+                return fallbackList[Math.Abs(idx) % fallbackList.Length];
+            }
+
+            // Query dynamic certified guides and slots from DB
+            var allProfiles = await db.GuideProfiles
+                .AsNoTracking()
+                .Include(p => p.User)
+                .Where(p => p.IsActive)
+                .ToListAsync(ct);
+
             var guideSlots = await db.GuideAvailabilities
                 .AsNoTracking()
                 .Include(g => g.LocalGuideUser)
                 .Include(g => g.GuideProfile)
-                .Where(g => g.Status == AvailabilityStatus.AVAILABLE)
-                .OrderBy(g => g.StartTimeUtc)
                 .ToListAsync(ct);
 
-            var availableGuides = guideSlots
-                .GroupBy(g => g.LocalGuideUserId)
-                .Select(grp =>
-                {
-                    var first = grp.First();
-                    var guideName = !string.IsNullOrWhiteSpace(first.GuideProfile?.FullName) && !first.GuideProfile.FullName.Contains("@")
-                        ? first.GuideProfile.FullName
-                        : (!string.IsNullOrWhiteSpace(first.LocalGuideUser?.FullName) && !first.LocalGuideUser.FullName.Contains("@")
-                            ? first.LocalGuideUser.FullName
-                            : "Certified Local Escort");
+            var bookedGuideUserIds = guideSlots
+                .Where(s => bookedGuideSlotIds.Contains(s.Id))
+                .Select(s => s.LocalGuideUserId)
+                .ToHashSet();
 
-                    return new
-                    {
-                        id = first.Id,
-                        guideUserId = first.LocalGuideUserId,
-                        guideName,
-                        bio = first.GuideProfile?.Bio ?? "Professional licensed tourist guide certified by SLTDA.",
-                        licenseNumber = first.GuideProfile?.LicenseNumber ?? "SLTDA/NTG/2026",
-                        languages = first.GuideProfile?.LanguagesSpoken ?? "English, Sinhala",
-                        priceAmount = grp.Min(s => s.PriceAmount),
-                        currency = string.IsNullOrWhiteSpace(first.Currency) ? "LKR" : first.Currency,
-                        status = first.Status.ToString()
-                    };
-                })
-                .ToList();
+            var availableGuides = new List<dynamic>();
+            var processedUserIds = new HashSet<Guid>();
+            int guideIdx = 0;
+
+            foreach (var prof in allProfiles)
+            {
+                if (bookedGuideUserIds.Contains(prof.UserId)) continue;
+                processedUserIds.Add(prof.UserId);
+
+                var gName = !string.IsNullOrWhiteSpace(prof.FullName) && !prof.FullName.Contains("@")
+                    ? prof.FullName
+                    : (!string.IsNullOrWhiteSpace(prof.User?.FullName) && !prof.User.FullName.Contains("@")
+                        ? prof.User.FullName
+                        : "SLTDA Certified Guide");
+
+                var pPhoto = ResolveGuidePhoto(prof.PhotoUrl, gName, guideIdx++);
+                var rate = prof.DailyRate > 0 ? prof.DailyRate : (prof.DefaultDailyRateLkr > 0 ? prof.DefaultDailyRateLkr : 15000m);
+                var curr = string.IsNullOrWhiteSpace(prof.Currency) ? "LKR" : prof.Currency;
+
+                var gSlot = guideSlots.FirstOrDefault(s => s.LocalGuideUserId == prof.UserId || s.GuideProfileId == prof.Id);
+                var slotId = gSlot?.Id ?? prof.Id;
+
+                availableGuides.Add(new
+                {
+                    id = slotId,
+                    guideUserId = prof.UserId,
+                    guideName = gName,
+                    bio = !string.IsNullOrWhiteSpace(prof.Bio) ? prof.Bio : "SLTDA Licensed Tourist Guide Lecturer & Cultural Ambassador with extensive islandwide field experience.",
+                    licenseNumber = !string.IsNullOrWhiteSpace(prof.LicenseNumber) ? prof.LicenseNumber : "SLTDA/CG/2026/0491",
+                    languages = !string.IsNullOrWhiteSpace(prof.LanguagesSpoken) ? prof.LanguagesSpoken : "English, Sinhala",
+                    priceAmount = rate,
+                    currency = curr,
+                    imageUrl = pPhoto,
+                    photoUrl = pPhoto,
+                    rating = prof.Rating > 0 ? prof.Rating : 5.0m,
+                    reviewCount = prof.ReviewCount > 0 ? prof.ReviewCount : 12,
+                    status = "AVAILABLE"
+                });
+            }
+
+            foreach (var grp in guideSlots.GroupBy(g => g.LocalGuideUserId))
+            {
+                if (processedUserIds.Contains(grp.Key)) continue;
+                if (bookedGuideUserIds.Contains(grp.Key)) continue;
+
+                var first = grp.First();
+                if (bookedGuideSlotIds.Contains(first.Id)) continue;
+                processedUserIds.Add(grp.Key);
+
+                var gName = !string.IsNullOrWhiteSpace(first.GuideProfile?.FullName) && !first.GuideProfile.FullName.Contains("@")
+                    ? first.GuideProfile.FullName
+                    : (!string.IsNullOrWhiteSpace(first.LocalGuideUser?.FullName) && !first.LocalGuideUser.FullName.Contains("@")
+                        ? first.LocalGuideUser.FullName
+                        : "Certified Local Escort");
+
+                var pPhoto = ResolveGuidePhoto(first.GuideProfile?.PhotoUrl, gName, guideIdx++);
+                var rate = grp.Min(s => s.PriceAmount);
+                if (rate <= 0) rate = 15000m;
+
+                availableGuides.Add(new
+                {
+                    id = first.Id,
+                    guideUserId = first.LocalGuideUserId,
+                    guideName = gName,
+                    bio = !string.IsNullOrWhiteSpace(first.GuideProfile?.Bio) ? first.GuideProfile.Bio : "Certified Local Escort specializing in personalized heritage and safari expeditions.",
+                    licenseNumber = !string.IsNullOrWhiteSpace(first.GuideProfile?.LicenseNumber) ? first.GuideProfile.LicenseNumber : "SLTDA/CG/2026/0491",
+                    languages = !string.IsNullOrWhiteSpace(first.GuideProfile?.LanguagesSpoken) ? first.GuideProfile.LanguagesSpoken : "English, Sinhala",
+                    priceAmount = rate,
+                    currency = string.IsNullOrWhiteSpace(first.Currency) ? "LKR" : first.Currency,
+                    imageUrl = pPhoto,
+                    photoUrl = pPhoto,
+                    rating = 5.0m,
+                    reviewCount = 10,
+                    status = "AVAILABLE"
+                });
+            }
 
             // -----------------------------------------------------------------
             // STEP 4 (Agent 4): Itinerary Validation & Dynamic Price Calculator
@@ -459,7 +566,9 @@ public sealed class TripsController(TripService trips) : ControllerBase
             {
                 origin = string.IsNullOrWhiteSpace(request?.Origin) ? "Colombo Airport" : request.Origin.Trim(),
                 destination = string.IsNullOrWhiteSpace(request?.Destination) ? "Mirissa" : request.Destination.Trim(),
-                passengers = (request != null && request.Passengers.HasValue && request.Passengers.Value > 0) ? request.Passengers.Value : 2
+                passengers = (request != null && request.Passengers.HasValue && request.Passengers.Value > 0) ? request.Passengers.Value : 2,
+                startDate = request?.StartDate,
+                durationDays = request?.DurationDays
             };
 
             var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json");
@@ -473,6 +582,34 @@ public sealed class TripsController(TripService trips) : ControllerBase
             return StatusCode(503, new
             {
                 message = "Failed to communicate with Agent 3 Python service on http://localhost:8000.",
+                error = ex.Message
+            });
+        }
+    }
+
+    [HttpPost("agent4-concierge-pricing")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Agent4ConciergePricing(
+        [FromBody] Agent4ConciergePricingRequestDto request,
+        [FromServices] IHttpClientFactory httpClientFactory,
+        CancellationToken ct)
+    {
+        try
+        {
+            var client = httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(30);
+
+            var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(request), System.Text.Encoding.UTF8, "application/json");
+            var resp = await client.PostAsync("http://localhost:8000/agent/concierge-pricing/synthesize", content, ct);
+            var json = await resp.Content.ReadAsStringAsync(ct);
+
+            return Content(json, "application/json");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(503, new
+            {
+                message = "Failed to communicate with Agent 4 Python service on http://localhost:8000.",
                 error = ex.Message
             });
         }
@@ -630,9 +767,9 @@ public sealed class TripsController(TripService trips) : ControllerBase
                         id = first.Id,
                         guideUserId = first.LocalGuideUserId,
                         guideName,
-                        bio = first.GuideProfile?.Bio ?? "Professional licensed tourist guide certified by SLTDA.",
-                        licenseNumber = first.GuideProfile?.LicenseNumber ?? "SLTDA/NTG/2026",
-                        languages = first.GuideProfile?.LanguagesSpoken ?? "English, Sinhala",
+                        bio = first.GuideProfile?.Bio ?? "",
+                        licenseNumber = first.GuideProfile?.LicenseNumber ?? "",
+                        languages = first.GuideProfile?.LanguagesSpoken ?? "",
                         priceAmount = grp.Min(s => s.PriceAmount),
                         currency = string.IsNullOrWhiteSpace(first.Currency) ? "LKR" : first.Currency,
                         status = first.Status.ToString()
@@ -884,11 +1021,40 @@ public record ValidateItineraryRequestDto(
 public record Agent3RouteLogisticsDto(
     string? Origin,
     string? Destination,
-    int? Passengers
+    int? Passengers,
+    string? StartDate = null,
+    int? DurationDays = null
 );
 
 public record Agent2InspectDestinationDto(
     string? Destination
+);
+
+public record Agent4SelectedRouteDto(
+    string? Name,
+    double? DistanceKm,
+    string? Via
+);
+
+public record Agent4SelectedVehicleDto(
+    string? Model,
+    string? VehicleType,
+    double? DailyRateLkr
+);
+
+public record Agent4SelectedGuideDto(
+    string? Name,
+    string? Role,
+    double? DailyRateLkr
+);
+
+public record Agent4ConciergePricingRequestDto(
+    double? TargetBudget,
+    int? DurationDays,
+    int? TripDurationDays,
+    Agent4SelectedRouteDto? SelectedRoute,
+    Agent4SelectedVehicleDto? SelectedVehicle,
+    Agent4SelectedGuideDto? SelectedGuide
 );
 
 

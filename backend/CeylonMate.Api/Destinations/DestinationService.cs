@@ -8,9 +8,8 @@ public sealed class DestinationService(CeylonMateDbContext db)
     public async Task<List<DestinationResponse>> GetAllDestinationsAsync(string? category = null, string? region = null, string? search = null)
     {
         var query = db.Destinations
-            .Include(d => d.Attractions).ThenInclude(a => a.OpeningRules)
+            .Include(d => d.Attractions)
             .Include(d => d.Advisories)
-            .Include(d => d.GuideReports)
             .AsNoTracking()
             .AsQueryable();
 
@@ -28,9 +27,8 @@ public sealed class DestinationService(CeylonMateDbContext db)
     public async Task<DestinationResponse?> GetDestinationByIdAsync(Guid id)
     {
         var destination = await db.Destinations
-            .Include(d => d.Attractions).ThenInclude(a => a.OpeningRules)
+            .Include(d => d.Attractions)
             .Include(d => d.Advisories)
-            .Include(d => d.GuideReports)
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == id);
 
@@ -155,20 +153,6 @@ public sealed class DestinationService(CeylonMateDbContext db)
         foreach (var adv in otherAdvisories)
             warnings.Add($"[{adv.Severity}] {adv.Message}");
 
-        var closureReports = dest.GuideReports
-            .Where(r => r.ReportType is ReportType.CLOSURE or ReportType.ROAD_BLOCK)
-            .ToList();
-        if (closureReports.Count != 0)
-        {
-            foreach (var rep in closureReports)
-                blocking.Add($"Local guide reported access closure: {rep.Message}");
-        }
-
-        var dayOfWeek = date.DayOfWeek;
-        var dayRules = dest.Attractions.SelectMany(a => a.OpeningRules).Where(r => r.DayOfWeek == dayOfWeek).ToList();
-        if (dayRules.Count != 0)
-            passed.Add($"Attraction opening hours verified for {dayOfWeek}");
-
         var weather = new WeatherSummaryDto("Partly Cloudy", 27.5m, 15, "Normal conditions");
         passed.Add("Weather forecast within safe operational thresholds");
 
@@ -186,13 +170,11 @@ public sealed class DestinationService(CeylonMateDbContext db)
         d.Id, d.Name, d.Region, d.Description, d.Latitude, d.Longitude, d.Category, d.Status, d.CreatedAtUtc,
         d.Attractions.Select(a => new AttractionResponse(
             a.Id, a.DestinationId, a.Name, a.Category, a.BasePrice, a.Currency, a.AccessibilityNotes, a.Status,
-            a.OpeningRules.Select(r => new OpeningRuleDto(r.Id, r.DayOfWeek, r.OpenTime, r.CloseTime, r.LastEntryTime, r.ValidFrom, r.ValidTo)).ToList()
+            new List<OpeningRuleDto>()
         )).ToList(),
         d.Advisories.Select(adv => new AdvisoryResponse(
             adv.Id, adv.DestinationId, adv.Type, adv.Severity, adv.Message, adv.StartsAtUtc, adv.EndsAtUtc, adv.Status
         )).ToList(),
-        d.GuideReports.Select(r => new GuideReportResponse(
-            r.Id, r.DestinationId, r.GuideId, r.ReportType, r.Message, r.PhotoUrl, r.Latitude, r.Longitude, r.Status, r.ReportedAtUtc
-        )).ToList()
+        new List<GuideReportResponse>()
     );
 }

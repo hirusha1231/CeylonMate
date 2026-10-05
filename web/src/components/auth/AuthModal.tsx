@@ -9,6 +9,7 @@ import { getRoleRedirectPath } from '../../auth/types';
 import { useToast } from '../../context/ToastContext';
 import { API_BASE_URL, checkServerHealth, apiError } from '../../services/api';
 import { buttonPressProps, scaleInModalVariants } from '../../utils/animations';
+import { PasswordValidationRules, validatePasswordRules } from './PasswordValidationRules';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -31,7 +32,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const location = useLocation();
 
   const [mode, setMode] = useState<'signin' | 'register'>(initialMode);
-  
+
   // Form Fields
   const [role, setRole] = useState<'TRAVELER' | 'LOCAL_GUIDE'>('TRAVELER');
   const [email, setEmail] = useState('');
@@ -43,6 +44,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Password visibility toggles
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [shakePassword, setShakePassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
@@ -55,6 +57,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setLocalError(null);
       setSuccessMessage(null);
       setMode(initialMode);
+      setShakePassword(false);
       probeServer();
     }
   }, [isOpen, initialMode]);
@@ -140,13 +143,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    if (password.length < 6) {
-      setLocalError('Password must be at least 6 characters in length.');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setLocalError('Passwords do not match. Please re-enter your password.');
+    const pwdValidation = validatePasswordRules(password, confirmPassword);
+    if (!pwdValidation.isValid) {
+      setShakePassword(true);
+      setTimeout(() => setShakePassword(false), 600);
+      setLocalError(pwdValidation.error || 'Password does not meet common security requirements.');
       return;
     }
 
@@ -230,7 +231,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div className="flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 border border-stone-700">
                 <span className={`w-2 h-2 rounded-full ${serverOnline ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500 animate-ping'}`} />
                 <span className={serverOnline ? 'text-emerald-300' : 'text-rose-300'}>
-                  {serverOnline === null ? 'Probing API...' : serverOnline ? 'Server 5084 Connected' : 'Server Disconnected'}
+                  {serverOnline === null ? 'Probing API...' : serverOnline ? ' Connected' : 'Disconnected'}
                 </span>
               </div>
             </div>
@@ -311,11 +312,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   {...buttonPressProps}
                   type="submit"
                   disabled={loading || serverOnline === false}
-                  className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-                    serverOnline === false
+                  className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${serverOnline === false
                       ? 'bg-stone-800 text-stone-500 border border-stone-700 cursor-not-allowed'
                       : 'bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] shadow-lg'
-                  }`}
+                    }`}
                 >
                   {loading ? (
                     <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-slate-900 border-t-transparent" />
@@ -397,53 +397,64 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-stone-300 mb-1">Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Min 6 chars"
-                        className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-8 py-2 text-xs text-stone-100 focus:outline-none transition-colors"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-2.5 top-2.5 text-stone-400 hover:text-[#C5A880] transition-colors"
-                        title={showPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
+                <motion.div
+                  animate={shakePassword ? { x: [-8, 8, -6, 6, -3, 3, 0] } : { x: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="space-y-2.5"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-stone-300 mb-1">Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Create strong password"
+                          className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-8 py-2 text-xs text-stone-100 focus:outline-none transition-colors"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-2.5 top-2.5 text-stone-400 hover:text-[#C5A880] transition-colors"
+                          title={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-stone-300 mb-1">Re-enter Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          required
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Confirm password"
+                          className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-8 py-2 text-xs text-stone-100 focus:outline-none transition-colors"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-2.5 top-2.5 text-stone-400 hover:text-[#C5A880] transition-colors"
+                          title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-stone-300 mb-1">Re-enter Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-2.5 w-4 h-4 text-stone-500" />
-                      <input
-                        type={showConfirmPassword ? 'text' : 'password'}
-                        required
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm password"
-                        className="w-full bg-slate-900 border border-stone-700 focus:border-[#C5A880] rounded-xl pl-9 pr-8 py-2 text-xs text-stone-100 focus:outline-none transition-colors"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-2.5 top-2.5 text-stone-400 hover:text-[#C5A880] transition-colors"
-                        title={showConfirmPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  {/* Real-time Animated Password Validation Checklist & Strength Meter */}
+                  {(password.length > 0 || confirmPassword.length > 0) && (
+                    <PasswordValidationRules password={password} confirmPassword={confirmPassword} />
+                  )}
+                </motion.div>
 
                 <div>
                   <label className="block text-xs font-medium text-stone-300 mb-1">Phone Number (Optional)</label>
@@ -463,11 +474,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   {...buttonPressProps}
                   type="submit"
                   disabled={loading || serverOnline === false}
-                  className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-                    serverOnline === false
+                  className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${serverOnline === false
                       ? 'bg-stone-800 text-stone-500 border border-stone-700 cursor-not-allowed'
                       : 'bg-gradient-to-r from-[#C5A880] to-[#D4AF37] hover:from-[#b89a70] hover:to-[#c4a027] text-[#0B131F] shadow-lg cursor-pointer'
-                  }`}
+                    }`}
                 >
                   {loading ? (
                     <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-slate-900 border-t-transparent" />

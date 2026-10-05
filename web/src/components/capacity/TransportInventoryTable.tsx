@@ -160,17 +160,18 @@ export const TransportInventoryTable: React.FC<TransportInventoryTableProps> = (
                   {/* ACTIONS */}
                   <td className="px-5 py-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => onStatusToggle(slot)}
-                        className={`p-2 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
-                          isAvailable
-                            ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
-                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                        }`}
-                        title={isAvailable ? 'Block Vehicle Charter' : 'Unblock Vehicle Charter'}
-                      >
-                        <Slash className="w-4 h-4" />
-                      </button>
+                      {!isReserved && !isBooked && (
+                        <button
+                          onClick={() => onStatusToggle(slot)}
+                          className={`p-2 rounded-lg text-xs font-medium transition-all cursor-pointer border ${isAvailable
+                              ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+                              : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                            }`}
+                          title={isAvailable ? 'Block Vehicle Charter' : 'Unblock Vehicle Charter'}
+                        >
+                          <Slash className="w-4 h-4" />
+                        </button>
+                      )}
 
                       <button
                         onClick={() => onHold(slot)}

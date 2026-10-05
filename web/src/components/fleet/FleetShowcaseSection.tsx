@@ -50,18 +50,7 @@ const FALLBACK_FLEET: VehicleFleetItem[] = [
     isActive: true,
     displayOrder: 3,
   },
-  {
-    id: 'fb-4',
-    categoryBadge: 'PREMIUM GROUP DELEGATION',
-    vehicleModel: 'Toyota Coaster VIP Minibus',
-    description: 'Spacious 14-seater luxury coach featuring individual reading lights, refrigerator, dual climate AC, and ample luggage bays.',
-    imageUrl: FLEET_IMAGES.luxuryCoaster,
-    maxPassengers: 14,
-    featureHighlight: 'Dual Climate AC',
-    luggageCapacity: '14 large bags',
-    isActive: true,
-    displayOrder: 4,
-  }
+
 ];
 
 import { useCurrency } from '../../context/CurrencyContext';

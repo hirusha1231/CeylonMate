@@ -5,6 +5,7 @@ import {
   CheckCircle2, ArrowRight, ShieldCheck, Gauge, Layers
 } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router';
+import { useCurrency } from '../../context/CurrencyContext';
 import { api } from '../../api/client';
 import { fadeInVariants, hoverLiftProps } from '../../utils/animations';
 
@@ -39,6 +40,7 @@ interface Agent3Response {
 export const CapacityDispatchPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { formatPrice } = useCurrency();
 
   const incomingOrigin = searchParams.get('origin') || searchParams.get('pickup') || searchParams.get('from') || 'Colombo Airport';
   const incomingDest = searchParams.get('destination') || searchParams.get('dest') || searchParams.get('to') || searchParams.get('route') || 'Mirissa';
@@ -338,7 +340,9 @@ export const CapacityDispatchPage: React.FC = () => {
                           <span className="font-bold text-stone-200">{vehicle.maxPax} Pax Max</span>
                           <span className="text-stone-400">{vehicle.luggageCapacity} Luggage Bags</span>
                           {vehicle.estimatedDailyRateLkr ? (
-                            <span className="text-[#D4AF37] font-bold">LKR {vehicle.estimatedDailyRateLkr.toLocaleString()}</span>
+                            <span className="text-[#D4AF37] font-bold">
+                              {formatPrice(vehicle.estimatedDailyRateLkr, 'LKR')} / day
+                            </span>
                           ) : null}
                         </div>
 

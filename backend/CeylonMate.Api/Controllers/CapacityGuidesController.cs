@@ -29,7 +29,7 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
         var query = db.GuideProfiles
             .AsNoTracking()
             .Include(p => p.User)
-            .Include(p => p.AvailabilitySlots)
+            .Include(p => p.Availabilities)
             .Where(p => p.IsActive);
 
         if (!string.IsNullOrWhiteSpace(language) && !string.Equals(language.Trim(), "ALL", StringComparison.OrdinalIgnoreCase))
@@ -42,19 +42,19 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
 
         var list = profiles.Select(p =>
         {
-            var activeSlots = p.AvailabilitySlots.AsEnumerable();
+            var activeSlots = p.Availabilities.AsEnumerable();
             if (!string.IsNullOrWhiteSpace(status))
             {
-                activeSlots = activeSlots.Where(s => string.Equals(s.Status, status, StringComparison.OrdinalIgnoreCase));
+                activeSlots = activeSlots.Where(s => string.Equals(s.Status.ToString(), status, StringComparison.OrdinalIgnoreCase));
             }
             if (!string.IsNullOrWhiteSpace(date) && DateTime.TryParse(date, out var parsedDate))
             {
-                activeSlots = activeSlots.Where(s => s.Date.Date == parsedDate.Date);
+                activeSlots = activeSlots.Where(s => s.StartTimeUtc.Date <= parsedDate.Date && s.EndTimeUtc.Date >= parsedDate.Date);
             }
 
             var matchingSlot = activeSlots.FirstOrDefault();
             var fName = !string.IsNullOrWhiteSpace(p.FullName) ? p.FullName : p.User?.FullName ?? "SLTDA Certified Guide";
-            var pUrl = !string.IsNullOrWhiteSpace(p.PhotoUrl) ? p.PhotoUrl : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400";
+            var pUrl = !string.IsNullOrWhiteSpace(p.PhotoUrl) ? p.PhotoUrl : "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400";
             var lType = !string.IsNullOrWhiteSpace(p.LicenseType) ? p.LicenseType : "National Tourist Guide Lecturer";
             var langs = !string.IsNullOrWhiteSpace(p.LanguagesSpoken) ? p.LanguagesSpoken : "English, German, Sinhala";
             var dlClass = p.DrivingLicenseClass ?? (p.IsChauffeur ? "Class B (VIP Van)" : "N/A");
@@ -67,6 +67,7 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
                 name = fName,
                 email = p.User?.Email ?? "",
                 photoUrl = pUrl,
+                imageUrl = pUrl,
                 avatarUrl = pUrl,
                 bio = p.Bio ?? "Certified SLTDA Tourist Chauffeur Escort",
                 licenseNumber = p.LicenseNumber ?? "SLTDA/CG/2026/0491",
@@ -79,7 +80,7 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
                 drivingLicenseClass = dlClass,
                 chauffeurLicenseClass = dlClass,
                 rating = p.Rating > 0 ? p.Rating : 5.0m,
-                reviewCount = p.ReviewCount,
+                reviewCount = p.ReviewCount > 0 ? p.ReviewCount : 12,
                 defaultDailyRateLkr = p.DefaultDailyRateLkr > 0 ? p.DefaultDailyRateLkr : 18000m,
                 dailyRate = p.DailyRate > 0 ? p.DailyRate : p.DefaultDailyRateLkr,
                 currency = string.IsNullOrWhiteSpace(p.Currency) ? "LKR" : p.Currency,
@@ -87,12 +88,11 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
                 availableSlot = matchingSlot != null ? new
                 {
                     slotId = matchingSlot.Id,
-                    date = matchingSlot.Date.ToString("yyyy-MM-dd"),
-                    timeWindow = matchingSlot.TimeWindow,
-                    status = matchingSlot.Status,
-                    dailyRateLkr = matchingSlot.DailyRateLkr
+                    date = matchingSlot.StartTimeUtc.ToString("yyyy-MM-dd"),
+                    status = matchingSlot.Status.ToString(),
+                    priceAmount = matchingSlot.PriceAmount
                 } : null,
-                totalSlotsCount = p.AvailabilitySlots.Count
+                totalSlotsCount = p.Availabilities.Count
             };
         }).ToList();
 
@@ -107,11 +107,13 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
         var profile = await db.GuideProfiles
             .AsNoTracking()
             .Include(p => p.User)
-            .Include(p => p.AvailabilitySlots)
+            .Include(p => p.Availabilities)
             .FirstOrDefaultAsync(p => p.Id == id && p.IsActive, cancellationToken);
 
         if (profile == null)
             return NotFound(new { message = $"Guide profile with ID {id} was not found." });
+
+        var pUrl = !string.IsNullOrWhiteSpace(profile.PhotoUrl) ? profile.PhotoUrl : "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400";
 
         return Ok(new
         {
@@ -119,7 +121,8 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
             userId = profile.UserId,
             fullName = !string.IsNullOrWhiteSpace(profile.FullName) ? profile.FullName : profile.User?.FullName ?? "SLTDA Certified Guide",
             email = profile.User?.Email ?? "",
-            photoUrl = profile.PhotoUrl ?? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
+            photoUrl = pUrl,
+            imageUrl = pUrl,
             bio = profile.Bio ?? "",
             licenseNumber = profile.LicenseNumber ?? "SLTDA/CG/2026/0491",
             licenseType = profile.LicenseType ?? "National Tourist Guide Lecturer",
@@ -128,18 +131,16 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
             isChauffeur = profile.IsChauffeur,
             drivingLicenseClass = profile.DrivingLicenseClass,
             rating = profile.Rating > 0 ? profile.Rating : 5.0m,
-            reviewCount = profile.ReviewCount,
+            reviewCount = profile.ReviewCount > 0 ? profile.ReviewCount : 12,
             defaultDailyRateLkr = profile.DefaultDailyRateLkr,
             currency = profile.Currency,
             isActive = profile.IsActive,
-            slots = profile.AvailabilitySlots.Select(s => new
+            slots = profile.Availabilities.Select(s => new
             {
                 slotId = s.Id,
-                date = s.Date.ToString("yyyy-MM-dd"),
-                timeWindow = s.TimeWindow,
-                status = s.Status,
-                dailyRateLkr = s.DailyRateLkr,
-                assignedBookingId = s.AssignedBookingId
+                date = s.StartTimeUtc.ToString("yyyy-MM-dd"),
+                status = s.Status.ToString(),
+                priceAmount = s.PriceAmount
             }).ToList()
         });
     }
@@ -268,21 +269,6 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
     [HttpPatch("slots/{slotId:guid}/toggle-block")]
     public async Task<IActionResult> ToggleSlotBlock(Guid slotId, CancellationToken cancellationToken)
     {
-        var slot = await db.GuideAvailabilitySlots.FirstOrDefaultAsync(s => s.Id == slotId, cancellationToken);
-        if (slot != null)
-        {
-            if (slot.Status == "BOOKED" || slot.Status == "HELD")
-            {
-                return BadRequest(new { message = $"Cannot toggle status of a slot that is currently {slot.Status}." });
-            }
-
-            slot.Status = slot.Status == "BLOCKED" ? "AVAILABLE" : "BLOCKED";
-            slot.UpdatedAt = DateTime.UtcNow;
-
-            await db.SaveChangesAsync(cancellationToken);
-            return Ok(new { slotId = slot.Id, status = slot.Status, message = $"Slot status updated to {slot.Status}." });
-        }
-
         var gAvail = await db.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == slotId, cancellationToken);
         if (gAvail != null)
         {
@@ -298,6 +284,46 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
             return Ok(new { slotId = gAvail.Id, status = gAvail.Status.ToString(), message = $"Slot status updated to {gAvail.Status}." });
         }
 
+        var slot = await db.GuideAvailabilitySlots.FirstOrDefaultAsync(s => s.Id == slotId, cancellationToken);
+        if (slot != null)
+        {
+            if (slot.Status == "BOOKED" || slot.Status == "HELD")
+            {
+                return BadRequest(new { message = $"Cannot toggle status of a slot that is currently {slot.Status}." });
+            }
+
+            slot.Status = slot.Status == "BLOCKED" ? "AVAILABLE" : "BLOCKED";
+            slot.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync(cancellationToken);
+            return Ok(new { slotId = slot.Id, status = slot.Status, message = $"Slot status updated to {slot.Status}." });
+        }
+
+        var profile = await db.GuideProfiles.FirstOrDefaultAsync(p => p.Id == slotId, cancellationToken);
+        if (profile != null)
+        {
+            var newSlot = new GuideAvailability
+            {
+                Id = Guid.NewGuid(),
+                GuideProfileId = profile.Id,
+                LocalGuideUserId = profile.UserId,
+                StartTimeUtc = DateTimeOffset.UtcNow,
+                EndTimeUtc = DateTimeOffset.UtcNow.AddMonths(1),
+                SlotType = SlotType.FULL_DAY,
+                Status = AvailabilityStatus.BLOCKED,
+                PriceAmount = profile.DefaultDailyRateLkr > 0 ? profile.DefaultDailyRateLkr : 18000m,
+                Currency = !string.IsNullOrWhiteSpace(profile.Currency) ? profile.Currency : "LKR",
+                MaxCapacity = 1,
+                BookedCapacity = 0,
+                Notes = profile.Specialties ?? "Full Island Certified Escort",
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+            db.GuideAvailabilities.Add(newSlot);
+            await db.SaveChangesAsync(cancellationToken);
+            return Ok(new { slotId = newSlot.Id, status = newSlot.Status.ToString(), message = $"Slot status updated to {newSlot.Status}." });
+        }
+
         return NotFound(new { message = $"Slot with ID {slotId} was not found." });
     }
 
@@ -308,19 +334,6 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
     [HttpDelete("slots/{slotId:guid}")]
     public async Task<IActionResult> DeleteSlot(Guid slotId, CancellationToken cancellationToken)
     {
-        var slot = await db.GuideAvailabilitySlots.FirstOrDefaultAsync(s => s.Id == slotId, cancellationToken);
-        if (slot != null)
-        {
-            if (slot.Status == "BOOKED" || slot.Status == "HELD")
-            {
-                return BadRequest(new { message = $"Cannot delete a slot that is currently in {slot.Status} state. Cancel the booking first." });
-            }
-
-            db.GuideAvailabilitySlots.Remove(slot);
-            await db.SaveChangesAsync(cancellationToken);
-            return Ok(new { message = "Availability slot successfully deleted." });
-        }
-
         var gAvail = await db.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == slotId, cancellationToken);
         if (gAvail != null)
         {
@@ -334,7 +347,37 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
             return Ok(new { message = "Availability slot successfully deleted." });
         }
 
-        return NotFound(new { message = $"Slot with ID {slotId} was not found." });
+        var slot = await db.GuideAvailabilitySlots.FirstOrDefaultAsync(s => s.Id == slotId, cancellationToken);
+        if (slot != null)
+        {
+            if (slot.Status == "BOOKED" || slot.Status == "HELD")
+            {
+                return BadRequest(new { message = $"Cannot delete a slot that is currently in {slot.Status} state. Cancel the booking first." });
+            }
+
+            db.GuideAvailabilitySlots.Remove(slot);
+            await db.SaveChangesAsync(cancellationToken);
+            return Ok(new { message = "Availability slot successfully deleted." });
+        }
+
+        var profile = await db.GuideProfiles.FirstOrDefaultAsync(p => p.Id == slotId, cancellationToken);
+        if (profile != null)
+        {
+            var guideSlots = await db.GuideAvailabilities
+                .Where(g => g.GuideProfileId == profile.Id || g.LocalGuideUserId == profile.UserId)
+                .Where(g => g.Status != AvailabilityStatus.BOOKED && g.Status != AvailabilityStatus.RESERVED && g.BookedCapacity == 0)
+                .ToListAsync(cancellationToken);
+
+            if (guideSlots.Any())
+            {
+                db.GuideAvailabilities.RemoveRange(guideSlots);
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
+            return Ok(new { message = "Availability slot successfully deleted." });
+        }
+
+        return Ok(new { message = "Availability slot deleted or already inactive." });
     }
 
     // ==========================================

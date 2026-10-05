@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ShieldCheck, CheckCircle2, XCircle, AlertTriangle, UserCheck, Briefcase, RefreshCw, ChevronRight, Send, Check, DollarSign, Car, FileCode
+  ShieldCheck, CheckCircle2, XCircle, AlertTriangle, UserCheck, Briefcase, RefreshCw, ChevronRight, Send, Check, DollarSign, Car, FileCode,
+  Star, Globe, Phone, User
 } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router';
 import { useAuth } from '../../auth/AuthProvider';
@@ -49,6 +50,11 @@ export const ConciergeApprovalPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [inquiries, setInquiries] = useState<BookingInquiry[]>([]);
   const [selectedInquiry, setSelectedInquiry] = useState<BookingInquiry | null>(null);
+
+  // Certified Guides & Selected Guide for Reassignment / Dispatch
+  const [availableGuides, setAvailableGuides] = useState<any[]>([]);
+  const [selectedGuideSlotId, setSelectedGuideSlotId] = useState<string>('');
+  const [dispatchingGuide, setDispatchingGuide] = useState<boolean>(false);
 
   const [submitting, setSubmitting] = useState<boolean>(false);
 
@@ -106,7 +112,18 @@ export const ConciergeApprovalPage: React.FC = () => {
 
   useEffect(() => {
     fetchAgentInquiries();
+    fetchAvailableGuidesList();
   }, []);
+
+  const fetchAvailableGuidesList = async () => {
+    try {
+      const res = await api.get('/api/capacity/guide-availabilities');
+      const list = Array.isArray(res.data) ? res.data : [];
+      setAvailableGuides(list);
+    } catch (err) {
+      console.warn('Failed to load certified guides list:', err);
+    }
+  };
 
   const fetchAgentInquiries = async () => {
     setLoading(true);
@@ -115,11 +132,39 @@ export const ConciergeApprovalPage: React.FC = () => {
       const data = Array.isArray(response.data) ? response.data : [];
       setInquiries(data);
       setSelectedInquiry(data.length > 0 ? data[0] : null);
+      if (data.length > 0 && data[0].guideSlotId) {
+        setSelectedGuideSlotId(data[0].guideSlotId);
+      }
     } catch {
       setInquiries([]);
       setSelectedInquiry(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDispatchGuideApproval = async () => {
+    if (!selectedInquiry) return;
+    const targetGuide = availableGuides.find(g => g.id === selectedGuideSlotId) || { fullName: selectedInquiry.guideName };
+
+    setDispatchingGuide(true);
+    try {
+      await api.post(`/api/bookings/${selectedInquiry.id}/request-guide`, {
+        guideSlotId: selectedGuideSlotId || selectedInquiry.guideSlotId,
+        guideName: targetGuide?.fullName || targetGuide?.guideName || selectedInquiry.guideName
+      });
+
+      showToast('Guide Approval Request Sent!', `Expedition request sent to guide. Status is now PENDING_GUIDE_ACCEPTANCE.`, 'success');
+      setSelectedInquiry(prev => prev ? {
+        ...prev,
+        guideAssignmentStatus: 'PENDING_GUIDE_ACCEPTANCE',
+        guideName: targetGuide?.fullName || targetGuide?.guideName || prev.guideName
+      } : null);
+      fetchAgentInquiries();
+    } catch (err: any) {
+      showToast('Dispatch Failed', err.message || 'Could not send request to guide.', 'error');
+    } finally {
+      setDispatchingGuide(false);
     }
   };
 
@@ -154,7 +199,12 @@ export const ConciergeApprovalPage: React.FC = () => {
     setSubmitting(true);
 
     try {
-      await api.post(`/api/agent/bookings/${selectedInquiry.id}/approve`, {});
+      const payload: any = {};
+      if (selectedGuideSlotId) {
+        payload.replacementGuideSlotId = selectedGuideSlotId;
+      }
+
+      await api.post(`/api/agent/bookings/${selectedInquiry.id}/approve`, payload);
 
       showToast(
         'Offer Approved & Sent!',
@@ -325,50 +375,120 @@ export const ConciergeApprovalPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* GUIDE STATUS BADGE CARD */}
-                  <div className="p-4 bg-[#0B131F] rounded-2xl border border-stone-800 space-y-2 text-xs font-sans">
-                    <div className="flex items-center justify-between font-mono">
-                      <span className="text-stone-400 font-semibold text-[11px] uppercase">Local Guide Assignment Status</span>
-                      {selectedInquiry.guideAssignmentStatus === 'ACCEPTED_BY_GUIDE' ? (
-                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
-                          ✓ ACCEPTED_BY_GUIDE
+                  {/* DEDICATED PRIVATE GUIDE CARD */}
+                  <div className="p-5 bg-[#0B131F] rounded-2xl border border-stone-800 space-y-4 text-xs font-sans">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-800 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
+                        <span className="text-xs font-mono font-bold text-[#C5A880] uppercase tracking-wider">
+                          Dedicated Private Guide
                         </span>
-                      ) : selectedInquiry.guideAssignmentStatus === 'NOT_REQUIRED' ? (
-                        <span className="px-2.5 py-0.5 rounded-full bg-slate-900 text-stone-300 border border-stone-700 text-[10px] font-bold">
-                          NO GUIDE REQUESTED
-                        </span>
-                      ) : selectedInquiry.guideAssignmentStatus === 'REJECTED_BY_GUIDE' ? (
-                        <span className="px-2.5 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-500/40 text-[10px] font-bold">
-                          ✕ REJECTED_BY_GUIDE
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-500/40 text-[10px] font-bold">
-                          ⏳ PENDING_GUIDE_ACCEPTANCE
-                        </span>
-                      )}
-                    </div>
-                    {selectedInquiry.guideResponseMessage && (
-                      <p className="text-[#C5A880] italic text-xs pt-1 border-t border-stone-800/80">
-                        Guide Note: "{selectedInquiry.guideResponseMessage}"
-                      </p>
-                    )}
-                  </div>
-
-                  {/* CAPACITY REJECTION EXCEPTION ALERT BOX */}
-                  {selectedInquiry.status === 'CAPACITY_FLAGGED_REJECTED' && (
-                    <div className="p-4 bg-amber-950/60 border border-amber-500/50 rounded-2xl text-amber-200 text-xs space-y-2 leading-relaxed font-mono">
-                      <div className="flex items-center gap-2 font-bold text-amber-300 text-sm">
-                        <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-                        <span>⚠️ Capacity Manager Exception Alert</span>
                       </div>
-                      <p>
-                        <strong>Reason for Rejection:</strong> "{selectedInquiry.capacityRejectionReason || 'Vehicle undergoing maintenance'}"
-                      </p>
-                      <p className="text-[11px] text-stone-300">
-                        Please reassign a replacement vehicle slot below before approving the final proposal.
-                      </p>
+                      <div className="flex items-center gap-2">
+                        {selectedInquiry.guideAssignmentStatus === 'ACCEPTED_BY_GUIDE' ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                            ✓ ACCEPTED_BY_GUIDE
+                          </span>
+                        ) : selectedInquiry.guideAssignmentStatus === 'NOT_REQUIRED' ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-slate-900 text-stone-300 border border-stone-700 text-[10px] font-bold">
+                            NO GUIDE REQUESTED
+                          </span>
+                        ) : selectedInquiry.guideAssignmentStatus === 'REJECTED_BY_GUIDE' ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-500/40 text-[10px] font-bold">
+                            ✕ REJECTED_BY_GUIDE
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-500/40 text-[10px] font-bold animate-pulse">
+                            ⏳ PENDING_GUIDE_ACCEPTANCE
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  )}
+
+                    <div className="flex flex-col sm:flex-row items-start gap-4">
+                      <img
+                        src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400"
+                        alt="Private Guide"
+                        className="w-14 h-14 rounded-full object-cover border border-[#D4AF37] bg-slate-950 shrink-0"
+                      />
+                      <div className="flex-1 space-y-1.5 text-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h5 className="text-base font-serif-luxury font-bold text-stone-100">
+                                {selectedInquiry.guideName || 'Kavinda Fernando'}
+                              </h5>
+                              <span className="text-[10px] font-mono bg-[#134E4A] text-emerald-200 border border-emerald-500/40 px-2 py-0.5 rounded font-bold">
+                                National Tourist Guide Lecturer
+                              </span>
+                            </div>
+                            <p className="text-stone-400 font-mono text-[11px] mt-0.5">
+                              SLTDA License: <span className="text-stone-200 font-semibold">SLTDA/NTG/2024/0842</span>
+                            </p>
+                          </div>
+
+                          <div className="text-[11px] font-mono text-[#D4AF37] flex items-center gap-1 font-bold">
+                            <Star className="w-3.5 h-3.5 fill-[#D4AF37]" /> 5.0 (Certified)
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-stone-400">
+                          <span className="flex items-center gap-1 text-stone-300">
+                            <Globe className="w-3 h-3 text-[#C5A880]" /> English, Sinhala, German
+                          </span>
+                          <span>•</span>
+                          <span>Specialty: <strong className="text-stone-200">Cultural Heritage, Wildlife Safari</strong></span>
+                        </div>
+
+                        {selectedInquiry.guideResponseMessage && (
+                          <div className="p-2 bg-emerald-950/40 rounded-lg border border-emerald-500/30 text-xs italic text-emerald-300 mt-1">
+                            Guide Note: "{selectedInquiry.guideResponseMessage}"
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Guide Assignment / Dispatch Selector */}
+                    <div className="p-3.5 bg-slate-950/80 rounded-xl border border-stone-800 space-y-2.5">
+                      <label className="block text-stone-300 font-semibold font-mono text-[11px]">
+                        Reassign Certified Guide & Send for Guide Approval
+                      </label>
+
+                      <div className="flex flex-col sm:flex-row items-center gap-2.5">
+                        <select
+                          value={selectedGuideSlotId}
+                          onChange={(e) => setSelectedGuideSlotId(e.target.value)}
+                          className="flex-1 bg-slate-900 border border-stone-700 rounded-xl px-3 py-2 text-stone-100 text-xs font-mono outline-none focus:border-[#C5A880]"
+                        >
+                          <option value="">-- Keep Current Guide ({selectedInquiry.guideName || 'Default Guide'}) --</option>
+                          {availableGuides.map((g: any) => (
+                            <option key={g.id} value={g.id}>
+                              {g.fullName || g.guideName} (LKR {Number(g.priceAmount || 18000).toLocaleString()}/day) - {g.languages || 'English'}
+                            </option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="button"
+                          disabled={dispatchingGuide}
+                          onClick={handleDispatchGuideApproval}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-mono font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shrink-0 hover:brightness-110 disabled:opacity-50 transition cursor-pointer shadow"
+                        >
+                          {dispatchingGuide ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Dispatching...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Send for Guide Approval</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Traveler Notes & Journey Info */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-sans">
