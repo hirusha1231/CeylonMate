@@ -1,7 +1,8 @@
-from typing import Any
+from typing import Any, List, Dict
+from app.core.llm import generate_gemini_json
 
-# Controlled mock database of destinations and attraction rules matching backend seeded data
-DESTINATION_CATALOG = [
+# Controlled catalog matching CeylonMate seeded locations, active advisories, and guide reports
+DESTINATION_CATALOG: List[Dict[str, Any]] = [
     {
         "id": "dest-bentota",
         "name": "Bentota Coastal Strip",
@@ -102,10 +103,13 @@ DESTINATION_CATALOG = [
 
 async def search_destinations(region_or_theme: str) -> list[dict[str, Any]]:
     needle = region_or_theme.lower().strip()
-    return [
+    words = [w.strip() for w in needle.replace(",", " ").split() if len(w.strip()) > 2]
+    
+    matches = [
         d for d in DESTINATION_CATALOG
-        if needle in d["region"] or needle in d["category"] or any(needle in t for t in d["themes"])
+        if any(w in d["region"].lower() or w in d["category"].lower() or any(w in t.lower() for t in d.get("themes", [])) for w in words)
     ]
+    return matches if matches else DESTINATION_CATALOG
 
 async def get_attraction_rules(attraction_id: str) -> dict[str, Any]:
     for d in DESTINATION_CATALOG:
@@ -117,13 +121,13 @@ async def get_attraction_rules(attraction_id: str) -> dict[str, Any]:
 async def get_active_advisories(destination_id: str) -> list[dict[str, Any]]:
     for d in DESTINATION_CATALOG:
         if d["id"] == destination_id:
-            return d["advisories"]
+            return d.get("advisories", [])
     return []
 
 async def get_guide_reports(destination_id: str) -> list[dict[str, Any]]:
     for d in DESTINATION_CATALOG:
         if d["id"] == destination_id:
-            return d["guideReports"]
+            return d.get("guideReports", [])
     return []
 
 async def get_weather_summary(destination_id: str, date_str: str) -> dict[str, Any]:

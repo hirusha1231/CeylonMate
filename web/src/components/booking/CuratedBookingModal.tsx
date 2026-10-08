@@ -99,7 +99,12 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
   const fetchAvailableGuides = async () => {
     setLoadingGuides(true);
     try {
-      const res = await api.get('/api/capacity/guide-availabilities');
+      const res = await api.get('/api/capacity/guide-availabilities', {
+        params: {
+          startDate,
+          durationDays: selectedPackage?.durationDays || 1
+        }
+      });
       if (Array.isArray(res.data) && res.data.length > 0) {
         setGuides(res.data.map((item: any) => ({
           id: item.id,
@@ -124,75 +129,6 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
     }
   };
 
-  const DEFAULT_VIP_FLEET: any[] = [
-    {
-      id: "e1010000-0000-0000-0000-000000000001",
-      vehicleCatalogId: "e1010000-0000-0000-0000-000000000001",
-      vehicleModel: "Toyota KDH Super GL VIP Van",
-      categoryBadge: "EXECUTIVE VIP GROUP TRANSPORT",
-      imageUrl: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80",
-      maxPassengers: 6,
-      featureHighlight: "VIP Leather Interior & 5G Wi-Fi",
-      dailyRateUsd: 120,
-      dailyRate: 120,
-      currency: "USD",
-      status: "AVAILABLE"
-    },
-    {
-      id: "e1010000-0000-0000-0000-000000000002",
-      vehicleCatalogId: "e1010000-0000-0000-0000-000000000002",
-      vehicleModel: "Mercedes-Benz E-Class Sedan",
-      categoryBadge: "PRESTIGE EXECUTIVE SEDAN",
-      imageUrl: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&w=1000&q=80",
-      maxPassengers: 3,
-      featureHighlight: "Prestige Leather Comfort",
-      dailyRateUsd: 150,
-      dailyRate: 150,
-      currency: "USD",
-      status: "AVAILABLE"
-    },
-    {
-      id: "e1010000-0000-0000-0000-000000000003",
-      vehicleCatalogId: "e1010000-0000-0000-0000-000000000003",
-      vehicleModel: "Toyota Land Cruiser V8 Safari",
-      categoryBadge: "4X4 SAFARI & EXPEDITION",
-      imageUrl: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80",
-      maxPassengers: 5,
-      featureHighlight: "High-Clearance 4x4",
-      dailyRateUsd: 180,
-      dailyRate: 180,
-      currency: "USD",
-      status: "AVAILABLE"
-    },
-
-    {
-      id: "e1010000-0000-0000-0000-000000000005",
-      vehicleCatalogId: "e1010000-0000-0000-0000-000000000005",
-      vehicleModel: "Range Rover Autobiography V8 SUV",
-      categoryBadge: "PREMIUM LUXURY SUV",
-      imageUrl: "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=1000&q=80",
-      maxPassengers: 4,
-      featureHighlight: "Executive Lounge Seating",
-      dailyRateUsd: 220,
-      dailyRate: 220,
-      currency: "USD",
-      status: "AVAILABLE"
-    },
-    {
-      id: "e1010000-0000-0000-0000-000000000006",
-      vehicleCatalogId: "e1010000-0000-0000-0000-000000000006",
-      vehicleModel: "Volvo B11R Super VIP Coach",
-      categoryBadge: "LUXURY DELEGATION BUS",
-      imageUrl: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1000&q=80",
-      maxPassengers: 30,
-      featureHighlight: "Air Suspension & Sky Lounge",
-      dailyRateUsd: 350,
-      dailyRate: 350,
-      currency: "USD",
-      status: "AVAILABLE"
-    }
-  ];
-
   const fetchAvailableVehicles = async () => {
     setLoadingVehicles(true);
     try {
@@ -203,19 +139,14 @@ export const CuratedBookingModal: React.FC<CuratedBookingModalProps> = ({
           passengerCount
         }
       });
-      console.log("FETCHED VEHICLES:", res.data);
       const list = Array.isArray(res.data)
         ? res.data
         : (res.data?.vehicles || res.data?.data || []);
 
-      if (list && list.length > 0) {
-        setVehicles(list);
-      } else {
-        setVehicles(DEFAULT_VIP_FLEET);
-      }
+      setVehicles(list || []);
     } catch (err) {
-      console.warn("Error fetching available vehicles, using VIP fleet catalog fallback:", err);
-      setVehicles(DEFAULT_VIP_FLEET);
+      console.warn("Error fetching available vehicles from DB:", err);
+      setVehicles([]);
     } finally {
       setLoadingVehicles(false);
     }

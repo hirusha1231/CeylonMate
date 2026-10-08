@@ -457,7 +457,7 @@ export const FleetCatalogManagerModal: React.FC<FleetCatalogManagerModalProps> =
                         type="text"
                         value={vehicleModel}
                         onChange={(e) => setVehicleModel(e.target.value)}
-                        placeholder="e.g. Toyota KDH Super GL VIP Van"
+                        placeholder="Enter vehicle model name"
                         required
                         className="w-full px-4 py-2.5 bg-slate-900 border border-stone-700 rounded-xl text-stone-100 text-xs focus:outline-none focus:border-[#C5A880]"
                       />

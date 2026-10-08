@@ -424,8 +424,8 @@ export const QuickInquiryBar: React.FC = () => {
                   <div>
                     <span className="font-bold text-[#C5A880] block">Chauffeur Fleet Recommendation:</span>
                     {adults <= 3
-                      ? '1-3 Guests: Mercedes-Benz E-Class Prestige Sedan'
-                      : '4-6 Guests: Executive Toyota KDH Super GL VIP Van'}
+                      ? '1-3 Guests: Executive Luxury Sedan Escort'
+                      : '4-6 Guests: Executive VIP Group Transport Van'}
                   </div>
                 </div>
               </motion.div>

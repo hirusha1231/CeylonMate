@@ -18,8 +18,8 @@ class SelectedGuideDto(BaseModel):
 
 class ConciergePricingRequest(BaseModel):
     targetBudget: Optional[float] = 750000.0
-    tripDurationDays: Optional[int] = 1
-    durationDays: Optional[int] = 1
+    tripDurationDays: Optional[int] = None
+    durationDays: Optional[int] = None
     selectedRoute: Optional[SelectedRouteDto] = Field(default_factory=SelectedRouteDto)
     selectedVehicle: Optional[SelectedVehicleDto] = Field(default_factory=SelectedVehicleDto)
     selectedGuide: Optional[SelectedGuideDto] = None

@@ -12,47 +12,6 @@ interface FleetShowcaseSectionProps {
   showTitle?: boolean;
 }
 
-// Fallback items if database fetch returns empty before seeding
-const FALLBACK_FLEET: VehicleFleetItem[] = [
-  {
-    id: 'fb-1',
-    categoryBadge: 'EXECUTIVE VIP GROUP TRANSPORT',
-    vehicleModel: 'Toyota KDH Super GL VIP Van',
-    description: 'Dual air-conditioned luxury seating with reclining leather armchairs, onboard 5G Wi-Fi, and luggage space for 6 large bags.',
-    imageUrl: FLEET_IMAGES.kdhVan,
-    maxPassengers: 6,
-    featureHighlight: 'VIP Leather Interior',
-    luggageCapacity: '6 large bags',
-    isActive: true,
-    displayOrder: 1,
-  },
-  {
-    id: 'fb-2',
-    categoryBadge: 'COUPLE & SOLO EXECUTIVE TRAVEL',
-    vehicleModel: 'Mercedes-Benz E-Class Sedan',
-    description: 'Superior German engineering, whisper-quiet cabin acoustics, ideal for coastal expressway transfers and romantic getaways.',
-    imageUrl: FLEET_IMAGES.mercedes,
-    maxPassengers: 3,
-    featureHighlight: 'Premium Prestige',
-    luggageCapacity: '3 large bags',
-    isActive: true,
-    displayOrder: 2,
-  },
-  {
-    id: 'fb-3',
-    categoryBadge: '4X4 SAFARI & EXPEDITION',
-    vehicleModel: 'Toyota Land Cruiser V8 Safari Edition',
-    description: 'Heavy-duty luxury 4x4 modified for Yala national park tracking. High elevation seating with pop-up roof for wildlife photography.',
-    imageUrl: FLEET_IMAGES.landCruiser,
-    maxPassengers: 5,
-    featureHighlight: 'High-Clearance 4x4',
-    luggageCapacity: '4 large bags',
-    isActive: true,
-    displayOrder: 3,
-  },
-
-];
-
 import { useCurrency } from '../../context/CurrencyContext';
 
 export const FleetShowcaseSection: React.FC<FleetShowcaseSectionProps> = ({
@@ -71,13 +30,9 @@ export const FleetShowcaseSection: React.FC<FleetShowcaseSectionProps> = ({
     setLoading(true);
     try {
       const res = await api.get<VehicleFleetItem[]>('/api/fleet/catalog');
-      if (res.data && res.data.length > 0) {
-        setFleetItems(res.data);
-      } else {
-        setFleetItems(FALLBACK_FLEET);
-      }
+      setFleetItems(res.data || []);
     } catch {
-      setFleetItems(FALLBACK_FLEET);
+      setFleetItems([]);
     } finally {
       setLoading(false);
     }

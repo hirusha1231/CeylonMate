@@ -10,7 +10,7 @@ from app.schemas.destination import (
     DestinationCandidate,
 )
 from app.tools.destination_tools import (
-    DESTINATION_CATALOG,
+    search_destinations,
     get_active_advisories,
     get_guide_reports,
     get_weather_summary,
@@ -21,11 +21,8 @@ class DestinationSuitabilityAgent:
     async def evaluate_candidates(self, req: DestinationSuitabilityRequest) -> DestinationSuitabilityResponse:
         themes = [t.lower() for t in (req.regionsOrThemes or []) + (req.interests or [])]
 
-        matched_catalog_dests = []
-        for d in DESTINATION_CATALOG:
-            matched = [t for t in themes if t in d["region"].lower() or t in d["category"].lower() or any(t in dt.lower() for dt in d.get("themes", []))]
-            if matched or len(themes) == 0:
-                matched_catalog_dests.append(d)
+        theme_str = ", ".join(themes) if themes else "popular Sri Lanka destinations"
+        matched_catalog_dests = await search_destinations(theme_str)
 
         # Augment with any custom destination names provided in request
         custom_names = [r for r in (req.regionsOrThemes or []) if isinstance(r, str) and len(r.strip()) > 1]
@@ -47,7 +44,7 @@ class DestinationSuitabilityAgent:
                 })
 
         if not matched_catalog_dests:
-            matched_catalog_dests = DESTINATION_CATALOG[:4]
+            matched_catalog_dests = await search_destinations("popular Sri Lanka destinations")
 
         # 2. Build Gemini prompt for climate, monsoon, ocean & route viability evaluation
         dest_summary_list = [
@@ -91,7 +88,7 @@ For EACH destination in the list, evaluate Sri Lanka's climate patterns (e.g. So
 
         for d in matched_catalog_dests:
             d_id = d["id"]
-            matched = [t for t in themes if t in d["region"].lower() or t in d["category"].lower() or any(t in dt.lower() for dt in d.get("themes", []))]
+            matched = [t for t in themes if t in d["name"].lower() or t in d["region"].lower() or t in d["category"].lower() or any(t in dt.lower() for dt in d.get("themes", []))]
 
             advisories = await get_active_advisories(d_id)
             guide_reports = await get_guide_reports(d_id)

@@ -727,7 +727,7 @@ export const BespokePlannerPage: React.FC = () => {
     };
 
     try {
-      const res = await api.post('/api/trips/curated-multiagent-evaluate', payload);
+      const res = await api.post('/api/trips/curated-multiagent-evaluate', payload, { timeout: 180000 });
       console.log("=== RAW API RESPONSE OBJECT ===", res);
       console.log("=== RES.DATA ===", res.data);
       const data = res.data?.data || res.data?.result || res.data || {};
@@ -796,13 +796,25 @@ export const BespokePlannerPage: React.FC = () => {
         const directRes = await fetch('http://localhost:8000/agent/objective-interpretation/interpret', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: compiledPrompt,
-            startDate: startDate || null,
-            endDate: endDate || null,
-            passengerCount: adults,
-            highlights: selectedInterests
-          })
+          body: JSON.stringify((() => {
+            const fallbackTripId = crypto.randomUUID();
+            const s = startDate || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+            const e = endDate || new Date(new Date(s).getTime() + durationDays * 86400000).toISOString().slice(0, 10);
+            return {
+              tripRequestId: fallbackTripId,
+              storedTripRequest: {
+                tripRequestId: fallbackTripId,
+                objective: compiledPrompt,
+                startDate: s,
+                endDate: e,
+                budget: activeBudget || 3500,
+                currency: currency || 'USD',
+                partySize: adults,
+                interests: selectedInterests,
+                accessibilityNeeds: null
+              }
+            };
+          })())
         });
         if (directRes.ok) {
           const directAgent1 = await directRes.json();

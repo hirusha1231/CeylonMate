@@ -46,6 +46,11 @@ export const CapacityDispatchPage: React.FC = () => {
   const incomingDest = searchParams.get('destination') || searchParams.get('dest') || searchParams.get('to') || searchParams.get('route') || 'Mirissa';
   const incomingPax = searchParams.get('pax') ? Number(searchParams.get('pax')) : 2;
 
+  const incomingStartDate = searchParams.get('startDate') || searchParams.get('date') || searchParams.get('start') || '';
+  const incomingDuration = (searchParams.get('duration') || searchParams.get('durationDays') || searchParams.get('days'))
+    ? Number(searchParams.get('duration') || searchParams.get('durationDays') || searchParams.get('days'))
+    : 1;
+
   // Clean 2-input state + pax
   const [currentLocation, setCurrentLocation] = useState<string>(incomingOrigin);
   const [targetDestination, setTargetDestination] = useState<string>(
@@ -69,7 +74,9 @@ export const CapacityDispatchPage: React.FC = () => {
         const response = await api.post('/api/trips/agent3-route-logistics', {
           origin: o,
           destination: d,
-          passengers: p
+          passengers: p,
+          startDate: incomingStartDate || undefined,
+          durationDays: incomingDuration || undefined
         });
         resData = response.data;
       } catch (proxyErr) {
@@ -80,7 +87,9 @@ export const CapacityDispatchPage: React.FC = () => {
           body: JSON.stringify({
             origin: o,
             destination: d,
-            passengers: p
+            passengers: p,
+            startDate: incomingStartDate || undefined,
+            durationDays: incomingDuration || undefined
           })
         });
         if (directRes.ok) {

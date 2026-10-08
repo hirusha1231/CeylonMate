@@ -56,7 +56,7 @@ public sealed class DevelopmentUserSeeder(
             {
                 gp.FullName = !string.IsNullOrWhiteSpace(gp.User?.FullName) && !gp.User.FullName.Contains("@")
                     ? gp.User.FullName
-                    : "Kavinda Fernando";
+                    : "SLTDA Certified Guide";
                 db.GuideProfiles.Update(gp);
             }
         }
@@ -181,105 +181,7 @@ public sealed class DevelopmentUserSeeder(
             }
         }
 
-        // Seed & Sync 6 VehicleFleetCatalog items and their corresponding TransportSlots
-        var fleetCatalogSeeds = new[]
-        {
-            new
-            {
-                CategoryBadge = "EXECUTIVE VIP GROUP TRANSPORT",
-                VehicleModel = "Toyota KDH Super GL VIP Van",
-                Description = "Ideal for families and luxury groups. Dual climate control, plush leather reclining armchairs, high-speed onboard 5G Wi-Fi, and spacious luggage capacity.",
-                ImageUrl = "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80",
-                MaxPassengers = 6,
-                FeatureHighlight = "VIP Leather Interior & 5G Wi-Fi",
-                LuggageCapacity = "6 Large Luggage",
-                DailyRateUsd = 120.00m,
-                DisplayOrder = 1,
-                VehicleType = VehicleType.VAN
-            },
-            new
-            {
-                CategoryBadge = "PRESTIGE EXECUTIVE SEDAN",
-                VehicleModel = "Mercedes-Benz E-Class Sedan",
-                Description = "Unmatched elegance for couples and solo executive travelers. Whisper-quiet cabin acoustics, leather seating, and smooth transit along coastal expressways.",
-                ImageUrl = "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&w=1000&q=80",
-                MaxPassengers = 3,
-                FeatureHighlight = "Prestige Leather Comfort",
-                LuggageCapacity = "3 Large Luggage",
-                DailyRateUsd = 150.00m,
-                DisplayOrder = 2,
-                VehicleType = VehicleType.SEDAN
-            },
-            new
-            {
-                CategoryBadge = "4X4 SAFARI & EXPEDITION",
-                VehicleModel = "Toyota Land Cruiser V8 Safari",
-                Description = "Heavy-duty luxury 4x4 modified for Yala and Udawalawe national park tracking. High elevation seating with pop-up roof for wildlife photography.",
-                ImageUrl = "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80",
-                MaxPassengers = 5,
-                FeatureHighlight = "High-Clearance 4x4",
-                LuggageCapacity = "4 Large Luggage",
-                DailyRateUsd = 180.00m,
-                DisplayOrder = 3,
-                VehicleType = VehicleType.SUV
-            },
 
-            new
-            {
-                CategoryBadge = "PREMIUM LUXURY SUV",
-                VehicleModel = "Range Rover Autobiography V8 SUV",
-                Description = "Supreme luxury for executive VIPs. All-wheel drive terrain response, massage executive seating, and ultra-quiet ride.",
-                ImageUrl = "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=1000&q=80",
-                MaxPassengers = 4,
-                FeatureHighlight = "Executive Lounge Seating",
-                LuggageCapacity = "4 Large Luggage",
-                DailyRateUsd = 220.00m,
-                DisplayOrder = 5,
-                VehicleType = VehicleType.SUV
-            },
-            new
-            {
-                CategoryBadge = "LUXURY DELEGATION BUS",
-                VehicleModel = "Volvo B11R Super VIP Coach",
-                Description = "Ultra-capacity luxury coach for large tour delegations with reclining leather seats, onboard lavatory, and climate zones.",
-                ImageUrl = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1000&q=80",
-                MaxPassengers = 30,
-                FeatureHighlight = "Air Suspension & Sky Lounge",
-                LuggageCapacity = "25 Large Luggage",
-                DailyRateUsd = 350.00m,
-                DisplayOrder = 6,
-                VehicleType = VehicleType.BUS
-            }
-        };
-
-        var nowTime = DateTimeOffset.UtcNow;
-        var defaultTransportOptionId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-
-        foreach (var item in fleetCatalogSeeds)
-        {
-            var catalogItem = await db.VehicleFleetCatalogs.FirstOrDefaultAsync(x => x.VehicleModel == item.VehicleModel, cancellationToken);
-            if (catalogItem == null)
-            {
-                catalogItem = new VehicleFleetCatalog
-                {
-                    Id = Guid.NewGuid(),
-                    CategoryBadge = item.CategoryBadge,
-                    VehicleModel = item.VehicleModel,
-                    Description = item.Description,
-                    ImageUrl = item.ImageUrl,
-                    MaxPassengers = item.MaxPassengers,
-                    FeatureHighlight = item.FeatureHighlight,
-                    LuggageCapacity = item.LuggageCapacity,
-                    DailyRateUsd = item.DailyRateUsd,
-                    IsActive = true,
-                    DisplayOrder = item.DisplayOrder,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                db.VehicleFleetCatalogs.Add(catalogItem);
-                await db.SaveChangesAsync(cancellationToken);
-            }
-        }
 
 
         // Seed AttractionSlots if empty

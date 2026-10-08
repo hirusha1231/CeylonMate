@@ -778,7 +778,7 @@ export const PaymentGatewayPage: React.FC = () => {
                       <Car className="w-4 h-4 text-emerald-400" />
                       <div>
                         <p className="font-bold text-stone-200">
-                          {booking?.vehicle?.modelName || booking?.vehicleModel || 'Toyota KDH Super GL VIP Van'}
+                          {booking?.vehicle?.modelName || booking?.vehicleModel || 'Private VIP Fleet Escort'}
                         </p>
                         <p className="text-[10px] text-stone-400">Private VIP Chauffeur Transport</p>
                       </div>

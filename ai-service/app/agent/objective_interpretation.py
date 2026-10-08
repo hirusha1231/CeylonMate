@@ -78,10 +78,10 @@ async def interpret_objective_node(state: ObjectiveState) -> dict[str, Objective
         # Dynamic Gemini LLM Generation (Zero Hardcoding)
         # ---------------------------------------------------------------------
         llm_prompt = f"""You are Agent 1 (Objective & Destination Matcher) for CeylonMate Luxury Sri Lanka Tours.
-Analyze the traveler's request and dynamically synthesize bespoke Sri Lanka destination recommendations and travel parameters.
+Analyze the traveler's natural language vision prompt and extract all destination/location words, themes, and travel preferences.
 
 Traveler Input:
-- Raw Request: {trip.objective}
+- Raw Vision Prompt: {trip.objective}
 - Cleaned Objective: {objective}
 - Start Date: {trip.startDate}
 - End Date: {trip.endDate}
@@ -90,9 +90,15 @@ Traveler Input:
 - Stated Interests: {', '.join(interests) if interests else 'Not specified'}
 - Accessibility Constraints: {', '.join(accessibility) if accessibility else 'None'}
 
+CRITICAL INSTRUCTION:
+1. Identify all explicit or implicit Sri Lankan locations/destinations mentioned in the traveler's prompt (e.g. Ella, Mirissa, Nuwara Eliya, Sigiriya, Kandy, Galle, Yala, Bentota, Trincomalee, etc.).
+2. The first recommended destination MUST be the primary destination mentioned or implied in the prompt so that downstream weather (Agent 2) and logistics (Agent 3) agents immediately evaluate it.
+
 Return ONLY a JSON object strictly matching this schema:
 {{
   "normalizedObjective": "Refined one-sentence luxury travel objective",
+  "extractedLocations": ["List of all location names identified from the user prompt"],
+  "primaryLocation": "The top primary location identified from prompt",
   "themes": ["Extracted theme tags e.g. wildlife, culture, beaches, hill country, tea, heritage, wellness, culinary"],
   "refinedInterests": ["List of extracted traveler interest keywords"],
   "pacing": "Relaxed | Moderate | Active",
@@ -109,56 +115,53 @@ Return ONLY a JSON object strictly matching this schema:
         try:
             gemini_data = await generate_gemini_json(
                 prompt=llm_prompt,
-                system_instruction="You are CeylonMate's Agent 1: Lead Travel Concierge & Destination Matcher for Sri Lanka luxury tours. Generate dynamic, non-hardcoded destination recommendations based on user input."
+                system_instruction="You are CeylonMate's Agent 1: Lead Travel Concierge & Destination Matcher for Sri Lanka luxury tours. Extract location words accurately from user prompts and generate tailored destination recommendations."
             )
             if gemini_data and isinstance(gemini_data, dict):
-                # Dynamically extract destinations from Gemini
-                raw_destinations = gemini_data.get("destinations") or []
+                # Dynamically extract destinations from LLM
+                raw_destinations = gemini_data.get("destinations") or gemini_data.get("recommendedDestinations") or []
                 for d in raw_destinations:
                     if isinstance(d, dict) and d.get("name"):
+                        raw_name = str(d.get("name", "Sri Lanka Destination"))
+                        clean_name = re.sub(r'(?i)\bexperience\b', '', raw_name).strip()
+                        clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+                        if not clean_name:
+                            clean_name = "Sri Lanka Destination"
+
+                        raw_hl = str(d.get("highlights", "Curated luxury travel tailored to your trip preferences."))
+                        clean_hl = re.sub(r'(?i)\bexperience\b', 'journey', raw_hl).strip()
+
                         recommended.append(RecommendedDestination(
-                            name=str(d.get("name", "Sri Lanka Destination")),
+                            name=clean_name,
                             region=str(d.get("region", "Sri Lanka")),
-                            highlights=str(d.get("highlights", "Curated luxury experience tailored to your trip preferences.")),
+                            highlights=clean_hl,
                             category=str(d.get("category", "RECOMMENDED"))
                         ))
 
                 if gemini_data.get("pacing"):
                     pacing = str(gemini_data.get("pacing"))
 
-                if gemini_data.get("themes") and isinstance(gemini_data.get("themes"), list):
-                    # Combine LLM themes with any keyword-matched themes
-                    llm_themes = [str(t).lower() for t in gemini_data.get("themes") if str(t).strip()]
-                    for t in llm_themes:
-                        if t not in final_themes:
-                            final_themes.append(t)
+                if not final_themes and gemini_data.get("themes") and isinstance(gemini_data.get("themes"), list):
+                    final_themes = [str(t).lower() for t in gemini_data.get("themes") if str(t).strip()]
 
-                if gemini_data.get("refinedInterests") and isinstance(gemini_data.get("refinedInterests"), list):
-                    for in_item in gemini_data.get("refinedInterests"):
-                        in_str = str(in_item).strip()
-                        if in_str and in_str not in interests:
-                            interests.append(in_str)
+                if not interests and gemini_data.get("refinedInterests") and isinstance(gemini_data.get("refinedInterests"), list):
+                    interests = [str(in_item).strip() for in_item in gemini_data.get("refinedInterests") if str(in_item).strip()]
         except Exception as e:
             logger.warning(f"[AGENT 1] Gemini dynamic generation exception: {e}")
 
-        # If LLM returned no destinations (or no API key), dynamically construct from input interests & objective
-        if not recommended:
-            dest_candidates: List[str] = []
-            if interests:
-                dest_candidates.extend(interests)
-            if final_themes:
-                dest_candidates.extend(final_themes)
-            if not dest_candidates:
-                dest_candidates = [objective] if objective else ["Sri Lanka Exploration"]
-
-            for item in dest_candidates[:4]:
-                clean_name = item.title() if isinstance(item, str) else "Bespoke Spot"
-                recommended.append(RecommendedDestination(
-                    name=f"{clean_name} Experience",
-                    region="Sri Lanka",
-                    highlights=f"Private luxury touring focused on {clean_name.lower()}.",
-                    category="BESPOKE_EXPERIENCE"
-                ))
+        # If recommended is empty, extract dynamically from user prompt
+        if not recommended and objective:
+            words = [w.strip() for w in re.split(r'[,.\s]+', objective) if len(w.strip()) > 3]
+            for w in words[:3]:
+                clean_name = w.title()
+                clean_name = re.sub(r'(?i)\bexperience\b', '', clean_name).strip()
+                if clean_name and clean_name.lower() not in ["want", "luxury", "holiday", "trip", "tour", "days"]:
+                    recommended.append(RecommendedDestination(
+                        name=f"{clean_name} Region",
+                        region="Sri Lanka",
+                        highlights=f"Custom bespoke itinerary centered around {clean_name}.",
+                        category="RECOMMENDED"
+                    ))
 
     return {"output": ObjectiveInterpretationOutput(
         normalizedObjective=normalized_obj,
