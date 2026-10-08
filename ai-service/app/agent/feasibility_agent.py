@@ -1,7 +1,7 @@
 import math
 import re
-from typing import Dict, Any, List, Tuple
-from app.core.llm import generate_gemini_json, generate_gemini_text
+from typing import Dict, Any, List, Tuple, Optional
+from app.core.llm import generate_gemini_json, generate_gemini_text, generate_gemini_json_sync
 from app.schemas.feasibility import (
     FeasibilityCheckRequest, FeasibilityCheckResponse, FeasibilityStatus,
     ItemFeasibilityResult, RouteSummary, RouteLeg, ResourceType,
@@ -12,27 +12,6 @@ from app.tools.capacity_tools import (
     get_fleet_catalog, get_all_destinations
 )
 
-DESTINATION_COORDS = {
-    "colombo": (6.9271, 79.8612),
-    "negombo": (7.2083, 79.8358),
-    "kandy": (7.2906, 80.6337),
-    "sigiriya": (7.9570, 80.7603),
-    "dambulla": (7.8742, 80.6511),
-    "polonnaruwa": (7.9403, 81.0188),
-    "anuradhapura": (8.3114, 80.4037),
-    "nuwara eliya": (6.9497, 80.7891),
-    "ella": (6.8667, 81.0466),
-    "yala": (6.3725, 81.5186),
-    "galle": (6.0535, 80.2210),
-    "galle riviera": (6.0535, 80.2210),
-    "mirissa": (5.9483, 80.4716),
-    "sinharaja": (6.4167, 80.4167),
-    "trincomalee": (8.5874, 81.2152),
-    "jaffna": (9.6615, 80.0255),
-    "bentota": (6.4231, 79.9986),
-    "tangalle": (6.0243, 80.7941),
-    "cultural triangle": (7.9570, 80.7603),
-}
 
 def _parse_int(val: Any, default: int = 4) -> int:
     if val is None:
@@ -50,6 +29,7 @@ def _parse_int(val: Any, default: int = 4) -> int:
                 pass
     return default
 
+
 def _parse_float(val: Any, default: float = 0.0) -> float:
     if val is None:
         return default
@@ -66,44 +46,6 @@ def _parse_float(val: Any, default: float = 0.0) -> float:
                 pass
     return default
 
-MOUNTAIN_DESTINATIONS = {"nuwara eliya", "kandy", "ella", "sinharaja", "central highlands"}
-
-SRI_LANKA_ROUTE_MATRIX: Dict[Tuple[str, str], Tuple[float, float, float]] = {
-    ("colombo", "kandy"): (115.0, 195.0, 1.25),         # Kadugannawa Pass
-    ("colombo", "galle"): (125.0, 120.0, 1.00),         # Southern Expressway
-    ("colombo", "galle riviera"): (125.0, 120.0, 1.00),
-    ("colombo", "nuwara eliya"): (170.0, 270.0, 1.30),   # Hill climb
-    ("colombo", "sigiriya"): (175.0, 225.0, 1.15),
-    ("colombo", "trincomalee"): (260.0, 330.0, 1.10),
-    ("colombo", "negombo"): (35.0, 50.0, 1.00),
-    ("colombo", "bentota"): (65.0, 75.0, 1.00),
-    ("colombo", "jaffna"): (395.0, 450.0, 1.05),
-
-    ("kandy", "nuwara eliya"): (78.0, 165.0, 1.35),       # Steep mountain pass
-    ("kandy", "ella"): (140.0, 240.0, 1.30),
-    ("kandy", "yala"): (240.0, 340.0, 1.25),
-    ("kandy", "sigiriya"): (90.0, 150.0, 1.20),
-    ("kandy", "dambulla"): (72.0, 130.0, 1.15),
-
-    ("nuwara eliya", "yala"): (170.0, 270.0, 1.20),
-    ("nuwara eliya", "ella"): (55.0, 105.0, 1.30),
-
-    ("sigiriya", "polonnaruwa"): (68.0, 90.0, 1.05),
-    ("sigiriya", "trincomalee"): (100.0, 135.0, 1.05),
-    ("cultural triangle", "sigiriya"): (15.0, 25.0, 1.05),
-    ("cultural triangle", "polonnaruwa"): (75.0, 100.0, 1.05),
-
-    ("galle", "sinharaja"): (95.0, 150.0, 1.20),
-    ("galle riviera", "sinharaja"): (95.0, 150.0, 1.20),
-    ("galle", "mirissa"): (35.0, 45.0, 1.00),
-    ("galle riviera", "mirissa"): (35.0, 45.0, 1.00),
-    ("sinharaja", "mirissa"): (80.0, 120.0, 1.10),
-    ("bentota", "galle"): (60.0, 60.0, 1.00),
-
-    ("ella", "yala"): (95.0, 135.0, 1.15),
-    ("anuradhapura", "sigiriya"): (75.0, 90.0, 1.05),
-}
-
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     R = 6371.0
@@ -114,38 +56,49 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     return R * c
 
 
-def get_leg_telemetry(origin: str, dest: str, coords_dict: Dict[str, Tuple[float, float]]) -> Tuple[float, float, float]:
-    k1 = origin.lower().strip()
-    k2 = dest.lower().strip()
+def get_leg_telemetry(origin: str, dest: str, coords_dict: Optional[Dict[str, Tuple[float, float]]] = None) -> Tuple[float, float, float]:
+    """Dynamically calculates distance (km), base duration (mins), and elevation factor using Groq AI."""
+    clean_o = origin.strip()
+    clean_d = dest.strip()
 
-    if (k1, k2) in SRI_LANKA_ROUTE_MATRIX:
-        return SRI_LANKA_ROUTE_MATRIX[(k1, k2)]
-    if (k2, k1) in SRI_LANKA_ROUTE_MATRIX:
-        return SRI_LANKA_ROUTE_MATRIX[(k2, k1)]
+    prompt = f"""
+    Analyze Sri Lanka road transit between '{clean_o}' and '{clean_d}'.
+    Calculate actual driving distance in kilometers, driving duration in minutes, and terrain elevation multiplier (1.0 for flat highway/coastal, 1.1-1.2 for inland, 1.25-1.40 for steep mountain passes).
+    Return ONLY a JSON object:
+    {{
+      "distanceKm": float,
+      "durationMinutes": float,
+      "elevationMultiplier": float
+    }}
+    """
+    try:
+        res = generate_gemini_json_sync(prompt, "You are CeylonMate's Groq-powered Sri Lanka GIS & Road Physics Engine.")
+        if res and isinstance(res, dict):
+            dist = float(res.get("distanceKm", 0.0))
+            dur = float(res.get("durationMinutes", 0.0))
+            elev = float(res.get("elevationMultiplier", 1.0))
+            if dist > 0 and dur > 0:
+                return (round(dist, 1), round(dur, 0), round(elev, 2))
+    except Exception:
+        pass
 
-    n1 = k1.replace(" riviera", "").replace("cultural triangle", "sigiriya")
-    n2 = k2.replace(" riviera", "").replace("cultural triangle", "sigiriya")
+    # Dynamic Haversine calculation if coordinates are present in coords_dict
+    if coords_dict:
+        k1 = clean_o.lower()
+        k2 = clean_d.lower()
+        c1 = coords_dict.get(k1)
+        c2 = coords_dict.get(k2)
+        if c1 and c2:
+            direct_km = haversine_distance(c1[0], c1[1], c2[0], c2[1])
+            road_km = max(10.0, direct_km * 1.35)
+            dur_mins = (road_km / 50.0) * 60.0
+            return (round(road_km, 1), round(dur_mins, 0), 1.05)
 
-    if (n1, n2) in SRI_LANKA_ROUTE_MATRIX:
-        return SRI_LANKA_ROUTE_MATRIX[(n1, n2)]
-    if (n2, n1) in SRI_LANKA_ROUTE_MATRIX:
-        return SRI_LANKA_ROUTE_MATRIX[(n2, n1)]
-
-    c1 = coords_dict.get(k1) or coords_dict.get(n1) or (6.9271, 79.8612)
-    c2 = coords_dict.get(k2) or coords_dict.get(n2) or (7.2906, 80.6337)
-
-    direct_km = haversine_distance(c1[0], c1[1], c2[0], c2[1])
-    road_km = max(15.0, direct_km * 1.35)
-    is_m = (k1 in MOUNTAIN_DESTINATIONS or k2 in MOUNTAIN_DESTINATIONS or n1 in MOUNTAIN_DESTINATIONS or n2 in MOUNTAIN_DESTINATIONS)
-    elev_factor = 1.30 if is_m else 1.05
-    avg_speed = 42.0 if is_m else 55.0
-    base_dur_mins = (road_km / avg_speed) * 60.0
-
-    return (round(road_km, 1), round(base_dur_mins, 0), elev_factor)
+    return (40.0, 60.0, 1.00)
 
 
 class ResourceFeasibilityAgent:
-    """Logistics Feasibility & Route Elevation Dispatch Intelligence Agent."""
+    """Logistics Feasibility & Route Elevation Dispatch Intelligence Agent powered by Groq LLM."""
 
     async def evaluate_feasibility(self, req: FeasibilityCheckRequest) -> FeasibilityCheckResponse:
         results = []
@@ -180,18 +133,18 @@ class ResourceFeasibilityAgent:
                 message=msg
             ))
 
-        # 2. Enrich destination coordinates from DB if available
+        # 2. Dynamic coordinate lookup from backend DB
         db_dests = await get_all_destinations()
-        coords_dict = dict(DESTINATION_COORDS)
+        coords_dict: Dict[str, Tuple[float, float]] = {}
         for d in db_dests:
             d_name = d.get("name", "").lower().strip()
             if d_name and d.get("latitude") and d.get("longitude"):
                 coords_dict[d_name] = (float(d["latitude"]), float(d["longitude"]))
 
-        # 3. Dynamic Circuit Waypoint GIS Transit & Elevation Analysis
+        # 3. Dynamic Circuit Waypoint GIS Transit & Elevation Analysis via Groq
         circuit_raw = req.circuit_route or "Colombo -> Kandy -> Nuwara Eliya -> Yala"
         circuit_legs: List[RouteLeg] = []
-        
+
         tokens = [t.strip() for t in re.split(r"->|→|;|,", circuit_raw) if t.strip()]
         waypoints = [re.sub(r"\(.*?\)", "", tok).strip() for tok in tokens if tok]
 
@@ -254,8 +207,9 @@ class ResourceFeasibilityAgent:
         tot_mins = int(total_dur_mins % 60)
         formatted_driving_time = f"{tot_hrs}h {tot_mins:02d}m" if tot_hrs > 0 else f"{tot_mins}m"
 
-        # 4. Dynamic Fleet Matching by Pax Count
-        fleet_items = await get_fleet_catalog()
+        # 4. Dynamic Fleet Matching strictly from system catalog for selected date
+        first_date = req.items[0].date if (req.items and len(req.items) > 0 and req.items[0].date) else None
+        fleet_items = await get_fleet_catalog(start_date=first_date, passengers=pax)
         matching_vehicle = None
 
         if fleet_items:
@@ -270,14 +224,9 @@ class ResourceFeasibilityAgent:
             cap_limit = _parse_int(matching_vehicle.get("maxPassengers") or matching_vehicle.get("MaxPassengers"), pax)
             recommended_vehicle = f"{model_name} ({badge} - Up to {cap_limit} Pax)"
         else:
-            if pax <= 2:
-                recommended_vehicle = f"Prestige Executive Sedan (PRESTIGE EXECUTIVE SEDAN - Up to 3 Pax)"
-            elif pax <= 6:
-                recommended_vehicle = f"Executive VIP Group Van (EXECUTIVE VIP GROUP TRANSPORT - Up to {max(6, pax)} Pax)"
-            else:
-                recommended_vehicle = f"Luxury VIP Coach (VIP COACH TRANSPORT - Up to {pax} Pax)"
+            recommended_vehicle = f"Executive VIP Private Escort (Up to {pax} Pax)"
 
-        # 5. Gemini Logistics Reasoning Brief
+        # 5. Groq LLM Logistics Reasoning Brief
         gemini_prompt = f"""
 Given this Sri Lanka luxury route and resource deployment:
 Route Circuit: {circuit_raw}
@@ -289,10 +238,10 @@ Assigned Vehicle: {recommended_vehicle}
 Generate a concise, high-end logistics brief (1-2 sentences) explaining why this vehicle and transit pacing ensure maximum luxury and safety for this route.
 """
         driver_rest_text = "Mandatory 30-min chauffeur rest stop scheduled at midpoint to enforce SLTDA safety standards." if total_dur_mins >= 240 else "Continuous drive within safety limits."
-        
+
         gemini_brief = await generate_gemini_text(
             prompt=gemini_prompt,
-            system_instruction="You are CeylonMate's Agent 3: Senior Logistics & Dispatch Officer. Output concise, professional transit briefing."
+            system_instruction="You are CeylonMate's Agent 3: Senior Logistics & Dispatch Officer powered by Groq. Output concise, professional transit briefing."
         )
 
         overall = FeasibilityStatus.FEASIBLE if not conflicts else FeasibilityStatus.PARTIALLY_FEASIBLE
@@ -321,11 +270,52 @@ Generate a concise, high-end logistics brief (1-2 sentences) explaining why this
         destination = req.destination.strip()
         passengers = req.passengers or 2
 
-        llm_prompt = f"""You are Agent 3: Route Logistics & Fleet Dispatcher for Sri Lanka.
+        # 1. Fetch available system vehicles from backend fleet catalog
+        start_date = req.startDate
+        duration_days = req.durationDays or 1
+        fleet_items = await get_fleet_catalog(start_date=start_date, duration_days=duration_days, passengers=passengers)
+
+        system_vehicles = []
+        if fleet_items:
+            for item in fleet_items:
+                max_p = _parse_int(item.get("maxPassengers") or item.get("maxPax"), 4)
+                if max_p >= passengers:
+                    v_model = item.get("vehicleModel") or item.get("model") or "VIP Vehicle"
+                    v_type = item.get("categoryBadge") or item.get("vehicleType") or "Luxury Transport"
+                    luggage = _parse_int(item.get("luggageCapacity"), 4)
+                    rate_usd = _parse_float(item.get("dailyRateUsd"), 120.0)
+                    rate_lkr = _parse_float(item.get("dailyRateLkr"), rate_usd * 300.0)
+                    note = item.get("featureHighlight") or item.get("description") or f"Calibrated for {v_type} luxury long-range transit."
+                    system_vehicles.append({
+                        "vehicleType": v_type,
+                        "model": v_model,
+                        "maxPax": max_p,
+                        "luggageCapacity": luggage,
+                        "terrainSuitabilityNote": note,
+                        "estimatedDailyRateLkr": rate_lkr
+                    })
+
+        # Dynamic fallback if backend API returned no vehicles
+        if not system_vehicles:
+            system_vehicles = [{
+                "vehicleType": "EXECUTIVE VIP CHAUFFEUR TRANSPORT",
+                "model": f"Private VIP Vehicle Escort ({passengers} Pax)",
+                "maxPax": max(passengers, 4),
+                "luggageCapacity": max(passengers, 2),
+                "terrainSuitabilityNote": "Calibrated for luxury long-range Sri Lanka transit.",
+                "estimatedDailyRateLkr": 36000.0
+            }]
+
+        # 2. Query Groq for route analysis
+        llm_prompt = f"""You are Agent 3: Route Logistics & Fleet Dispatcher for Sri Lanka powered by Groq.
 Origin: '{origin}'
 Destination: '{destination}'
 Passengers: {passengers}
-Analyze the terrain, roads, and transit between these two points in Sri Lanka.
+
+System Available Fleet: {[v["model"] for v in system_vehicles]}
+
+Analyze real Sri Lanka geographical terrain, actual highways/roads (e.g. Southern Expressway E01, Central Expressway E04, A1, A2, A5, A6), distance in km, driving duration, and elevation multiplier.
+
 Return ONLY a valid JSON object matching this schema:
 {{
   "origin": "{origin}",
@@ -333,255 +323,101 @@ Return ONLY a valid JSON object matching this schema:
   "routes": [
     {{
       "id": "route_1",
-      "name": "<Real route name, e.g. Southern Expressway or A2 Coastal Road>",
+      "name": "<e.g. Southern Expressway Direct Corridor (E01 / E02) or Central Expressway & Kadugannawa Pass>",
       "via": "<Key cities/interchanges passed>",
-      "distanceKm": 125,
+      "distanceKm": float,
       "estimatedDuration": "<e.g. 2h 15m>",
-      "terrainType": "<e.g. Flat Highway, Winding Incline, Coastal Traffic>",
-      "elevationMultiplier": "<e.g. 1.0x, 1.25x>",
+      "terrainType": "<e.g. Multi-Lane Express Highway, Mountain Switchbacks & Incline>",
+      "elevationMultiplier": "<e.g. 1.00x, 1.25x, 1.35x>",
       "isFastest": true,
       "keyHighlightsOrStops": ["<stop 1>", "<stop 2>"]
-    }}
-  ],
-  "dispatchedFleet": [
+    }},
     {{
-      "vehicleType": "<e.g. Luxury Sedan, High-Roof VIP Van, 4WD SUV>",
-      "model": "<e.g. Toyota Premio/Allion, Toyota KDH Super GL, Land Cruiser Prado>",
-      "maxPax": 4,
-      "luggageCapacity": 3,
-      "terrainSuitabilityNote": "<Why this vehicle fits this route>",
-      "estimatedDailyRateLkr": 35000
+      "id": "route_2",
+      "name": "<Scenic or alternative byway route>",
+      "via": "<Key cities/coastal towns passed>",
+      "distanceKm": float,
+      "estimatedDuration": "<e.g. 3h 10m>",
+      "terrainType": "<e.g. Oceanfront Coastal Highway, Highland Tea Estate Slopes>",
+      "elevationMultiplier": "<e.g. 1.05x, 1.30x>",
+      "isFastest": false,
+      "keyHighlightsOrStops": ["<stop 1>", "<stop 2>"]
     }}
   ]
 }}"""
 
-        print(f"\n[AGENT 3 LOGISTICS] Computing route from '{origin}' to '{destination}' for {passengers} pax...")
         gemini_res = await generate_gemini_json(
             prompt=llm_prompt,
-            system_instruction="You are Agent 3: Route Logistics & Fleet Dispatcher for Sri Lanka. Analyze real Sri Lankan geography, actual highways/roads, realistic travel times, and recommend realistic vehicles. Return ONLY pure JSON matching the schema."
+            system_instruction="You are Agent 3: Route Logistics & Fleet Dispatcher for Sri Lanka. Output pure valid JSON strictly matching the requested schema."
         )
-        print(f"[AGENT 3 LOGISTICS] Raw Gemini JSON: {gemini_res}")
 
+        routes: List[RouteOption] = []
         if gemini_res and isinstance(gemini_res, dict):
             routes_data = gemini_res.get("routes") or []
-            fleet_data = gemini_res.get("dispatchedFleet") or []
-            
-            if routes_data and fleet_data:
-                routes = []
-                for idx, r in enumerate(routes_data):
-                    routes.append(RouteOption(
-                        id=str(r.get("id") or f"route_{idx + 1}"),
-                        name=str(r.get("name") or ""),
-                        via=str(r.get("via") or ""),
-                        distanceKm=float(r.get("distanceKm") or 0),
-                        estimatedDuration=str(r.get("estimatedDuration") or ""),
-                        terrainType=str(r.get("terrainType") or ""),
-                        elevationMultiplier=str(r.get("elevationMultiplier") or "1.0x"),
-                        isFastest=bool(r.get("isFastest", True)),
-                        keyHighlightsOrStops=list(r.get("keyHighlightsOrStops") or [])
-                    ))
-                
-                dispatched_fleet = []
-                for f in fleet_data:
-                    dispatched_fleet.append(DispatchedVehicle(
-                        vehicleType=str(f.get("vehicleType") or "Luxury Vehicle"),
-                        model=str(f.get("model") or "Executive Fleet Vehicle"),
-                        maxPax=_parse_int(f.get("maxPax"), passengers),
-                        luggageCapacity=_parse_int(f.get("luggageCapacity"), 4),
-                        terrainSuitabilityNote=str(f.get("terrainSuitabilityNote") or ""),
-                        estimatedDailyRateLkr=_parse_float(f.get("estimatedDailyRateLkr"), 35000.0)
-                    ))
-                
-                return RouteLogisticsResponse(
-                    origin=str(gemini_res.get("origin") or origin),
-                    destination=str(gemini_res.get("destination") or destination),
-                    routes=routes,
-                    dispatchedFleet=dispatched_fleet
+            for idx, r in enumerate(routes_data):
+                routes.append(RouteOption(
+                    id=str(r.get("id") or f"route_{idx + 1}"),
+                    name=str(r.get("name") or ""),
+                    via=str(r.get("via") or ""),
+                    distanceKm=_parse_float(r.get("distanceKm"), 50.0),
+                    estimatedDuration=str(r.get("estimatedDuration") or ""),
+                    terrainType=str(r.get("terrainType") or ""),
+                    elevationMultiplier=str(r.get("elevationMultiplier") or "1.0x"),
+                    isFastest=bool(r.get("isFastest", True)),
+                    keyHighlightsOrStops=list(r.get("keyHighlightsOrStops") or [])
+                ))
+
+        if not routes:
+            db_dests = await get_all_destinations()
+            coords_dict: Dict[str, Tuple[float, float]] = {}
+            for d in db_dests:
+                d_name = d.get("name", "").lower().strip()
+                if d_name and d.get("latitude") and d.get("longitude"):
+                    coords_dict[d_name] = (float(d["latitude"]), float(d["longitude"]))
+
+            leg_dist, leg_base_dur, leg_elev = get_leg_telemetry(origin, destination, coords_dict)
+            dur_mins = round(leg_base_dur * leg_elev)
+            r_hrs = int(dur_mins // 60)
+            r_mins = int(dur_mins % 60)
+            dur_str = f"{r_hrs}h {r_mins:02d}m" if r_hrs > 0 else f"{r_mins}m"
+
+            routes = [
+                RouteOption(
+                    id="route_1",
+                    name=f"{origin.title()} to {destination.title()} Express Corridor",
+                    via="National Highway & Inter-Provincial Arterial Link",
+                    distanceKm=leg_dist,
+                    estimatedDuration=dur_str,
+                    terrainType="Paved Express Transit",
+                    elevationMultiplier=f"{leg_elev:.2f}x",
+                    isFastest=True,
+                    keyHighlightsOrStops=["Midway Express Rest Hub", "Scenic Waypoint Lookout"]
+                ),
+                RouteOption(
+                    id="route_2",
+                    name=f"{origin.title()} to {destination.title()} Panoramic Scenic Byway",
+                    via="Local Heritage Routes & Coastal Plains",
+                    distanceKm=round(leg_dist * 1.10, 1),
+                    estimatedDuration=f"{int((dur_mins * 1.25) // 60)}h {int((dur_mins * 1.25) % 60):02d}m",
+                    terrainType="Scenic Heritage Road",
+                    elevationMultiplier=f"{min(1.4, leg_elev * 1.1):.2f}x",
+                    isFastest=False,
+                    keyHighlightsOrStops=["Local Artisan Heritage Village", "Panoramic Vista Point"]
                 )
-        # High-fidelity GIS route physics & fleet dispatcher fallback
-        db_dests = await get_all_destinations()
-        coords_dict = dict(DESTINATION_COORDS)
-        for d in db_dests:
-            d_name = d.get("name", "").lower().strip()
-            if d_name and d.get("latitude") and d.get("longitude"):
-                coords_dict[d_name] = (float(d["latitude"]), float(d["longitude"]))
+            ]
 
-        start_date = req.startDate
-        duration_days = req.durationDays or 1
-        fleet_items = await get_fleet_catalog(start_date=start_date, duration_days=duration_days, passengers=passengers)
-        return self._build_deterministic_route_logistics(origin, destination, passengers, coords_dict, fleet_items)
-
-    def _build_deterministic_route_logistics(
-        self,
-        origin: str,
-        destination: str,
-        passengers: int,
-        coords_dict: Dict[str, Tuple[float, float]],
-        fleet_items: List[Dict[str, Any]]
-    ) -> RouteLogisticsResponse:
-        o_clean = origin.lower().strip()
-        d_clean = destination.lower().strip()
-
-        leg_dist, leg_base_dur, leg_elev = get_leg_telemetry(origin, destination, coords_dict)
-
-        is_southern = any(s in o_clean or s in d_clean for s in ["bentota", "galle", "mirissa", "weligama", "tangalle", "hambantota", "matara", "hikkaduwa", "unawatuna"])
-        is_mountain = any(m in o_clean or m in d_clean for m in ["kandy", "nuwara eliya", "ella", "sinharaja", "central highlands", "horton plains", "adams peak", "badulla", "hatton"])
-        is_cultural = any(c in o_clean or c in d_clean for c in ["sigiriya", "dambulla", "polonnaruwa", "anuradhapura", "habarana", "kurunegala"])
-        is_airport = "airport" in o_clean or "cmb" in o_clean or "katunayake" in o_clean
-
-        # Route 1: Expressway / Fast arterial corridor
-        if is_southern and (is_airport or "colombo" in o_clean):
-            r1_name = "Southern Expressway Direct Corridor (E01 / E02)"
-            r1_via = "Katunayake Expressway (E03), Outer Circular (E02) & Welipenna Interchange"
-            r1_dist = round(max(45.0, leg_dist), 1)
-            r1_dur_mins = round((r1_dist / 85.0) * 60.0)
-            r1_terrain = "Multi-Lane Express Highway (100 km/h Precision Cruise)"
-            r1_elev = "1.00x"
-            r1_stops = ["Welipenna Expressway Rest Plaza", "Benthara River Estuary Bridge"]
-        elif is_mountain:
-            r1_name = "Central Expressway & Kadugannawa Pass (E04 / A1 / A5)"
-            r1_via = "Mirigama Expressway, Ambepussa & Kadugannawa Incline"
-            r1_dist = round(max(50.0, leg_dist), 1)
-            r1_dur_mins = round(leg_base_dur * leg_elev)
-            r1_terrain = "Highway transitioning to Mountain Switchbacks & Incline"
-            r1_elev = f"{leg_elev:.2f}x"
-            r1_stops = ["Ambepussa Heritage Transit Rest", "Kadugannawa Rock Viewpoint", "Peradeniya Riverbank"]
-        elif is_cultural:
-            r1_name = "North-Central Expressway & Dambulla Link (E04 / A6)"
-            r1_via = "Mirigama, Kurunegala Interchange & Dambulla Highway"
-            r1_dist = round(max(60.0, leg_dist), 1)
-            r1_dur_mins = round(leg_base_dur * leg_elev)
-            r1_terrain = "Smooth Dual-Carriageway Highway & Flat Inland Plains"
-            r1_elev = "1.05x"
-            r1_stops = ["Kurunegala Elephant Rock Rest Hub", "Dambulla Golden Rock Viewpoint"]
-        else:
-            r1_name = f"{origin.title()} to {destination.title()} Express Corridor"
-            r1_via = "National Highway Network & Arterial Linkways"
-            r1_dist = round(max(30.0, leg_dist), 1)
-            r1_dur_mins = round(leg_base_dur * leg_elev)
-            r1_terrain = "Inter-Provincial Paved Highway"
-            r1_elev = f"{leg_elev:.2f}x"
-            r1_stops = ["Midway Expressway Service Hub", "Scenic Waypoint Rest"]
-
-        r1_hrs = int(r1_dur_mins // 60)
-        r1_m = int(r1_dur_mins % 60)
-        r1_dur_str = f"{r1_hrs}h {r1_m:02d}m" if r1_hrs > 0 else f"{r1_m}m"
-
-        # Route 2: Scenic / Coastal / Cultural Byway
-        if is_southern:
-            r2_name = "Historic Coastal Trunk Highway (A2 Galle Road)"
-            r2_via = "Colombo Marine Drive, Wadduwa, Kalutara & Beruwala Coastline"
-            r2_dist = round(r1_dist * 0.95, 1)
-            r2_dur_mins = round(r1_dur_mins * 1.45)
-            r2_terrain = "Oceanfront Coastal Highway (Scenic Sea Vistas & Towns)"
-            r2_elev = "1.05x"
-            r2_stops = ["Kalutara Sacred Bodhi Chaitya", "Barberyn Ocean Lighthouse", "Beruwala Fishing Harbor"]
-        elif is_mountain:
-            r2_name = "Highland Tea Plantation Scenic Byway (A7 / Kitulgala Route)"
-            r2_via = "Avissawella, Kitulgala Rain Forest Valley & Ginigathena Hills"
-            r2_dist = round(r1_dist * 1.10, 1)
-            r2_dur_mins = round(r1_dur_mins * 1.30)
-            r2_terrain = "Winding Mountain Tea Estate Slopes & River Gorges"
-            r2_elev = "1.35x"
-            r2_stops = ["Kitulgala Kelani River Gorge", "St. Clair's Waterfalls Lookout", "Devon Valley Estate"]
-        else:
-            r2_name = f"{origin.title()} to {destination.title()} Panoramic Heritage Route"
-            r2_via = "Provincial Heritage Byways & Rural Landscapes"
-            r2_dist = round(r1_dist * 1.12, 1)
-            r2_dur_mins = round(r1_dur_mins * 1.25)
-            r2_terrain = "Scenic Rural & Cultural Landscape"
-            r2_elev = f"{min(1.4, leg_elev * 1.1):.2f}x"
-            r2_stops = ["Local Artisan Heritage Village", "Panoramic Valley Vista Point"]
-
-        r2_hrs = int(r2_dur_mins // 60)
-        r2_m = int(r2_dur_mins % 60)
-        r2_dur_str = f"{r2_hrs}h {r2_m:02d}m" if r2_hrs > 0 else f"{r2_m}m"
-
-        routes = [
-            RouteOption(
-                id="route_1",
-                name=r1_name,
-                via=r1_via,
-                distanceKm=r1_dist,
-                estimatedDuration=r1_dur_str,
-                terrainType=r1_terrain,
-                elevationMultiplier=r1_elev,
-                isFastest=True,
-                keyHighlightsOrStops=r1_stops
-            ),
-            RouteOption(
-                id="route_2",
-                name=r2_name,
-                via=r2_via,
-                distanceKm=r2_dist,
-                estimatedDuration=r2_dur_str,
-                terrainType=r2_terrain,
-                elevationMultiplier=r2_elev,
-                isFastest=False,
-                keyHighlightsOrStops=r2_stops
+        # Convert system_vehicles directly to DispatchedVehicle DTOs
+        dispatched_fleet = [
+            DispatchedVehicle(
+                vehicleType=v["vehicleType"],
+                model=v["model"],
+                maxPax=v["maxPax"],
+                luggageCapacity=v["luggageCapacity"],
+                terrainSuitabilityNote=v["terrainSuitabilityNote"],
+                estimatedDailyRateLkr=v["estimatedDailyRateLkr"]
             )
+            for v in system_vehicles
         ]
-
-        dispatched_fleet = []
-        if fleet_items:
-            for item in fleet_items:
-                max_p = _parse_int(item.get("maxPassengers") or item.get("maxPax"), 4)
-                # STRICT RULE: Always ensure traveler pax <= vehicle pax count (maxPax >= passengers)
-                if max_p < passengers:
-                    continue
-                v_model = item.get("vehicleModel") or item.get("model") or "VIP Chauffeur Vehicle"
-                v_type = item.get("categoryBadge") or item.get("vehicleType") or "Luxury VIP Transport"
-                luggage = _parse_int(item.get("luggageCapacity"), 4)
-                rate_usd = _parse_float(item.get("dailyRateUsd"), 120.0)
-                rate_lkr = _parse_float(item.get("dailyRateLkr"), rate_usd * 300.0)
-                note = item.get("featureHighlight") or item.get("description") or f"Calibrated for {v_type} luxury long-range transit and executive comfort."
-                
-                dispatched_fleet.append(DispatchedVehicle(
-                    vehicleType=v_type,
-                    model=v_model,
-                    maxPax=max_p,
-                    luggageCapacity=luggage,
-                    terrainSuitabilityNote=note,
-                    estimatedDailyRateLkr=rate_lkr
-                ))
-
-        if not dispatched_fleet:
-            if passengers <= 3:
-                dispatched_fleet.append(DispatchedVehicle(
-                    vehicleType="Luxury Executive Sedan",
-                    model="Prestige Executive Sedan",
-                    maxPax=max(3, passengers),
-                    luggageCapacity=3,
-                    terrainSuitabilityNote="Equipped with air-suspension and active cruise assist; calibrated for high-speed arterial transit and smooth executive comfort.",
-                    estimatedDailyRateLkr=35000.0
-                ))
-            if passengers <= 6:
-                dispatched_fleet.append(DispatchedVehicle(
-                    vehicleType="Executive VIP Group Van",
-                    model="Executive VIP Group Van",
-                    maxPax=max(6, passengers),
-                    luggageCapacity=6,
-                    terrainSuitabilityNote="Wide-body luxury captain seats with dual climate zones; optimal for multi-passenger luggage transport.",
-                    estimatedDailyRateLkr=48000.0
-                ))
-            if passengers <= 5:
-                dispatched_fleet.append(DispatchedVehicle(
-                    vehicleType="Luxury 4WD All-Terrain Cruiser",
-                    model="Luxury 4WD All-Terrain Cruiser",
-                    maxPax=max(5, passengers),
-                    luggageCapacity=4,
-                    terrainSuitabilityNote="High-ground clearance with active torque distribution; optimal for coastal sand roads, hill gradients, and wet weather confidence.",
-                    estimatedDailyRateLkr=65000.0
-                ))
-            if passengers > 6:
-                dispatched_fleet.append(DispatchedVehicle(
-                    vehicleType="VIP Coach Transport",
-                    model="Luxury VIP Minibus Coach",
-                    maxPax=max(14, passengers),
-                    luggageCapacity=12,
-                    terrainSuitabilityNote="Spacious VIP coach configuration with panoramic touring windows.",
-                    estimatedDailyRateLkr=85000.0
-                ))
 
         return RouteLogisticsResponse(
             origin=origin.title(),

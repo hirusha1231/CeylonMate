@@ -215,82 +215,54 @@ export const CuratedJourneyBookingPage: React.FC = () => {
     fetchPackage();
   }, [packageId]);
 
-  // 2. Multi-Agent Orchestrator Trigger
-  const runMultiAgentEvaluation = useCallback(async (
-    targetJourney: SignatureJourney | null,
-    targetDays: number,
-    targetStartDate: string,
-    targetPax: number,
-    targetNotes: string,
-    targetVehicleId?: string,
-    targetGuideId?: string
-  ) => {
-    if (!targetJourney) return;
+  // Fetch available vehicles & guides directly from DB (without invoking Groq API / AI microservice)
+  useEffect(() => {
+    const fetchCatalogData = async () => {
+      if (!journey) return;
+      setEvaluatingAgents(true);
+      try {
+        const [vRes, gRes] = await Promise.all([
+          api.get('/api/capacity/available-vehicles-slots', {
+            params: { startDate, durationDays: tripDays, passengerCount }
+          }),
+          api.get('/api/capacity/guide-availabilities', {
+            params: { startDate, durationDays: tripDays }
+          })
+        ]);
 
-    const evaluationKey = `${targetJourney.id}-${targetDays}-${targetStartDate}-${targetPax}-${targetVehicleId || 'none'}-${targetGuideId || 'none'}`;
-    if (evaluationKey === lastEvaluatedKey && agentTelemetry) {
-      return;
-    }
-
-    setEvaluatingAgents(true);
-    try {
-      const payload = {
-        packageId: targetJourney.id || packageId,
-        packageTitle: targetJourney.title,
-        packageTheme: targetJourney.tagline || targetJourney.description,
-        destinationsCovered: targetJourney.destinationsCovered,
-        highlights: targetJourney.highlights,
-        prompt: targetNotes,
-        startDate: targetStartDate,
-        tripDays: targetDays,
-        pickupTime: pickupTime,
-        passengerCount: targetPax,
-        travelerNotes: targetNotes,
-        selectedVehicleId: targetVehicleId || null,
-        selectedGuideId: targetGuideId || null,
-        currency: currency
-      };
-
-      const res = await api.post('/api/trips/curated-multiagent-evaluate', payload);
-      const data: MultiAgentEvaluation = res.data;
-      setAgentTelemetry(data);
-      setLastEvaluatedKey(evaluationKey);
-
-      // Populate real unbooked vehicles from Agent 3 / DB
-      if (Array.isArray(data.availableVehicles)) {
-        setVehicles(data.availableVehicles);
-        // If no vehicle selected, select the first available vehicle
-        if (!selectedVehicle && data.availableVehicles.length > 0) {
-          const suitable = data.availableVehicles.find(v => v.maxPassengers >= targetPax) || data.availableVehicles[0];
+        const vList = Array.isArray(vRes.data)
+          ? vRes.data
+          : (vRes.data?.vehicles || vRes.data?.data || []);
+        setVehicles(vList);
+        if (!selectedVehicle && vList.length > 0) {
+          const suitable = vList.find((v: any) => v.maxPassengers >= passengerCount) || vList[0];
           setSelectedVehicle(suitable);
         }
-      }
 
-      // Populate real certified guides from Agent 3 / DB
-      if (Array.isArray(data.availableGuides)) {
-        setGuides(data.availableGuides);
+        const gList = Array.isArray(gRes.data) ? gRes.data : [];
+        setGuides(gList.map((item: any) => ({
+          id: item.id,
+          guideUserId: item.guideUserId,
+          guideName: item.guideName || item.fullName || 'SLTDA Certified Guide',
+          bio: item.bio || '',
+          licenseNumber: item.licenseNumber || '',
+          languages: item.languages || item.languagesSpoken || 'English, Sinhala',
+          priceAmount: item.priceAmount ?? item.defaultDailyRateLkr ?? 18000,
+          currency: item.currency || 'LKR',
+          rating: item.rating || 5.0,
+          photoUrl: item.photoUrl || item.imageUrl || '',
+          imageUrl: item.imageUrl || item.photoUrl || '',
+          status: item.status || 'AVAILABLE'
+        })));
+      } catch (err) {
+        console.warn("Direct database inventory fetch notice:", err);
+      } finally {
+        setEvaluatingAgents(false);
       }
-    } catch (err: any) {
-      console.warn("Multi-Agent evaluation pipeline notice:", err);
-    } finally {
-      setEvaluatingAgents(false);
-    }
-  }, [packageId, pickupTime, currency, lastEvaluatedKey, agentTelemetry, selectedVehicle]);
+    };
 
-  // Trigger evaluation when journey loads or parameters change
-  useEffect(() => {
-    if (journey) {
-      runMultiAgentEvaluation(
-        journey,
-        tripDays,
-        startDate,
-        passengerCount,
-        travelerNotes,
-        selectedVehicle?.id,
-        selectedGuide?.id
-      );
-    }
-  }, [journey, tripDays, startDate, passengerCount, selectedVehicle?.id, selectedGuide?.id, runMultiAgentEvaluation, travelerNotes]);
+    fetchCatalogData();
+  }, [journey, startDate, tripDays, passengerCount]);
 
   // Dynamic Pricing Calculation
   const vehicleDailyCost = selectedVehicle
@@ -420,27 +392,12 @@ export const CuratedJourneyBookingPage: React.FC = () => {
               <span>Back to Curated Signature Collections</span>
             </Link>
 
-            {/* Live Multi-Agent Status Indicator */}
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#134E4A]/50 border border-emerald-500/40 text-emerald-300 text-[11px] font-mono font-bold">
-              {evaluatingAgents ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#D4AF37]" />
-                  <span>AI Microservice Computing Telemetry...</span>
-                </>
-              ) : (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>4 LangGraph AI Agents Orchestrated</span>
-                </>
-              )}
-            </div>
           </div>
-
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#134E4A]/40 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-bold uppercase tracking-widest mb-2">
                 <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-                <span>Dynamic LangGraph Pipeline • Signature Journey Flow</span>
+                <span>Curated Signature Expedition • Verified Capacity</span>
               </div>
               <h1 className="text-3xl md:text-4xl font-serif-luxury font-bold text-stone-100">
                 {journey.title}
@@ -456,7 +413,7 @@ export const CuratedJourneyBookingPage: React.FC = () => {
           {/* Stepper Header Pills */}
           <div className="grid grid-cols-4 gap-2 pt-2">
             {[
-              { step: 1, label: '1. Dates & AI Insights' },
+              { step: 1, label: '1. Journey Details' },
               { step: 2, label: '2. Select Certified Guide' },
               { step: 3, label: '3. Select VIP Fleet' },
               { step: 4, label: '4. Dynamic Quote & Submit' },
@@ -499,6 +456,9 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                     src={journey.heroImageUrl}
                     alt={journey.title}
                     className="w-full h-44 object-cover rounded-xl border border-stone-800"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?auto=format&fit=crop&w=800';
+                    }}
                   />
                 )}
 
@@ -642,7 +602,7 @@ export const CuratedJourneyBookingPage: React.FC = () => {
             ) : guides.length === 0 ? (
               <div className="py-12 text-center text-stone-400 font-mono text-xs space-y-3 bg-slate-900/40 rounded-2xl border border-stone-800 p-6">
                 <User className="w-10 h-10 text-[#C5A880] mx-auto opacity-60" />
-                <p className="text-stone-200 text-sm font-semibold font-serif">No Certified Guides Available on {startDate}</p>
+                <p className="text-stone-200 text-sm font-semibold font-serif">No certified guides are available for the selected dates.</p>
                 <p className="text-stone-400 max-w-md mx-auto text-xs leading-relaxed">
                   You can proceed without a guide, or select alternative travel dates.
                 </p>

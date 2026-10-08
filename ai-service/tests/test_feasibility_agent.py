@@ -18,10 +18,12 @@ async def test_feasibility_agent_all_feasible():
 
     with patch("app.agent.feasibility_agent.search_guide_availability", new_callable=AsyncMock) as mock_guide, \
          patch("app.agent.feasibility_agent.search_attraction_slots", new_callable=AsyncMock) as mock_attraction, \
+         patch("app.agent.feasibility_agent.generate_gemini_text", new_callable=AsyncMock) as mock_llm, \
          patch("app.agent.feasibility_agent.get_leg_telemetry") as mock_route:
 
         mock_guide.return_value = {"available": True, "capacity": 1, "note": "Guide available"}
         mock_attraction.return_value = {"available": True, "capacity": 50, "note": "Attraction quota open"}
+        mock_llm.return_value = "Optimized executive fleet pacing for high-altitude incline and luxury comfort."
         mock_route.return_value = (90.0, 135.0, 1.00)
 
         res = await agent.evaluate_feasibility(req)
@@ -46,10 +48,12 @@ async def test_feasibility_agent_with_unavailable_resource():
     )
 
     with patch("app.agent.feasibility_agent.search_guide_availability", new_callable=AsyncMock) as mock_guide, \
+         patch("app.agent.feasibility_agent.generate_gemini_text", new_callable=AsyncMock) as mock_llm, \
          patch("app.agent.feasibility_agent.search_transport_slots", new_callable=AsyncMock) as mock_transport:
 
         mock_guide.return_value = {"available": True, "capacity": 1, "note": "Guide available"}
         mock_transport.return_value = {"available": False, "capacity": 0, "note": "No transport seats available"}
+        mock_llm.return_value = "Transit briefing."
 
         res = await agent.evaluate_feasibility(req)
 

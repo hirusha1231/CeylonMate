@@ -204,9 +204,9 @@ export const HomePage: React.FC = () => {
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-xs font-semibold uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Live Field Intelligence
+              Multi-Agent Intelligence Network
             </span>
-            <span className="text-xs text-stone-400 hidden sm:inline">Updated real-time </span>
+            <span className="text-xs text-stone-400 hidden sm:inline">On-Demand Execution</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
@@ -273,98 +273,109 @@ export const HomePage: React.FC = () => {
           </Link>
         </div>
 
-        {/* Package Cards Grid with Stagger Animation */}
-        <motion.div
-          variants={staggerContainerVariants}
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-        >
-          {(liveJourneys.length > 0 ? liveJourneys : SIGNATURE_PACKAGES_DATA).map((pkg: any) => {
-            const isLive = !!pkg.heroImageUrl;
-            const title = pkg.title;
-            const image = isLive ? pkg.heroImageUrl : pkg.image;
-            const region = isLive ? (pkg.destinationsCovered || 'Sri Lanka') : pkg.region;
-            const description = pkg.description;
-            const highlights = pkg.highlights || [];
+        {liveJourneys.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-2xl border border-stone-200 p-8 space-y-3">
+            <Compass className="w-10 h-10 text-[#C5A880] mx-auto" />
+            <h3 className="text-lg font-serif-luxury font-bold text-[#0B131F]">No Signature Expeditions Published Yet</h3>
+            <p className="text-xs text-stone-500 max-w-md mx-auto">
+              Certified guides and concierge travel agents can publish new curated expeditions from the Agent & Guide console.
+            </p>
+          </div>
+        ) : (
+          <motion.div
+            variants={staggerContainerVariants}
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+          >
+            {liveJourneys.map((pkg: any) => {
+              const title = pkg.title;
+              const image = pkg.heroImageUrl || pkg.image;
+              const region = pkg.destinationsCovered || pkg.region || 'Sri Lanka';
+              const description = pkg.description;
+              const highlights = pkg.highlights || [];
 
-            return (
-              <motion.div
-                key={pkg.id}
-                variants={staggerItemVariants}
-                {...hoverLiftProps}
-                onClick={() => {
-                  setActiveModalPackage(pkg);
-                  setActiveGalleryImage(image);
-                }}
-                className="bg-white rounded-2xl overflow-hidden border border-stone-200/80 shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between group cursor-pointer"
-              >
-                <div>
-                  {/* Package Image Banner */}
-                  <div className="relative h-56 overflow-hidden">
-                    <img
-                      src={image}
-                      alt={title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-                      {region ? (
-                        <div className="bg-[#0B131F]/80 backdrop-blur-md border border-[#C5A880]/40 text-[#C5A880] text-[11px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
-                          {region}
-                        </div>
-                      ) : <div />}
-                      {pkg.durationDays > 0 && (
-                        <div className="bg-slate-950/80 backdrop-blur-md border border-stone-700 text-stone-200 text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md">
-                          <Clock className="w-3 h-3 text-[#C5A880]" />
-                          <span>{pkg.durationDays} Days</span>
-                        </div>
-                      )}
+              return (
+                <motion.div
+                  key={pkg.id}
+                  variants={staggerItemVariants}
+                  {...hoverLiftProps}
+                  onClick={() => {
+                    setActiveModalPackage(pkg);
+                    setActiveGalleryImage(image);
+                  }}
+                  className="bg-white rounded-2xl overflow-hidden border border-stone-200/80 shadow-lg hover:shadow-2xl transition-all flex flex-col justify-between group cursor-pointer"
+                >
+                  <div>
+                    {/* Package Image Banner */}
+                    <div className="relative h-56 overflow-hidden">
+                      <img
+                        src={image}
+                        alt={title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?auto=format&fit=crop&w=800';
+                        }}
+                      />
+                      <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                        {region ? (
+                          <div className="bg-[#0B131F]/80 backdrop-blur-md border border-[#C5A880]/40 text-[#C5A880] text-[11px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider">
+                            {region}
+                          </div>
+                        ) : <div />}
+                        {pkg.durationDays > 0 && (
+                          <div className="bg-slate-950/80 backdrop-blur-md border border-stone-700 text-stone-200 text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md">
+                            <Clock className="w-3 h-3 text-[#C5A880]" />
+                            <span>{pkg.durationDays} Days</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card Content */}
+                    <div className="p-5 space-y-3">
+                      <span className="text-[11px] font-semibold text-[#134E4A] uppercase tracking-wider truncate block">
+                        {region}
+                      </span>
+                      <h3 className="text-xl font-serif-luxury font-bold text-[#0B131F] leading-snug group-hover:text-[#134E4A] transition-colors line-clamp-1">
+                        {title}
+                      </h3>
+                      <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
+                        {description}
+                      </p>
+
+                      <div className="pt-2 border-t border-stone-100 space-y-1.5">
+                        {highlights.slice(0, 3).map((h: string, i: number) => (
+                          <div key={i} className="flex items-center gap-2 text-xs text-stone-700">
+                            <CheckCircle className="w-3.5 h-3.5 text-[#134E4A] shrink-0" />
+                            <span className="truncate">{h}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Card Content */}
-                  <div className="p-5 space-y-3">
-                    <span className="text-[11px] font-semibold text-[#134E4A] uppercase tracking-wider truncate block">
-                      {region}
-                    </span>
-                    <h3 className="text-xl font-serif-luxury font-bold text-[#0B131F] leading-snug group-hover:text-[#134E4A] transition-colors line-clamp-1">
-                      {title}
-                    </h3>
-                    <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
-                      {description}
-                    </p>
-
-                    <div className="pt-2 border-t border-stone-100 space-y-1.5">
-                      {highlights.slice(0, 3).map((h: string, i: number) => (
-                        <div key={i} className="flex items-center gap-2 text-xs text-stone-700">
-                          <CheckCircle className="w-3.5 h-3.5 text-[#134E4A] shrink-0" />
-                          <span className="truncate">{h}</span>
-                        </div>
-                      ))}
-                    </div>
+                  {/* Collection Action */}
+                  <div className="p-5 pt-0 flex items-center justify-end border-t border-stone-100 mt-4">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveModalPackage(pkg);
+                        setActiveGalleryImage(image);
+                      }}
+                      className="p-2.5 rounded-full bg-[#134E4A] text-white hover:bg-[#0B131F] transition-colors cursor-pointer"
+                      title="View Details & Gallery"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
                   </div>
-                </div>
-
-                {/* Collection Action */}
-                <div className="p-5 pt-0 flex items-center justify-end border-t border-stone-100 mt-4">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveModalPackage(pkg);
-                      setActiveGalleryImage(image);
-                    }}
-                    className="p-2.5 rounded-full bg-[#134E4A] text-white hover:bg-[#0B131F] transition-colors cursor-pointer"
-                    title="View Details & Gallery"
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        )}
       </section>
 
       {/* SECTION 2: THE CEYLONMATE DISTINCTION */}

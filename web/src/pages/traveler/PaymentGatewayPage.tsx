@@ -778,7 +778,7 @@ export const PaymentGatewayPage: React.FC = () => {
                       <Car className="w-4 h-4 text-emerald-400" />
                       <div>
                         <p className="font-bold text-stone-200">
-                          {booking?.vehicle?.modelName || booking?.vehicleModel || 'Toyota KDH Super GL VIP Van'}
+                          {booking?.vehicle?.modelName || booking?.vehicleModel || 'Private VIP Fleet Escort'}
                         </p>
                         <p className="text-[10px] text-stone-400">Private VIP Chauffeur Transport</p>
                       </div>
@@ -1070,7 +1070,7 @@ export const PaymentGatewayPage: React.FC = () => {
                     </div>
                     <div className="flex justify-between py-1 border-b border-stone-800/60">
                       <span className="text-stone-400">Private Tour Guide:</span>
-                      <span className="font-bold text-stone-100">{booking?.guide?.fullName || booking?.guideName || (booking?.hasGuide !== false ? 'Kavinda Fernando' : 'Self-Guided Chauffeur Only')}</span>
+                      <span className="font-bold text-stone-100">{booking?.guide?.fullName || booking?.guideName || (booking?.hasGuide !== false ? 'Assigned Guide' : 'Self-Guided Chauffeur Only')}</span>
                     </div>
                     <div className="flex justify-between py-1">
                       <span className="text-stone-400">Payment Channel:</span>

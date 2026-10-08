@@ -211,19 +211,14 @@ namespace CeylonMate.Api.Controllers
                         c.VehicleModel.Contains(customVehicleModel, StringComparison.OrdinalIgnoreCase) ||
                         customVehicleModel.Contains(c.VehicleModel, StringComparison.OrdinalIgnoreCase));
                 }
-                if (vCatalog == null && vehicleCatalogs.Count > 0)
-                {
-                    vCatalog = vehicleCatalogs[0];
-                }
-
                 var vehicleModel = !string.IsNullOrWhiteSpace(customVehicleModel)
                     ? customVehicleModel
-                    : (!string.IsNullOrWhiteSpace(vCatalog?.VehicleModel) ? vCatalog.VehicleModel : "Executive Fleet Transport");
-                var categoryBadge = !string.IsNullOrWhiteSpace(vCatalog?.CategoryBadge) ? vCatalog.CategoryBadge : "VIP FLEET ESCORT";
-                var maxPassengers = vCatalog?.MaxPassengers ?? 6;
-                var vehicleLuggage = vCatalog?.LuggageCapacity ?? "4 Large Bags";
-                var vehicleFeature = vCatalog?.FeatureHighlight ?? "Private air-conditioned chauffeur vehicle with panoramic windows.";
-                var vehiclePhotoUrl = !string.IsNullOrWhiteSpace(vCatalog?.ImageUrl) ? vCatalog.ImageUrl : "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80";
+                    : (!string.IsNullOrWhiteSpace(vCatalog?.VehicleModel) ? vCatalog.VehicleModel : "Unassigned Vehicle");
+                var categoryBadge = !string.IsNullOrWhiteSpace(vCatalog?.CategoryBadge) ? vCatalog.CategoryBadge : "STANDARD";
+                var maxPassengers = vCatalog?.MaxPassengers ?? 4;
+                var vehicleLuggage = vCatalog?.LuggageCapacity ?? "N/A";
+                var vehicleFeature = vCatalog?.FeatureHighlight ?? "Air-conditioned private transport";
+                var vehiclePhotoUrl = !string.IsNullOrWhiteSpace(vCatalog?.ImageUrl) ? vCatalog.ImageUrl : "";
                 var vehiclePlate = "WP-CM VIP";
 
                 bool isGuideNotRequired = (!string.IsNullOrWhiteSpace(customGuideName) && customGuideName.Contains("Self-Guided", StringComparison.OrdinalIgnoreCase))
@@ -261,14 +256,9 @@ namespace CeylonMate.Api.Controllers
                     );
                 }
 
-                if (hasGuide && gProfile == null && guideProfiles.Count > 0)
-                {
-                    gProfile = guideProfiles[0];
-                }
-
-                var guideFullName = !string.IsNullOrWhiteSpace(customGuideName)
-                    ? customGuideName
-                    : (hasGuide ? (!string.IsNullOrWhiteSpace(gProfile?.FullName) ? gProfile.FullName : (gProfile?.User?.FullName ?? "SLTDA Certified Guide Lecturer")) : null);
+                var guideFullName = (hasGuide && gProfile != null) 
+                    ? (!string.IsNullOrWhiteSpace(gProfile.FullName) ? gProfile.FullName : (gProfile.User?.FullName ?? "SLTDA Certified Guide Lecturer"))
+                    : (!string.IsNullOrWhiteSpace(customGuideName) ? customGuideName : "Unassigned Private Guide");
                 var guideLicenseNumber = hasGuide ? (gProfile?.LicenseNumber ?? "SLTDA/CG/2026/01") : null;
                 var guideLicenseType = hasGuide ? (gProfile?.LicenseType ?? "National Tourist Guide Lecturer") : null;
                 var guideLanguages = hasGuide ? (gProfile?.LanguagesSpoken ?? "English, Sinhala") : null;
@@ -484,10 +474,6 @@ namespace CeylonMate.Api.Controllers
 
                 decimal dailyRate = catalogItem?.DailyRateUsd ?? 0m;
                 string rateCurrency = catalogItem?.Currency ?? "USD";
-
-                if (dailyRate <= 0)
-                    dailyRate = 180m;
-
                 var tripDays = Math.Max(1, booking.TripDurationDays ?? 1);
                 vehicleFee = dailyRate * tripDays * (rateCurrency.Equals("USD", StringComparison.OrdinalIgnoreCase) ? 300m : 1m);
                 vehicleCurrency = "LKR";
@@ -650,117 +636,9 @@ namespace CeylonMate.Api.Controllers
             var vehicleCatalog = await _context.VehicleFleetCatalogs
                 .FirstOrDefaultAsync(v => v.Id == parsedVehicleId);
 
-            // Fallback for deterministic fallback IDs or if vehicle not found in DB
             if (vehicleCatalog == null)
             {
-                var idStr = parsedVehicleId.ToString().ToLowerInvariant();
-                int targetOrder = 1;
-                if (idStr.StartsWith("e1010000-0000-0000-0000-00000000000") && int.TryParse(idStr.Substring(idStr.Length - 1), out int orderDigit))
-                {
-                    targetOrder = orderDigit;
-                }
-
-                vehicleCatalog = await _context.VehicleFleetCatalogs
-                    .FirstOrDefaultAsync(v => v.DisplayOrder == targetOrder && v.IsActive);
-
-                if (vehicleCatalog == null)
-                {
-                    vehicleCatalog = await _context.VehicleFleetCatalogs
-                        .FirstOrDefaultAsync(v => v.IsActive);
-                }
-
-                // If table is still empty, seed default fleet on the fly
-                if (vehicleCatalog == null)
-                {
-                    var seedFleet = new List<VehicleFleetCatalog>
-                    {
-                        new()
-                        {
-                            Id = parsedVehicleId != Guid.Empty ? parsedVehicleId : Guid.NewGuid(),
-                            CategoryBadge = "EXECUTIVE VIP GROUP TRANSPORT",
-                            VehicleModel = "Toyota KDH Super GL VIP Van",
-                            Description = "Ideal for families and luxury groups. Dual climate control, plush leather reclining armchairs, 5G Wi-Fi.",
-                            ImageUrl = "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80",
-                            MaxPassengers = 6,
-                            FeatureHighlight = "VIP Leather Interior & 5G Wi-Fi",
-                            LuggageCapacity = "6 Large Luggage",
-                            DailyRateUsd = 120.00m,
-                            IsActive = true,
-                            DisplayOrder = 1,
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow
-                        },
-                        new()
-                        {
-                            Id = Guid.NewGuid(),
-                            CategoryBadge = "PRESTIGE EXECUTIVE SEDAN",
-                            VehicleModel = "Mercedes-Benz E-Class Sedan",
-                            Description = "Unmatched elegance for couples and solo executive travelers. Whisper-quiet cabin acoustics, leather seating.",
-                            ImageUrl = "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&w=1000&q=80",
-                            MaxPassengers = 3,
-                            FeatureHighlight = "Prestige Leather Comfort",
-                            LuggageCapacity = "3 Large Luggage",
-                            DailyRateUsd = 150.00m,
-                            IsActive = true,
-                            DisplayOrder = 2,
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow
-                        },
-                        new()
-                        {
-                            Id = Guid.NewGuid(),
-                            CategoryBadge = "4X4 SAFARI & EXPEDITION",
-                            VehicleModel = "Toyota Land Cruiser V8 Safari",
-                            Description = "Heavy-duty luxury 4x4 modified for Yala and Udawalawe national park tracking.",
-                            ImageUrl = "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80",
-                            MaxPassengers = 5,
-                            FeatureHighlight = "High-Clearance 4x4",
-                            LuggageCapacity = "4 Large Luggage",
-                            DailyRateUsd = 180.00m,
-                            IsActive = true,
-                            DisplayOrder = 3,
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow
-                        },
-
-                        new()
-                        {
-                            Id = Guid.NewGuid(),
-                            CategoryBadge = "PREMIUM LUXURY SUV",
-                            VehicleModel = "Range Rover Autobiography V8 SUV",
-                            Description = "Supreme luxury for executive VIPs. All-wheel drive terrain response, massage executive seating.",
-                            ImageUrl = "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=1000&q=80",
-                            MaxPassengers = 4,
-                            FeatureHighlight = "Executive Lounge Seating",
-                            LuggageCapacity = "4 Large Luggage",
-                            DailyRateUsd = 220.00m,
-                            IsActive = true,
-                            DisplayOrder = 5,
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow
-                        },
-                        new()
-                        {
-                            Id = Guid.NewGuid(),
-                            CategoryBadge = "LUXURY DELEGATION BUS",
-                            VehicleModel = "Volvo B11R Super VIP Coach",
-                            Description = "Ultra-capacity luxury coach for large tour delegations with reclining leather seats.",
-                            ImageUrl = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1000&q=80",
-                            MaxPassengers = 30,
-                            FeatureHighlight = "Air Suspension & Sky Lounge",
-                            LuggageCapacity = "25 Large Luggage",
-                            DailyRateUsd = 350.00m,
-                            IsActive = true,
-                            DisplayOrder = 6,
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow
-                        }
-                    };
-
-                    _context.VehicleFleetCatalogs.AddRange(seedFleet);
-                    await _context.SaveChangesAsync();
-                    vehicleCatalog = seedFleet.FirstOrDefault(v => v.DisplayOrder == targetOrder) ?? seedFleet.First();
-                }
+                return BadRequest(new { message = "The requested vehicle catalog entry was not found in the transport inventory. Please select an available vehicle added by the Capacity Officer." });
             }
 
             int passengerCount = dto.PassengerCount.HasValue && dto.PassengerCount.Value > 0 ? dto.PassengerCount.Value : 1;
@@ -884,8 +762,16 @@ namespace CeylonMate.Api.Controllers
                         .FirstOrDefaultAsync(g => g.Id == guideSlotId.Value);
                     if (gSlot != null)
                     {
+                        DateTimeOffset bookingStart = gSlot.StartTimeUtc;
+                        if (!string.IsNullOrWhiteSpace(booking.StartDate) && DateTime.TryParse(booking.StartDate, out var bStart))
+                        {
+                            bookingStart = new DateTimeOffset(bStart, TimeSpan.Zero);
+                        }
+                        int bDays = (booking.TripDurationDays.HasValue && booking.TripDurationDays.Value > 0) ? booking.TripDurationDays.Value : 1;
+                        DateTimeOffset bookingEnd = bookingStart.AddDays(bDays);
+
+                        SplitGuideSlot(gSlot, bookingStart, bookingEnd, AvailabilityStatus.RESERVED);
                         gSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
-                        gSlot.Status = AvailabilityStatus.RESERVED;
 
                         _context.Notifications.Add(new Notification
                         {
@@ -1037,28 +923,47 @@ namespace CeylonMate.Api.Controllers
                 booking.GuideRespondedAtUtc = null;
 
                 Guid targetGuideUserId = Guid.Empty;
+                var newGuideName = dto.GuideName;
+
                 var gProfile = await _context.GuideProfiles.FirstOrDefaultAsync(p => p.Id == dto.GuideSlotId.Value || p.UserId == dto.GuideSlotId.Value);
                 if (gProfile != null)
                 {
                     targetGuideUserId = gProfile.UserId;
-                    if (!string.IsNullOrWhiteSpace(booking.TravelerNotes) && booking.TravelerNotes.Contains("||"))
-                    {
-                        var parts = booking.TravelerNotes.Split("||").Select(p => p.Trim()).ToArray();
-                        if (parts.Length >= 4)
-                        {
-                            parts[3] = gProfile.FullName;
-                            booking.TravelerNotes = string.Join(" || ", parts);
-                        }
-                    }
+                    if (string.IsNullOrWhiteSpace(newGuideName)) newGuideName = gProfile.FullName;
                 }
                 else
                 {
-                    var gSlot = await _context.GuideAvailabilities.FirstOrDefaultAsync(g => g.Id == dto.GuideSlotId.Value);
+                    var gSlot = await _context.GuideAvailabilities
+                        .Include(g => g.GuideProfile)
+                        .Include(g => g.LocalGuideUser)
+                        .FirstOrDefaultAsync(g => g.Id == dto.GuideSlotId.Value);
+                    
                     if (gSlot != null)
                     {
                         targetGuideUserId = gSlot.LocalGuideUserId;
+                        
+                        DateTimeOffset bookingStart = gSlot.StartTimeUtc;
+                        if (!string.IsNullOrWhiteSpace(booking.StartDate) && DateTime.TryParse(booking.StartDate, out var bStart))
+                        {
+                            bookingStart = new DateTimeOffset(bStart, TimeSpan.Zero);
+                        }
+                        int bDays = (booking.TripDurationDays.HasValue && booking.TripDurationDays.Value > 0) ? booking.TripDurationDays.Value : 1;
+                        DateTimeOffset bookingEnd = bookingStart.AddDays(bDays);
+
+                        SplitGuideSlot(gSlot, bookingStart, bookingEnd, AvailabilityStatus.RESERVED);
                         gSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
-                        gSlot.Status = AvailabilityStatus.RESERVED;
+                        if (string.IsNullOrWhiteSpace(newGuideName))
+                            newGuideName = gSlot.GuideProfile?.FullName ?? gSlot.LocalGuideUser?.FullName;
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(newGuideName) && !string.IsNullOrWhiteSpace(booking.TravelerNotes) && booking.TravelerNotes.Contains("||"))
+                {
+                    var parts = booking.TravelerNotes.Split("||").Select(p => p.Trim()).ToArray();
+                    if (parts.Length >= 4)
+                    {
+                        parts[3] = newGuideName;
+                        booking.TravelerNotes = string.Join(" || ", parts);
                     }
                 }
 
@@ -1228,11 +1133,7 @@ namespace CeylonMate.Api.Controllers
             {
                 vehicleCatalog = await _context.VehicleFleetCatalogs.FirstOrDefaultAsync(v => v.VehicleModel == selectedVehicleName);
             }
-            if (vehicleCatalog == null)
-            {
-                vehicleCatalog = await _context.VehicleFleetCatalogs.FirstOrDefaultAsync(v => v.IsActive);
-            }
-            if (vehicleCatalog != null && string.IsNullOrWhiteSpace(selectedVehicleName))
+            if (vehicleCatalog != null && (string.IsNullOrWhiteSpace(selectedVehicleName) || selectedVehicleName == "Executive Fleet Transport"))
             {
                 selectedVehicleName = vehicleCatalog.VehicleModel;
             }
@@ -1607,6 +1508,70 @@ namespace CeylonMate.Api.Controllers
             double? TotalAmountLkr = null,
             double? TotalCalculatedQuote = null
         );
+
+        private void SplitGuideSlot(GuideAvailability gSlot, DateTimeOffset bookingStart, DateTimeOffset bookingEnd, AvailabilityStatus newStatus)
+        {
+            var originalStart = gSlot.StartTimeUtc;
+            var originalEnd = gSlot.EndTimeUtc;
+
+            gSlot.StartTimeUtc = bookingStart;
+            gSlot.EndTimeUtc = bookingEnd;
+            gSlot.Status = newStatus;
+
+            if (originalStart < bookingStart)
+            {
+                var beforeSlot = new GuideAvailability
+                {
+                    LocalGuideUserId = gSlot.LocalGuideUserId,
+                    GuideProfileId = gSlot.GuideProfileId,
+                    StartTimeUtc = originalStart,
+                    EndTimeUtc = bookingStart.AddDays(-1) > originalStart ? bookingStart.AddDays(-1) : originalStart,
+                    SlotType = gSlot.SlotType,
+                    Status = AvailabilityStatus.AVAILABLE,
+                    MaxCapacity = gSlot.MaxCapacity,
+                    PriceAmount = gSlot.PriceAmount,
+                    Currency = gSlot.Currency
+                };
+                if (beforeSlot.EndTimeUtc >= beforeSlot.StartTimeUtc) 
+                {
+                    _context.GuideAvailabilities.Add(beforeSlot);
+                }
+            }
+
+            DateTimeOffset afterStart = bookingEnd.AddDays(1);
+            if (originalEnd >= afterStart)
+            {
+                var afterSlot = new GuideAvailability
+                {
+                    LocalGuideUserId = gSlot.LocalGuideUserId,
+                    GuideProfileId = gSlot.GuideProfileId,
+                    StartTimeUtc = afterStart,
+                    EndTimeUtc = originalEnd,
+                    SlotType = gSlot.SlotType,
+                    Status = AvailabilityStatus.AVAILABLE,
+                    MaxCapacity = gSlot.MaxCapacity,
+                    PriceAmount = gSlot.PriceAmount,
+                    Currency = gSlot.Currency
+                };
+                _context.GuideAvailabilities.Add(afterSlot);
+            }
+            else
+            {
+                var afterSlot = new GuideAvailability
+                {
+                    LocalGuideUserId = gSlot.LocalGuideUserId,
+                    GuideProfileId = gSlot.GuideProfileId,
+                    StartTimeUtc = afterStart,
+                    EndTimeUtc = afterStart.AddYears(1),
+                    SlotType = gSlot.SlotType,
+                    Status = AvailabilityStatus.AVAILABLE,
+                    MaxCapacity = gSlot.MaxCapacity,
+                    PriceAmount = gSlot.PriceAmount,
+                    Currency = gSlot.Currency
+                };
+                _context.GuideAvailabilities.Add(afterSlot);
+            }
+        }
 
         public record AssignGuideRequestDto(
             Guid? GuideSlotId = null,

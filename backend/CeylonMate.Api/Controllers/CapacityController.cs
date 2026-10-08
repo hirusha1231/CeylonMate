@@ -20,24 +20,103 @@ public sealed class CapacityController(
 {
     // ==========================================
     // PUBLIC / RESERVATION ENDPOINTS
-    // ==========================================
+    [AllowAnonymous]
+    [HttpGet("fix-slots")]
+    public async Task<IActionResult> FixSlots(CancellationToken cancellationToken)
+    {
+        var slots = await db.GuideAvailabilities.ToListAsync(cancellationToken);
+        int count = 0;
+        foreach(var s in slots)
+        {
+            if (s.EndTimeUtc.Year < 2030)
+            {
+                s.EndTimeUtc = s.StartTimeUtc.AddYears(10);
+                count++;
+            }
+        }
+        await db.SaveChangesAsync(cancellationToken);
+        return Ok(new { FixedCount = count });
+    }
+
+    [AllowAnonymous]
+    [HttpGet("debug-availabilities")]
+    public async Task<IActionResult> DebugAvailabilities(CancellationToken cancellationToken)
+    {
+        var slots = await db.GuideAvailabilities.AsNoTracking().ToListAsync(cancellationToken);
+        return Ok(slots);
+    }
 
     [HttpGet("guide-availabilities")]
     [HttpGet("available-guides")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetAvailableGuides([FromQuery] string? date, [FromQuery] string? status, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAvailableGuides(
+        [FromQuery] string? date,
+        [FromQuery] string? startDate,
+        [FromQuery] int? durationDays,
+        [FromQuery] string? status,
+        CancellationToken cancellationToken)
     {
-        var slots = await db.GuideAvailabilities
+        var bookedGuideUserIds = new HashSet<Guid>();
+        var bookedGuideSlotIds = new HashSet<Guid>();
+        string? effectiveDate = !string.IsNullOrWhiteSpace(startDate) ? startDate : date;
+
+        if (!string.IsNullOrWhiteSpace(effectiveDate) && DateTime.TryParse(effectiveDate, out var searchStart))
+        {
+            var days = (durationDays.HasValue && durationDays.Value > 0) ? durationDays.Value : 1;
+            var searchEnd = searchStart.AddDays(days);
+
+            var activeBookings = await db.Bookings
+                .AsNoTracking()
+                .Where(b => b.Status != "CANCELLED" && b.Status != "REJECTED" && b.Status != "CAPACITY_FLAGGED_REJECTED")
+                .Where(b => b.GuideSlotId != null)
+                .ToListAsync(cancellationToken);
+
+            foreach (var b in activeBookings)
+            {
+                if (!string.IsNullOrWhiteSpace(b.StartDate) && DateTime.TryParse(b.StartDate, out var bStart))
+                {
+                    var bDays = (b.TripDurationDays.HasValue && b.TripDurationDays.Value > 0) ? b.TripDurationDays.Value : 1;
+                    var bEnd = bStart.AddDays(bDays);
+                    if (bStart < searchEnd && bEnd > searchStart)
+                    {
+                        if (b.GuideSlotId.HasValue) bookedGuideSlotIds.Add(b.GuideSlotId.Value);
+                    }
+                }
+            }
+        }
+
+        var slotsQuery = db.GuideAvailabilities
             .AsNoTracking()
             .Include(g => g.LocalGuideUser)
             .Include(g => g.GuideProfile)
-            .Where(g => g.Status == AvailabilityStatus.AVAILABLE)
+            .Where(g => g.Status == AvailabilityStatus.AVAILABLE);
+
+        if (!string.IsNullOrWhiteSpace(effectiveDate) && DateTime.TryParse(effectiveDate, out var qSearchStart))
+        {
+            var qDays = (durationDays.HasValue && durationDays.Value > 0) ? durationDays.Value : 1;
+            var qSearchStartDate = new DateTimeOffset(qSearchStart.Date, TimeSpan.Zero);
+            var qSearchEndDate = new DateTimeOffset(qSearchStart.Date, TimeSpan.Zero).AddDays(qDays - 1);
+            
+            // To ensure the slot covers the entire trip:
+            // 1. It must start BEFORE the END of the first day (i.e. strictly less than qSearchStartDate + 1 day)
+            // 2. It must end AFTER or exactly AT the START of the last day (i.e. >= qSearchEndDate)
+            var qStartBound = qSearchStartDate.AddDays(1);
+            var qEndBound = qSearchEndDate;
+
+            slotsQuery = slotsQuery.Where(g => g.StartTimeUtc < qStartBound && g.EndTimeUtc >= qEndBound);
+        }
+
+        var slots = await slotsQuery
             .OrderBy(g => g.StartTimeUtc)
             .ToListAsync(cancellationToken);
 
-        if (slots.Any())
+        var unbookedSlots = slots
+            .Where(s => !bookedGuideSlotIds.Contains(s.Id) && !bookedGuideUserIds.Contains(s.LocalGuideUserId))
+            .ToList();
+
+        if (unbookedSlots.Any())
         {
-            var response = slots
+            var response = unbookedSlots
                 .GroupBy(g => g.LocalGuideUserId)
                 .Select(grp =>
                 {
@@ -48,7 +127,7 @@ public sealed class CapacityController(
                         ? prof.FullName
                         : (!string.IsNullOrWhiteSpace(user?.FullName) && !user.FullName.Contains("@")
                             ? user.FullName
-                            : "Kavinda Fernando");
+                            : "Certified Guide");
 
                     return new
                     {
@@ -57,15 +136,15 @@ public sealed class CapacityController(
                         guideProfileId = (Guid?)(prof?.Id),
                         guideName,
                         fullName = guideName,
-                        bio = prof != null && !string.IsNullOrWhiteSpace(prof.Bio) ? prof.Bio : "SLTDA Certified National Tourist Guide Lecturer specializing in UNESCO World Heritage sites and nature trails.",
-                        licenseNumber = prof != null && !string.IsNullOrWhiteSpace(prof.LicenseNumber) ? prof.LicenseNumber : "SLTDA/NTG/2024/0842",
+                        bio = prof?.Bio ?? "",
+                        licenseNumber = prof?.LicenseNumber ?? "",
                         licenseType = "National Tourist Guide Lecturer",
-                        languages = prof != null && !string.IsNullOrWhiteSpace(prof.LanguagesSpoken) ? prof.LanguagesSpoken : "English, Sinhala, German",
-                        specialties = prof != null && !string.IsNullOrWhiteSpace(prof.Specialties) ? prof.Specialties : "Cultural Heritage, Wildlife Safari, Photography",
-                        rating = prof != null && prof.Rating > 0 ? prof.Rating : 5.0m,
-                        reviewCount = prof != null && prof.ReviewCount > 0 ? prof.ReviewCount : 28,
-                        contactPhone = user != null && !string.IsNullOrWhiteSpace(user.PhoneNumber) ? user.PhoneNumber : "+94 77 123 4567",
-                        photoUrl = prof != null && !string.IsNullOrWhiteSpace(prof.PhotoUrl) ? prof.PhotoUrl : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
+                        languages = prof?.LanguagesSpoken ?? "",
+                        specialties = prof?.Specialties ?? "",
+                        rating = prof != null && prof.Rating > 0 ? prof.Rating : 0m,
+                        reviewCount = prof != null && prof.ReviewCount > 0 ? prof.ReviewCount : 0,
+                        contactPhone = user?.PhoneNumber ?? "",
+                        photoUrl = prof?.PhotoUrl ?? "",
                         priceAmount = grp.Min(s => s.PriceAmount),
                         currency = string.IsNullOrWhiteSpace(first.Currency) ? "LKR" : first.Currency,
                         status = "AVAILABLE",
@@ -77,36 +156,7 @@ public sealed class CapacityController(
             return Ok(response);
         }
 
-        // Fallback to active GuideProfiles directly
-        var profiles = await db.GuideProfiles
-            .AsNoTracking()
-            .Include(p => p.User)
-            .Where(p => p.IsActive)
-            .ToListAsync(cancellationToken);
-
-        var profileResponse = profiles.Select(p => new
-        {
-            id = p.Id,
-            guideUserId = p.UserId,
-            guideProfileId = (Guid?)p.Id,
-            guideName = !string.IsNullOrWhiteSpace(p.FullName) && !p.FullName.Contains("@") ? p.FullName : (p.User?.FullName ?? "Certified Guide"),
-            fullName = !string.IsNullOrWhiteSpace(p.FullName) && !p.FullName.Contains("@") ? p.FullName : (p.User?.FullName ?? "Certified Guide"),
-            bio = !string.IsNullOrWhiteSpace(p.Bio) ? p.Bio : "SLTDA Certified National Tourist Guide Lecturer.",
-            licenseNumber = !string.IsNullOrWhiteSpace(p.LicenseNumber) ? p.LicenseNumber : "SLTDA/NTG/2024/0842",
-            licenseType = "National Tourist Guide Lecturer",
-            languages = !string.IsNullOrWhiteSpace(p.LanguagesSpoken) ? p.LanguagesSpoken : "English, Sinhala",
-            specialties = !string.IsNullOrWhiteSpace(p.Specialties) ? p.Specialties : "Cultural Heritage, Safari",
-            rating = p.Rating > 0 ? p.Rating : 5.0m,
-            reviewCount = p.ReviewCount > 0 ? p.ReviewCount : 24,
-            contactPhone = p.User?.PhoneNumber ?? "+94 77 123 4567",
-            photoUrl = !string.IsNullOrWhiteSpace(p.PhotoUrl) ? p.PhotoUrl : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
-            priceAmount = p.DailyRate > 0 ? p.DailyRate : (p.DefaultDailyRateLkr > 0 ? p.DefaultDailyRateLkr : 18000m),
-            currency = string.IsNullOrWhiteSpace(p.Currency) ? "LKR" : p.Currency,
-            status = "AVAILABLE",
-            notes = "Full Day Private Chauffeur & Tour Guide"
-        }).ToList();
-
-        return Ok(profileResponse);
+        return Ok(new List<object>());
     }
 
 
@@ -131,88 +181,7 @@ public sealed class CapacityController(
                 .OrderBy(v => v.DisplayOrder)
                 .ToListAsync(cancellationToken);
 
-            // If no active vehicles in DB, seed fallback
-            if (!allVehicles.Any())
-            {
-                var seedFleet = new List<VehicleFleetCatalog>
-                {
-                    new()
-                    {
-                        Id = Guid.NewGuid(),
-                        CategoryBadge = "EXECUTIVE VIP GROUP TRANSPORT",
-                        VehicleModel = "Toyota KDH Super GL VIP Van",
-                        Description = "Ideal for families and luxury groups. Dual climate control, plush leather reclining armchairs, 5G Wi-Fi.",
-                        ImageUrl = "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80",
-                        MaxPassengers = 6,
-                        FeatureHighlight = "VIP Leather Interior & 5G Wi-Fi",
-                        LuggageCapacity = "6 Large Luggage",
-                        DailyRateUsd = 120.00m,
-                        IsActive = true,
-                        DisplayOrder = 1
-                    },
-                    new()
-                    {
-                        Id = Guid.NewGuid(),
-                        CategoryBadge = "PRESTIGE EXECUTIVE SEDAN",
-                        VehicleModel = "Mercedes-Benz E-Class Sedan",
-                        Description = "Unmatched elegance for couples and solo executive travelers. Whisper-quiet cabin acoustics, leather seating.",
-                        ImageUrl = "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&w=1000&q=80",
-                        MaxPassengers = 3,
-                        FeatureHighlight = "Prestige Leather Comfort",
-                        LuggageCapacity = "3 Large Luggage",
-                        DailyRateUsd = 150.00m,
-                        IsActive = true,
-                        DisplayOrder = 2
-                    },
-                    new()
-                    {
-                        Id = Guid.NewGuid(),
-                        CategoryBadge = "4X4 SAFARI & EXPEDITION",
-                        VehicleModel = "Toyota Land Cruiser V8 Safari",
-                        Description = "Heavy-duty luxury 4x4 modified for Yala and Udawalawe national park tracking. High elevation seating.",
-                        ImageUrl = "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80",
-                        MaxPassengers = 5,
-                        FeatureHighlight = "High-Clearance 4x4",
-                        LuggageCapacity = "4 Large Luggage",
-                        DailyRateUsd = 180.00m,
-                        IsActive = true,
-                        DisplayOrder = 3
-                    },
 
-                    new()
-                    {
-                        Id = Guid.NewGuid(),
-                        CategoryBadge = "PREMIUM LUXURY SUV",
-                        VehicleModel = "Range Rover Autobiography V8 SUV",
-                        Description = "Supreme luxury for executive VIPs. All-wheel drive terrain response, massage executive seating.",
-                        ImageUrl = "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=1000&q=80",
-                        MaxPassengers = 4,
-                        FeatureHighlight = "Executive Lounge Seating",
-                        LuggageCapacity = "4 Large Luggage",
-                        DailyRateUsd = 220.00m,
-                        IsActive = true,
-                        DisplayOrder = 5
-                    },
-                    new()
-                    {
-                        Id = Guid.NewGuid(),
-                        CategoryBadge = "LUXURY DELEGATION BUS",
-                        VehicleModel = "Volvo B11R Super VIP Coach",
-                        Description = "Ultra-capacity luxury coach for large tour delegations with reclining leather seats, climate zones.",
-                        ImageUrl = "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1000&q=80",
-                        MaxPassengers = 30,
-                        FeatureHighlight = "Air Suspension & Sky Lounge",
-                        LuggageCapacity = "25 Large Luggage",
-                        DailyRateUsd = 350.00m,
-                        IsActive = true,
-                        DisplayOrder = 6
-                    }
-                };
-
-                db.VehicleFleetCatalogs.AddRange(seedFleet);
-                await db.SaveChangesAsync(cancellationToken);
-                allVehicles = seedFleet;
-            }
 
             // 2. Filter by Passenger Capacity
             int reqPax = passengerCount ?? pax ?? 1;
@@ -709,7 +678,7 @@ public sealed class CapacityController(
                 ? profile.FullName
                 : (!string.IsNullOrWhiteSpace(gUser?.FullName) && !gUser.FullName.Contains("@")
                     ? gUser.FullName
-                    : "Kavinda Fernando");
+                    : "Certified Guide");
 
             var guideBookings = activeBookings.Where(b =>
                 (b.GuideSlotId.HasValue && (b.GuideSlotId.Value == g.Id || b.GuideSlotId.Value == g.GuideProfileId || b.GuideSlotId.Value == guideUserId)) ||
@@ -784,88 +753,6 @@ public sealed class CapacityController(
                 currency = g.Currency,
                 notes = notes,
                 rowVersion = g.RowVersion,
-                bookedFrom = bookedFrom,
-                bookedUntil = bookedUntil,
-                bookedDays = bookedDays,
-                availableAgain = availableAgain,
-                isCurrentlyBooked = isCurrentlyBooked
-            });
-        }
-
-        // 2. Include all active registered Guide Profiles
-        foreach (var profile in guideProfiles)
-        {
-            if (processedGuideUserIds.Contains(profile.UserId)) continue;
-
-            var guideName = !string.IsNullOrWhiteSpace(profile.FullName) && !profile.FullName.Contains("@")
-                ? profile.FullName
-                : (profile.User?.FullName ?? "SLTDA Certified Guide");
-
-            var guideBookings = activeBookings.Where(b =>
-                (b.GuideSlotId.HasValue && (b.GuideSlotId.Value == profile.Id || b.GuideSlotId.Value == profile.UserId)) ||
-                (!string.IsNullOrWhiteSpace(b.TravelerNotes) && b.TravelerNotes.Contains(guideName)) ||
-                (!string.IsNullOrWhiteSpace(b.AgentNotes) && b.AgentNotes.Contains(guideName))
-            ).ToList();
-
-            string? bookedFrom = null;
-            string? bookedUntil = null;
-            int bookedDays = 0;
-            string? availableAgain = null;
-            bool isCurrentlyBooked = false;
-            string status = "AVAILABLE";
-            int bookedCapacity = 0;
-            string notes = "Full Island Certified Escort";
-            DateTime startTime = DateTime.UtcNow;
-            DateTime endTime = DateTime.UtcNow.AddMonths(1);
-
-            var currentOrUpcoming = guideBookings
-                .Select(b =>
-                {
-                    DateTime bStart = DateTime.TryParse(b.StartDate, out var ps) ? ps.Date : b.BookedAt.Date;
-                    int dur = b.TripDurationDays.GetValueOrDefault(1) > 0 ? b.TripDurationDays.GetValueOrDefault(1) : 1;
-                    DateTime bEnd = bStart.AddDays(dur - 1);
-                    return new { Booking = b, Start = bStart, End = bEnd, Duration = dur };
-                })
-                .Where(x => x.End >= today)
-                .OrderBy(x => x.Start)
-                .FirstOrDefault();
-
-            if (currentOrUpcoming != null)
-            {
-                var b = currentOrUpcoming.Booking;
-                bookedFrom = currentOrUpcoming.Start.ToString("yyyy-MM-dd");
-                bookedUntil = currentOrUpcoming.End.ToString("yyyy-MM-dd");
-                bookedDays = currentOrUpcoming.Duration;
-                availableAgain = currentOrUpcoming.End.AddDays(1).ToString("yyyy-MM-dd");
-
-                if (today <= currentOrUpcoming.End)
-                {
-                    isCurrentlyBooked = true;
-                    status = (b.Status == "CONFIRMED" || b.GuideAssignmentStatus == "ACCEPTED_BY_GUIDE") ? "BOOKED" : "RESERVED";
-                    bookedCapacity = 1;
-                    startTime = currentOrUpcoming.Start;
-                    endTime = currentOrUpcoming.End;
-                    notes = $"Booked: #{b.BookingReference} ({bookedDays} Days: {currentOrUpcoming.Start:dd MMM yyyy} - {currentOrUpcoming.End:dd MMM yyyy})";
-                }
-            }
-
-            resultList.Add(new
-            {
-                id = profile.Id,
-                localGuideUserId = profile.UserId,
-                guideName = guideName,
-                licenseNumber = profile.LicenseNumber ?? "SLTDA/CG/2026/0491",
-                guideEmail = profile.User?.Email ?? "",
-                startTimeUtc = startTime,
-                endTimeUtc = endTime,
-                slotType = "FULL_DAY",
-                status = status,
-                maxCapacity = 1,
-                bookedCapacity = bookedCapacity,
-                priceAmount = profile.DefaultDailyRateLkr > 0 ? profile.DefaultDailyRateLkr : 18000m,
-                currency = profile.Currency ?? "LKR",
-                notes = notes,
-                rowVersion = profile.RowVersion,
                 bookedFrom = bookedFrom,
                 bookedUntil = bookedUntil,
                 bookedDays = bookedDays,
@@ -1121,7 +1008,19 @@ public sealed class CapacityController(
             return Ok(new { message = "Guide slot deleted successfully." });
         }
 
-        var profile = await db.GuideProfiles.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        var userSlots = await db.GuideAvailabilities
+            .Where(g => g.LocalGuideUserId == id || g.GuideProfileId == id)
+            .Where(g => g.Status != AvailabilityStatus.BOOKED && g.Status != AvailabilityStatus.RESERVED && g.BookedCapacity == 0)
+            .ToListAsync(cancellationToken);
+
+        if (userSlots.Any())
+        {
+            db.GuideAvailabilities.RemoveRange(userSlots);
+            await db.SaveChangesAsync(cancellationToken);
+            return Ok(new { message = "Guide slot removed successfully." });
+        }
+
+        var profile = await db.GuideProfiles.FirstOrDefaultAsync(p => p.Id == id || p.UserId == id, cancellationToken);
         if (profile != null)
         {
             var guideSlots = await db.GuideAvailabilities

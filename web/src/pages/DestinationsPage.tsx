@@ -68,11 +68,14 @@ export const DestinationsPage: React.FC = () => {
       try {
         setLoading(true);
         const res = await api.get<SignatureJourney[]>('/api/journeys/signature');
-        if (Array.isArray(res.data) && res.data.length > 0) {
+        if (Array.isArray(res.data)) {
           setJourneys(res.data);
+        } else {
+          setJourneys([]);
         }
       } catch (err) {
         console.error('Failed to load signature journeys from API:', err);
+        setJourneys([]);
       } finally {
         setLoading(false);
       }

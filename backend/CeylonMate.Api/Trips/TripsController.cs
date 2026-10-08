@@ -161,6 +161,7 @@ public sealed class TripsController(TripService trips, IConfiguration? configura
 
             var extractedThemes = new List<string>();
             var extractedInterests = new List<string>();
+            var extractedDestinations = new List<string>();
 
             using (var doc1 = System.Text.Json.JsonDocument.Parse(json1))
             {
@@ -179,15 +180,41 @@ public sealed class TripsController(TripService trips, IConfiguration? configura
                         if (it.GetString() is string s) extractedInterests.Add(s);
                     }
                 }
+                if (r1.TryGetProperty("recommendedDestinations", out var rdEl) && rdEl.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var it in rdEl.EnumerateArray())
+                    {
+                        if (it.TryGetProperty("name", out var nEl) && nEl.GetString() is string s && !string.IsNullOrWhiteSpace(s))
+                        {
+                            extractedDestinations.Add(s.Trim());
+                        }
+                    }
+                }
+                if (extractedDestinations.Count == 0 && r1.TryGetProperty("destinations", out var dEl) && dEl.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var it in dEl.EnumerateArray())
+                    {
+                        if (it.TryGetProperty("name", out var nEl) && nEl.GetString() is string s && !string.IsNullOrWhiteSpace(s))
+                        {
+                            extractedDestinations.Add(s.Trim());
+                        }
+                    }
+                }
             }
 
             // -----------------------------------------------------------------
             // STEP 2 (Agent 2): Destination Suitability, Weather & Road Advisories
             // -----------------------------------------------------------------
+            var agent2Themes = new List<string>(extractedThemes);
+            foreach (var d in extractedDestinations)
+            {
+                if (!agent2Themes.Contains(d)) agent2Themes.Add(d);
+            }
+
             var payload2 = new
             {
                 tripRequestId = tripId.ToString(),
-                regionsOrThemes = extractedThemes.Count > 0 ? extractedThemes : new List<string> { "Culture", "Central Highlands", "Southern Coast" },
+                regionsOrThemes = agent2Themes.Count > 0 ? agent2Themes : new List<string> { "Culture", "Central Highlands", "Southern Coast" },
                 interests = extractedInterests.Count > 0 ? extractedInterests : (request.Highlights ?? new List<string> { "Culture", "Scenic" }),
                 startDate = startDate.ToString("yyyy-MM-dd"),
                 endDate = endDate.ToString("yyyy-MM-dd"),
@@ -203,7 +230,9 @@ public sealed class TripsController(TripService trips, IConfiguration? configura
             // -----------------------------------------------------------------
             var circuitRoute = !string.IsNullOrWhiteSpace(request.DestinationsCovered)
                 ? request.DestinationsCovered
-                : "Colombo -> Kandy -> Nuwara Eliya -> Yala -> Galle";
+                : (extractedDestinations.Count > 0
+                    ? $"Colombo -> {string.Join(" -> ", extractedDestinations)}"
+                    : "Colombo -> Kandy -> Nuwara Eliya -> Yala -> Galle");
 
             var payload3 = new
             {

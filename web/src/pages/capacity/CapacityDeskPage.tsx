@@ -366,6 +366,7 @@ export const CapacityDeskPage: React.FC = () => {
     const startUtc = new Date(createGuideForm.startTime);
     startUtc.setUTCHours(8, 0, 0, 0);
     const endUtc = new Date(createGuideForm.startTime);
+    endUtc.setFullYear(endUtc.getFullYear() + 10);
     endUtc.setUTCHours(18, 0, 0, 0);
 
     setSubmitting(true);
@@ -968,7 +969,7 @@ export const CapacityDeskPage: React.FC = () => {
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-[#C5A880]/20 hover:brightness-110 active:scale-95 transition-all cursor-pointer"
                   >
                     <Plus className="w-4 h-4 stroke-[3]" />
-                    <span>Add Guide Slot</span>
+                    <span>Add Guide</span>
                   </button>
                 </div>
               </div>
@@ -1025,7 +1026,7 @@ export const CapacityDeskPage: React.FC = () => {
                         <td colSpan={4} className="px-5 py-12 text-center text-stone-400 font-sans">
                           <Users className="w-8 h-8 text-stone-600 mx-auto mb-2" />
                           <p className="text-stone-300 font-medium">No guide availability slots found.</p>
-                          <p className="text-xs text-stone-500 mt-1">Click "+ Add Guide Slot" to create a schedule.</p>
+                          <p className="text-xs text-stone-500 mt-1">Click "+ Add Guide" to create a schedule.</p>
                         </td>
                       </tr>
                     ) : (
@@ -1273,7 +1274,7 @@ export const CapacityDeskPage: React.FC = () => {
                     className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors cursor-pointer"
                   >
                     <option value="" className="bg-[#0F1A24]">Select a Certified Guide...</option>
-                    {guideOptions.map((g) => (
+                    {guideOptions.filter(g => !guideSlots.some(slot => slot.localGuideUserId === g.id)).map((g) => (
                       <option key={g.id} value={g.id} className="bg-[#0F1A24]">
                         {g.fullName || g.name || g.email} ({g.email})
                       </option>
@@ -1289,6 +1290,7 @@ export const CapacityDeskPage: React.FC = () => {
                   <input
                     type="date"
                     value={createGuideForm.startTime}
+                    min={new Date().toISOString().split('T')[0]}
                     onChange={(e) => setCreateGuideForm({ ...createGuideForm, startTime: e.target.value })}
                     className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 scheme-dark focus:outline-none focus:border-[#C5A880] transition-colors"
                   />
@@ -1358,6 +1360,7 @@ export const CapacityDeskPage: React.FC = () => {
                     <input
                       type="date"
                       value={editGuideForm.startTime}
+                      min={new Date().toISOString().split('T')[0]}
                       onChange={(e) => setEditGuideForm({ ...editGuideForm, startTime: e.target.value })}
                       className="w-full bg-[#0B131F] border border-[#C5A880]/20 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-[#C5A880] transition-colors scheme-dark"
                     />

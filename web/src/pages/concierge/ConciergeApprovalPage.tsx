@@ -416,7 +416,7 @@ export const ConciergeApprovalPage: React.FC = () => {
                           <div>
                             <div className="flex items-center gap-2">
                               <h5 className="text-base font-serif-luxury font-bold text-stone-100">
-                                {selectedInquiry.guideName || 'Kavinda Fernando'}
+                                {selectedInquiry.guideName || 'Assigned Guide'}
                               </h5>
                               <span className="text-[10px] font-mono bg-[#134E4A] text-emerald-200 border border-emerald-500/40 px-2 py-0.5 rounded font-bold">
                                 National Tourist Guide Lecturer
