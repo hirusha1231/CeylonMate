@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Check, Calendar, Users, Car, ShieldCheck, ArrowRight, ArrowLeft,
-  Sparkles, Clock, FileText, CheckCircle2, AlertTriangle, RefreshCw
+  Sparkles, Clock, FileText, CheckCircle2, AlertTriangle, RefreshCw, UserCheck
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
