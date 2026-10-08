@@ -91,7 +91,7 @@ export const CuratedPackageBookingModal: React.FC<CuratedPackageBookingModalProp
         setGuides(res.data.map((item: any) => ({
           id: item.id,
           guideUserId: item.guideUserId,
-          guideName: (!item.guideName || item.guideName.includes('@')) ? 'Kavinda Fernando' : item.guideName,
+          guideName: item.guideName || item.fullName || 'Certified Guide',
           bio: item.bio || '',
           licenseNumber: item.licenseNumber || '',
           languages: item.languages || '',

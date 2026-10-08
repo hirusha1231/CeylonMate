@@ -762,8 +762,16 @@ namespace CeylonMate.Api.Controllers
                         .FirstOrDefaultAsync(g => g.Id == guideSlotId.Value);
                     if (gSlot != null)
                     {
+                        DateTimeOffset bookingStart = gSlot.StartTimeUtc;
+                        if (!string.IsNullOrWhiteSpace(booking.StartDate) && DateTime.TryParse(booking.StartDate, out var bStart))
+                        {
+                            bookingStart = new DateTimeOffset(bStart, TimeSpan.Zero);
+                        }
+                        int bDays = (booking.TripDurationDays.HasValue && booking.TripDurationDays.Value > 0) ? booking.TripDurationDays.Value : 1;
+                        DateTimeOffset bookingEnd = bookingStart.AddDays(bDays);
+
+                        SplitGuideSlot(gSlot, bookingStart, bookingEnd, AvailabilityStatus.RESERVED);
                         gSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
-                        gSlot.Status = AvailabilityStatus.RESERVED;
 
                         _context.Notifications.Add(new Notification
                         {
@@ -933,8 +941,17 @@ namespace CeylonMate.Api.Controllers
                     if (gSlot != null)
                     {
                         targetGuideUserId = gSlot.LocalGuideUserId;
+                        
+                        DateTimeOffset bookingStart = gSlot.StartTimeUtc;
+                        if (!string.IsNullOrWhiteSpace(booking.StartDate) && DateTime.TryParse(booking.StartDate, out var bStart))
+                        {
+                            bookingStart = new DateTimeOffset(bStart, TimeSpan.Zero);
+                        }
+                        int bDays = (booking.TripDurationDays.HasValue && booking.TripDurationDays.Value > 0) ? booking.TripDurationDays.Value : 1;
+                        DateTimeOffset bookingEnd = bookingStart.AddDays(bDays);
+
+                        SplitGuideSlot(gSlot, bookingStart, bookingEnd, AvailabilityStatus.RESERVED);
                         gSlot.HeldUntilUtc = DateTimeOffset.UtcNow.AddMinutes(30);
-                        gSlot.Status = AvailabilityStatus.RESERVED;
                         if (string.IsNullOrWhiteSpace(newGuideName))
                             newGuideName = gSlot.GuideProfile?.FullName ?? gSlot.LocalGuideUser?.FullName;
                     }
@@ -1491,6 +1508,70 @@ namespace CeylonMate.Api.Controllers
             double? TotalAmountLkr = null,
             double? TotalCalculatedQuote = null
         );
+
+        private void SplitGuideSlot(GuideAvailability gSlot, DateTimeOffset bookingStart, DateTimeOffset bookingEnd, AvailabilityStatus newStatus)
+        {
+            var originalStart = gSlot.StartTimeUtc;
+            var originalEnd = gSlot.EndTimeUtc;
+
+            gSlot.StartTimeUtc = bookingStart;
+            gSlot.EndTimeUtc = bookingEnd;
+            gSlot.Status = newStatus;
+
+            if (originalStart < bookingStart)
+            {
+                var beforeSlot = new GuideAvailability
+                {
+                    LocalGuideUserId = gSlot.LocalGuideUserId,
+                    GuideProfileId = gSlot.GuideProfileId,
+                    StartTimeUtc = originalStart,
+                    EndTimeUtc = bookingStart.AddDays(-1) > originalStart ? bookingStart.AddDays(-1) : originalStart,
+                    SlotType = gSlot.SlotType,
+                    Status = AvailabilityStatus.AVAILABLE,
+                    MaxCapacity = gSlot.MaxCapacity,
+                    PriceAmount = gSlot.PriceAmount,
+                    Currency = gSlot.Currency
+                };
+                if (beforeSlot.EndTimeUtc >= beforeSlot.StartTimeUtc) 
+                {
+                    _context.GuideAvailabilities.Add(beforeSlot);
+                }
+            }
+
+            DateTimeOffset afterStart = bookingEnd.AddDays(1);
+            if (originalEnd >= afterStart)
+            {
+                var afterSlot = new GuideAvailability
+                {
+                    LocalGuideUserId = gSlot.LocalGuideUserId,
+                    GuideProfileId = gSlot.GuideProfileId,
+                    StartTimeUtc = afterStart,
+                    EndTimeUtc = originalEnd,
+                    SlotType = gSlot.SlotType,
+                    Status = AvailabilityStatus.AVAILABLE,
+                    MaxCapacity = gSlot.MaxCapacity,
+                    PriceAmount = gSlot.PriceAmount,
+                    Currency = gSlot.Currency
+                };
+                _context.GuideAvailabilities.Add(afterSlot);
+            }
+            else
+            {
+                var afterSlot = new GuideAvailability
+                {
+                    LocalGuideUserId = gSlot.LocalGuideUserId,
+                    GuideProfileId = gSlot.GuideProfileId,
+                    StartTimeUtc = afterStart,
+                    EndTimeUtc = afterStart.AddYears(1),
+                    SlotType = gSlot.SlotType,
+                    Status = AvailabilityStatus.AVAILABLE,
+                    MaxCapacity = gSlot.MaxCapacity,
+                    PriceAmount = gSlot.PriceAmount,
+                    Currency = gSlot.Currency
+                };
+                _context.GuideAvailabilities.Add(afterSlot);
+            }
+        }
 
         public record AssignGuideRequestDto(
             Guid? GuideSlotId = null,

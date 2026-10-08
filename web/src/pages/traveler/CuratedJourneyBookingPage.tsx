@@ -602,7 +602,7 @@ export const CuratedJourneyBookingPage: React.FC = () => {
             ) : guides.length === 0 ? (
               <div className="py-12 text-center text-stone-400 font-mono text-xs space-y-3 bg-slate-900/40 rounded-2xl border border-stone-800 p-6">
                 <User className="w-10 h-10 text-[#C5A880] mx-auto opacity-60" />
-                <p className="text-stone-200 text-sm font-semibold font-serif">No Certified Guides Available on {startDate}</p>
+                <p className="text-stone-200 text-sm font-semibold font-serif">No certified guides are available for the selected dates.</p>
                 <p className="text-stone-400 max-w-md mx-auto text-xs leading-relaxed">
                   You can proceed without a guide, or select alternative travel dates.
                 </p>

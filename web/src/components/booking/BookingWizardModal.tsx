@@ -84,12 +84,17 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
   const fetchAvailableGuides = async () => {
     setLoadingGuides(true);
     try {
-      const res = await api.get('/api/capacity/guide-availabilities');
+      const res = await api.get('/api/capacity/guide-availabilities', {
+        params: {
+          startDate: selectedDate,
+          durationDays: selectedPackage?.durationDays || 1
+        }
+      });
       if (Array.isArray(res.data) && res.data.length > 0) {
         setGuides(res.data.map((item: any) => ({
           id: item.id,
           guideUserId: item.guideUserId,
-          guideName: (!item.guideName || item.guideName.includes('@')) ? 'Kavinda Fernando' : item.guideName,
+          guideName: item.guideName || item.fullName || 'Certified Guide',
           bio: item.bio || '',
           licenseNumber: item.licenseNumber || '',
           languages: item.languages || '',
@@ -319,6 +324,14 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                   <div className="py-12 text-center text-stone-400 font-mono text-xs flex items-center justify-center gap-2">
                     <RefreshCw className="w-4 h-4 animate-spin text-[#C5A880]" />
                     <span>Loading active certified guides...</span>
+                  </div>
+                ) : guides.length === 0 ? (
+                  <div className="py-12 text-center text-stone-400 font-mono text-xs space-y-3 bg-slate-900/40 rounded-2xl border border-stone-800 p-6">
+                    <UserCheck className="w-10 h-10 text-[#C5A880] mx-auto opacity-60" />
+                    <p className="text-stone-200 text-sm font-semibold font-serif">No certified guides are available for the selected dates.</p>
+                    <p className="text-stone-400 max-w-md mx-auto text-xs leading-relaxed">
+                      You can proceed without a guide, or select alternative travel dates.
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

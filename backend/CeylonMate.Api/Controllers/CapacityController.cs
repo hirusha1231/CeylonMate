@@ -20,7 +20,31 @@ public sealed class CapacityController(
 {
     // ==========================================
     // PUBLIC / RESERVATION ENDPOINTS
-    // ==========================================
+    [AllowAnonymous]
+    [HttpGet("fix-slots")]
+    public async Task<IActionResult> FixSlots(CancellationToken cancellationToken)
+    {
+        var slots = await db.GuideAvailabilities.ToListAsync(cancellationToken);
+        int count = 0;
+        foreach(var s in slots)
+        {
+            if (s.EndTimeUtc.Year < 2030)
+            {
+                s.EndTimeUtc = s.StartTimeUtc.AddYears(10);
+                count++;
+            }
+        }
+        await db.SaveChangesAsync(cancellationToken);
+        return Ok(new { FixedCount = count });
+    }
+
+    [AllowAnonymous]
+    [HttpGet("debug-availabilities")]
+    public async Task<IActionResult> DebugAvailabilities(CancellationToken cancellationToken)
+    {
+        var slots = await db.GuideAvailabilities.AsNoTracking().ToListAsync(cancellationToken);
+        return Ok(slots);
+    }
 
     [HttpGet("guide-availabilities")]
     [HttpGet("available-guides")]
@@ -61,11 +85,28 @@ public sealed class CapacityController(
             }
         }
 
-        var slots = await db.GuideAvailabilities
+        var slotsQuery = db.GuideAvailabilities
             .AsNoTracking()
             .Include(g => g.LocalGuideUser)
             .Include(g => g.GuideProfile)
-            .Where(g => g.Status == AvailabilityStatus.AVAILABLE)
+            .Where(g => g.Status == AvailabilityStatus.AVAILABLE);
+
+        if (!string.IsNullOrWhiteSpace(effectiveDate) && DateTime.TryParse(effectiveDate, out var qSearchStart))
+        {
+            var qDays = (durationDays.HasValue && durationDays.Value > 0) ? durationDays.Value : 1;
+            var qSearchStartDate = new DateTimeOffset(qSearchStart.Date, TimeSpan.Zero);
+            var qSearchEndDate = new DateTimeOffset(qSearchStart.Date, TimeSpan.Zero).AddDays(qDays - 1);
+            
+            // To ensure the slot covers the entire trip:
+            // 1. It must start BEFORE the END of the first day (i.e. strictly less than qSearchStartDate + 1 day)
+            // 2. It must end AFTER or exactly AT the START of the last day (i.e. >= qSearchEndDate)
+            var qStartBound = qSearchStartDate.AddDays(1);
+            var qEndBound = qSearchEndDate;
+
+            slotsQuery = slotsQuery.Where(g => g.StartTimeUtc < qStartBound && g.EndTimeUtc >= qEndBound);
+        }
+
+        var slots = await slotsQuery
             .OrderBy(g => g.StartTimeUtc)
             .ToListAsync(cancellationToken);
 
@@ -86,7 +127,7 @@ public sealed class CapacityController(
                         ? prof.FullName
                         : (!string.IsNullOrWhiteSpace(user?.FullName) && !user.FullName.Contains("@")
                             ? user.FullName
-                            : "SLTDA Certified Guide");
+                            : "Certified Guide");
 
                     return new
                     {
@@ -95,15 +136,15 @@ public sealed class CapacityController(
                         guideProfileId = (Guid?)(prof?.Id),
                         guideName,
                         fullName = guideName,
-                        bio = prof != null && !string.IsNullOrWhiteSpace(prof.Bio) ? prof.Bio : "SLTDA Certified National Tourist Guide Lecturer specializing in UNESCO World Heritage sites and nature trails.",
-                        licenseNumber = prof != null && !string.IsNullOrWhiteSpace(prof.LicenseNumber) ? prof.LicenseNumber : "SLTDA/NTG/2024/0842",
+                        bio = prof?.Bio ?? "",
+                        licenseNumber = prof?.LicenseNumber ?? "",
                         licenseType = "National Tourist Guide Lecturer",
-                        languages = prof != null && !string.IsNullOrWhiteSpace(prof.LanguagesSpoken) ? prof.LanguagesSpoken : "English, Sinhala, German",
-                        specialties = prof != null && !string.IsNullOrWhiteSpace(prof.Specialties) ? prof.Specialties : "Cultural Heritage, Wildlife Safari, Photography",
-                        rating = prof != null && prof.Rating > 0 ? prof.Rating : 5.0m,
-                        reviewCount = prof != null && prof.ReviewCount > 0 ? prof.ReviewCount : 28,
-                        contactPhone = user != null && !string.IsNullOrWhiteSpace(user.PhoneNumber) ? user.PhoneNumber : "+94 77 123 4567",
-                        photoUrl = prof != null && !string.IsNullOrWhiteSpace(prof.PhotoUrl) ? prof.PhotoUrl : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
+                        languages = prof?.LanguagesSpoken ?? "",
+                        specialties = prof?.Specialties ?? "",
+                        rating = prof != null && prof.Rating > 0 ? prof.Rating : 0m,
+                        reviewCount = prof != null && prof.ReviewCount > 0 ? prof.ReviewCount : 0,
+                        contactPhone = user?.PhoneNumber ?? "",
+                        photoUrl = prof?.PhotoUrl ?? "",
                         priceAmount = grp.Min(s => s.PriceAmount),
                         currency = string.IsNullOrWhiteSpace(first.Currency) ? "LKR" : first.Currency,
                         status = "AVAILABLE",
@@ -637,7 +678,7 @@ public sealed class CapacityController(
                 ? profile.FullName
                 : (!string.IsNullOrWhiteSpace(gUser?.FullName) && !gUser.FullName.Contains("@")
                     ? gUser.FullName
-                    : "Kavinda Fernando");
+                    : "Certified Guide");
 
             var guideBookings = activeBookings.Where(b =>
                 (b.GuideSlotId.HasValue && (b.GuideSlotId.Value == g.Id || b.GuideSlotId.Value == g.GuideProfileId || b.GuideSlotId.Value == guideUserId)) ||
