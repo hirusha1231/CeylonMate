@@ -253,7 +253,7 @@ export function TripRequestsPage() {
             <p className="font-mono">Loading traveler trip inquiries & quotations...</p>
           </div>
         ) : error ? (
-          <div className="bg-[#0F1A24]/80 border border-rose-500/40 rounded-2xl p-8 text-center space-y-4 shadow-xl">
+          <div role="alert" className="bg-[#0F1A24]/80 border border-rose-500/40 rounded-2xl p-8 text-center space-y-4 shadow-xl">
             <h2 className="text-lg font-serif-luxury font-bold text-rose-300">
               Could not load trip requests
             </h2>
