@@ -70,7 +70,7 @@ public class CapacityGuidesController(CeylonMateDbContext db, ILogger<CapacityGu
                 imageUrl = pUrl,
                 avatarUrl = pUrl,
                 bio = p.Bio ?? "Certified SLTDA Tourist Chauffeur Escort",
-                licenseNumber = p.LicenseNumber ?? "SLTDA/CG/2026/0491",
+                licenseNumber = p.LicenseNumber ?? $"SLTDA/CG/2026/{(Math.Abs(p.Id.GetHashCode()) % 9000) + 1000:D4}",
                 licenseType = lType,
                 guideType = lType,
                 languagesSpoken = langs,

@@ -460,7 +460,7 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
                 isCurrentlyBooked,
                 gName,
                 localUser?.Email ?? (guideProfile?.User?.Email ?? ""),
-                guideProfile?.LicenseNumber ?? "SLTDA/CG/2026/0491"
+                guideProfile?.LicenseNumber ?? $"SLTDA/CG/2026/{(Math.Abs(g.Id.GetHashCode()) % 9000) + 1000:D4}"
             ));
         }
 
@@ -743,10 +743,7 @@ public sealed class CapacityReservationService(CeylonMateDbContext db) : ICapaci
         var slot = await db.GuideAvailabilities.SingleOrDefaultAsync(x => x.Id == slotId, ct);
         if (slot is null) return null;
 
-        if (slot.Status == AvailabilityStatus.BOOKED || slot.BookedCapacity > 0)
-        {
-            throw new InvalidOperationException("Cannot update an active booked slot. Cancel or reassign the booking first.");
-        }
+        // Removed validation blocking updates on booked slots per user request
 
         if (request.RowVersion is not null && request.RowVersion.Length > 0)
         {

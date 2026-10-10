@@ -198,6 +198,27 @@ await using (var scope = app.Services.CreateAsyncScope())
                     ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""DailyRate"" numeric(18,2) NOT NULL DEFAULT 0;
                     ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""Currency"" character varying(10) NOT NULL DEFAULT 'LKR';
                     ALTER TABLE IF EXISTS public.guide_profiles ADD COLUMN IF NOT EXISTS ""IsActive"" boolean NOT NULL DEFAULT true;
+                    
+                    CREATE TABLE IF NOT EXISTS public.guide_availabilities (
+                        ""Id"" uuid NOT NULL PRIMARY KEY,
+                        ""LocalGuideUserId"" uuid NOT NULL,
+                        ""GuideProfileId"" uuid NULL,
+                        ""StartTimeUtc"" timestamp with time zone NOT NULL,
+                        ""EndTimeUtc"" timestamp with time zone NOT NULL,
+                        ""SlotType"" character varying(32) NOT NULL,
+                        ""Status"" character varying(32) NOT NULL,
+                        ""MaxCapacity"" integer NOT NULL DEFAULT 1,
+                        ""BookedCapacity"" integer NOT NULL DEFAULT 0,
+                        ""PriceAmount"" numeric(18,2) NOT NULL,
+                        ""Currency"" character varying(3) NOT NULL DEFAULT 'LKR',
+                        ""Notes"" character varying(500) NULL,
+                        ""HeldUntilUtc"" timestamp with time zone NULL,
+                        ""CreatedAtUtc"" timestamp with time zone NOT NULL,
+                        ""UpdatedAtUtc"" timestamp with time zone NOT NULL,
+                        ""RowVersion"" bytea NOT NULL
+                    );
+
+                    ALTER TABLE IF EXISTS public.guide_availabilities ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
                     ALTER TABLE IF EXISTS public.transport_slots ADD COLUMN IF NOT EXISTS ""HeldUntilUtc"" timestamp with time zone NULL;
                     ALTER TABLE IF EXISTS public.transport_slots ADD COLUMN IF NOT EXISTS ""VehicleCatalogId"" uuid NULL;
                     ALTER TABLE IF EXISTS public.transport_slots ADD COLUMN IF NOT EXISTS ""RouteDescription"" text NULL;

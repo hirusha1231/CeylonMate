@@ -107,7 +107,7 @@ export const SignatureJourneysPage: React.FC = () => {
   };
 
   return (
-    <motion.div 
+    <motion.div
       variants={fadeInVariants}
       initial="initial"
       animate="animate"
@@ -137,13 +137,13 @@ export const SignatureJourneysPage: React.FC = () => {
 
       {/* Hero Banner Section */}
       <section className="relative py-20 px-4 md:px-8 bg-gradient-to-b from-[#0F1A24]/90 to-[#0B131F] border-b border-stone-800 z-10">
-        <motion.div 
+        <motion.div
           variants={slideUpVariants}
           initial="initial"
           animate="whileInView"
           className="max-w-7xl mx-auto text-center space-y-4"
         >
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4 }}
@@ -152,7 +152,7 @@ export const SignatureJourneysPage: React.FC = () => {
             <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] animate-spin-slow" />
             <span>Bespoke Sri Lankan Expeditions</span>
           </motion.div>
-          
+
           <h1 className="text-4xl md:text-6xl font-serif-luxury font-bold text-stone-100 tracking-tight">
             Curated Signature Collections
           </h1>
@@ -161,7 +161,7 @@ export const SignatureJourneysPage: React.FC = () => {
           </p>
 
           {/* Duration Filter Control Bar */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
@@ -195,20 +195,18 @@ export const SignatureJourneysPage: React.FC = () => {
                       {...buttonPressProps}
                       whileHover={{ scale: 1.04 }}
                       onClick={() => setSelectedDuration(option.id)}
-                      className={`px-4 py-2.5 rounded-xl text-xs font-mono font-semibold transition-all flex items-center gap-2 cursor-pointer border ${
-                        isActive
+                      className={`px-4 py-2.5 rounded-xl text-xs font-mono font-semibold transition-all flex items-center gap-2 cursor-pointer border ${isActive
                           ? 'bg-gradient-to-r from-[#C5A880] to-[#D4AF37] text-[#0B131F] font-bold border-[#D4AF37] shadow-lg shadow-[#D4AF37]/20 scale-102'
                           : 'bg-[#0B131F]/80 border-stone-800 text-stone-300 hover:border-[#C5A880]/50 hover:text-stone-100'
-                      }`}
+                        }`}
                     >
                       <Clock className={`w-3.5 h-3.5 ${isActive ? 'text-[#0B131F]' : 'text-[#C5A880]'}`} />
                       <span>{option.label}</span>
                       <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-bold ${
-                          isActive
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-sans font-bold ${isActive
                             ? 'bg-[#0B131F]/20 text-[#0B131F]'
                             : 'bg-stone-800/80 text-stone-400'
-                        }`}
+                          }`}
                       >
                         {count}
                       </span>
@@ -225,7 +223,7 @@ export const SignatureJourneysPage: React.FC = () => {
       <section className="max-w-7xl mx-auto px-4 md:px-8 py-12 relative z-10">
         {/* Results summary bar */}
         {!loading && journeys.length > 0 && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.4 }}
@@ -253,7 +251,7 @@ export const SignatureJourneysPage: React.FC = () => {
             ))}
           </div>
         ) : journeys.length === 0 ? (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="text-center py-20 bg-[#0F1A24] border border-stone-800 rounded-2xl p-8 space-y-4 shadow-xl"
@@ -265,7 +263,7 @@ export const SignatureJourneysPage: React.FC = () => {
             </p>
           </motion.div>
         ) : filteredJourneys.length === 0 ? (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="text-center py-20 bg-[#0F1A24] border border-stone-800 rounded-2xl p-8 space-y-4 shadow-xl"

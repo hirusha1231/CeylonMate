@@ -10,6 +10,8 @@ import { FLEET_IMAGES } from '../../utils/mediaData';
 interface FleetShowcaseSectionProps {
   layout?: 'grid' | 'horizontal-cards';
   showTitle?: boolean;
+  limit?: number;
+  randomize?: boolean;
 }
 
 import { useCurrency } from '../../context/CurrencyContext';
@@ -17,6 +19,8 @@ import { useCurrency } from '../../context/CurrencyContext';
 export const FleetShowcaseSection: React.FC<FleetShowcaseSectionProps> = ({
   layout = 'grid',
   showTitle = true,
+  limit,
+  randomize
 }) => {
   const { formatPrice } = useCurrency();
   const [fleetItems, setFleetItems] = useState<VehicleFleetItem[]>([]);
@@ -30,7 +34,14 @@ export const FleetShowcaseSection: React.FC<FleetShowcaseSectionProps> = ({
     setLoading(true);
     try {
       const res = await api.get<VehicleFleetItem[]>('/api/fleet/catalog');
-      setFleetItems(res.data || []);
+      let data = res.data || [];
+      if (randomize) {
+        data = [...data].sort(() => 0.5 - Math.random());
+      }
+      if (limit) {
+        data = data.slice(0, limit);
+      }
+      setFleetItems(data);
     } catch {
       setFleetItems([]);
     } finally {
@@ -181,7 +192,7 @@ export const FleetShowcaseSection: React.FC<FleetShowcaseSectionProps> = ({
           </div>
           <div>
             <h4 className="font-serif-luxury font-bold text-stone-100 text-sm">
-              Live Capacity & Fleet Dispatch Agent (Agent 3)
+              Live Capacity & Fleet Dispatch Agent
             </h4>
             <p className="text-xs text-stone-400">
               Calculate instant route logistics, elevation physics, and available fleet allocations in real time.

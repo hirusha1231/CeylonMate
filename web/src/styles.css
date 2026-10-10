@@ -80,3 +80,16 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #134E4A;
 }
+
+/* Quick Theme Inversion (Lite Mode) */
+html.lite-mode {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: #0F1A24; /* Background becomes whiteish when inverted */
+}
+html.lite-mode img,
+html.lite-mode video,
+html.lite-mode iframe,
+html.lite-mode .no-invert,
+html.lite-mode [style*="background-image"] {
+  filter: invert(1) hue-rotate(180deg);
+}

@@ -77,8 +77,8 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
-                FullName = user != null && !string.IsNullOrWhiteSpace(user.FullName) 
-                    ? user.FullName 
+                FullName = user != null && !string.IsNullOrWhiteSpace(user.FullName)
+                    ? user.FullName
                     : (user?.Email ?? ""),
                 PhotoUrl = null,
                 Bio = null,
@@ -244,7 +244,8 @@ public class GuidePortalController(CeylonMateDbContext db, ILogger<GuidePortalCo
         var fleetCatalogs = await db.VehicleFleetCatalogs.AsNoTracking().ToListAsync(cancellationToken);
         var guideAvailabilities = await db.GuideAvailabilities.AsNoTracking().ToListAsync(cancellationToken);
 
-        var tourDtos = bookings.Select(b => {
+        var tourDtos = bookings.Select(b =>
+        {
             var user = users.FirstOrDefault(u =>
                 (!string.IsNullOrWhiteSpace(b.TravelerUserId) && u.Id.ToString().Equals(b.TravelerUserId, StringComparison.OrdinalIgnoreCase)) ||
                 u.Id.ToString() == b.TravelerId.ToString() ||

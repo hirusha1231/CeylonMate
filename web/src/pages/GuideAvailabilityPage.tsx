@@ -364,22 +364,20 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
         <div className="flex flex-wrap items-center gap-2 bg-[#0F1A24]/90 p-2.5 rounded-2xl border border-[#C5A880]/20 backdrop-blur-xl shadow-xl w-fit">
           <button
             onClick={() => onTabChange?.('guides')}
-            className={`px-5 py-2.5 rounded-xl font-medium text-xs md:text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${
-              activeTab === 'guides'
-                ? 'bg-gradient-to-r from-[#C5A880] to-[#E6CA65] text-[#0B131F] font-bold shadow-lg shadow-[#C5A880]/20'
-                : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
-            }`}
+            className={`px-5 py-2.5 rounded-xl font-medium text-xs md:text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${activeTab === 'guides'
+              ? 'bg-gradient-to-r from-[#C5A880] to-[#E6CA65] text-[#0B131F] font-bold shadow-lg shadow-[#C5A880]/20'
+              : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
+              }`}
           >
             <UserCheck className="w-4 h-4" />
             <span>Guide Availability</span>
           </button>
           <button
             onClick={() => onTabChange?.('capacity')}
-            className={`px-5 py-2.5 rounded-xl font-medium text-xs md:text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${
-              activeTab === 'capacity'
-                ? 'bg-gradient-to-r from-[#C5A880] to-[#E6CA65] text-[#0B131F] font-bold shadow-lg shadow-[#C5A880]/20'
-                : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
-            }`}
+            className={`px-5 py-2.5 rounded-xl font-medium text-xs md:text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${activeTab === 'capacity'
+              ? 'bg-gradient-to-r from-[#C5A880] to-[#E6CA65] text-[#0B131F] font-bold shadow-lg shadow-[#C5A880]/20'
+              : 'text-slate-300 hover:text-white hover:bg-[#C5A880]/10'
+              }`}
           >
             <Calendar className="w-4 h-4" />
             <span>Transport Inventory</span>
@@ -432,11 +430,10 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
               <button
                 key={st}
                 onClick={() => setStatusFilter(st)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                  isActive
-                    ? 'bg-[#C5A880]/20 text-[#C5A880] border border-[#C5A880] shadow-sm'
-                    : 'text-stone-400 hover:text-white bg-slate-900/50 border border-stone-800 hover:border-stone-700'
-                }`}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${isActive
+                  ? 'bg-[#C5A880]/20 text-[#C5A880] border border-[#C5A880] shadow-sm'
+                  : 'text-stone-400 hover:text-white bg-slate-900/50 border border-stone-800 hover:border-stone-700'
+                  }`}
               >
                 {st}
               </button>

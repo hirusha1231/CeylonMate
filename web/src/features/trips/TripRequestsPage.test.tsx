@@ -34,5 +34,5 @@ test('renders API error state and retry', async () => {
   vi.mocked(searchTrips).mockRejectedValue(new Error('offline'));
   render(<MemoryRouter><TripRequestsPage /></MemoryRouter>);
   expect((await screen.findByRole('alert')).textContent).toContain('Could not load trip requests');
-  expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: /Retry/i })).toBeTruthy();
 });

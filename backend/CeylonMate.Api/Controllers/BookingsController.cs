@@ -107,10 +107,10 @@ namespace CeylonMate.Api.Controllers
                 {
                     "PENDING_AGENT_REVIEW" => 1,
                     "PENDING_CONCIERGE_REVIEW" => 1,
-                    "PENDING_REVIEW"       => 1,
+                    "PENDING_REVIEW" => 1,
                     "CAPACITY_FLAGGED_REJECTED" => 2,
-                    "APPROVED_PENDING_PAYMENT"  => 4,
-                    "CONFIRMED"            => 5,
+                    "APPROVED_PENDING_PAYMENT" => 4,
+                    "CONFIRMED" => 5,
                     _ => 1
                 };
 
@@ -185,11 +185,11 @@ namespace CeylonMate.Api.Controllers
                     }
                 }
 
-                var packageTitle = customTitle 
+                var packageTitle = customTitle
                     ?? (!string.IsNullOrWhiteSpace(journey?.Title) ? journey.Title : (isBespoke ? "Bespoke Sri Lanka Luxury Expedition" : "Curated Signature Expedition"));
-                var packageTagline = customTagline 
+                var packageTagline = customTagline
                     ?? (!string.IsNullOrWhiteSpace(journey?.Tagline) ? journey.Tagline : (isBespoke ? "Custom Tailored Sri Lankan Odyssey" : "Curated Luxury Sri Lankan Expedition"));
-                var destinationsCovered = customDestinations 
+                var destinationsCovered = customDestinations
                     ?? (!string.IsNullOrWhiteSpace(journey?.DestinationsCovered) ? journey.DestinationsCovered : (isBespoke ? "Colombo - Cultural Corridor - Southern Coast" : "Sigiriya - Kandy - Nuwara Eliya - Yala"));
                 var packageHeroImageUrl = !string.IsNullOrWhiteSpace(customHeroImageUrl)
                     ? customHeroImageUrl
@@ -256,7 +256,7 @@ namespace CeylonMate.Api.Controllers
                     );
                 }
 
-                var guideFullName = (hasGuide && gProfile != null) 
+                var guideFullName = (hasGuide && gProfile != null)
                     ? (!string.IsNullOrWhiteSpace(gProfile.FullName) ? gProfile.FullName : (gProfile.User?.FullName ?? "SLTDA Certified Guide Lecturer"))
                     : (!string.IsNullOrWhiteSpace(customGuideName) ? customGuideName : "Unassigned Private Guide");
                 var guideLicenseNumber = hasGuide ? (gProfile?.LicenseNumber ?? "SLTDA/CG/2026/01") : null;
@@ -482,23 +482,23 @@ namespace CeylonMate.Api.Controllers
             // ── Platform Fee: from IConfiguration (never hardcoded) ──────────
             decimal platformFeeRate = _config.GetValue<decimal>("Pricing:PlatformFeeRate", 0.03m);
 
-            decimal subtotal          = guideFee + vehicleFee;
-            decimal platformFee       = Math.Round(subtotal * platformFeeRate, 2);
+            decimal subtotal = guideFee + vehicleFee;
+            decimal platformFee = Math.Round(subtotal * platformFeeRate, 2);
             decimal finalTotalQuoteLkr = subtotal + platformFee;
 
             return Ok(new
             {
-                bookingId             = booking.Id,
-                passengerCount        = passengerCount,
+                bookingId = booking.Id,
+                passengerCount = passengerCount,
                 guideFee,
-                guideCurrency         = guideCurrency ?? "LKR",
+                guideCurrency = guideCurrency ?? "LKR",
                 vehicleFee,
-                vehicleCurrency       = vehicleCurrency ?? "LKR",
+                vehicleCurrency = vehicleCurrency ?? "LKR",
                 subtotal,
                 platformFeeRate,
                 platformFee,
                 finalTotalQuoteLkr,
-                currency              = "LKR"
+                currency = "LKR"
             });
         }
 
@@ -732,24 +732,24 @@ namespace CeylonMate.Api.Controllers
             {
                 var booking = new Booking
                 {
-                    TravelerId        = travelerId,
-                    TravelerUserId    = userIdStr,
-                    BookingReference  = bookingRef,
-                    Status            = "PENDING_AGENT_REVIEW",
-                    VehicleCapacityStatus   = "HELD_PENDING_CONFIRMATION",
-                    GuideAssignmentStatus   = guideSlotId.HasValue ? "PENDING_GUIDE_ACCEPTANCE" : "NOT_REQUIRED",
-                    PackageId         = packageIdInt,
-                    TripDurationDays  = dto.TripDurationDays,
-                    PassengerCount    = passengerCount,
-                    GuideSlotId       = guideSlotId,
-                    VehicleSlotId     = vehicleCatalog.Id,
-                    VehicleCatalogId  = vehicleCatalog.Id,
-                    StartDate         = dto.StartDate,
-                    PickupTime        = string.IsNullOrWhiteSpace(dto.PickupTime) ? null : dto.PickupTime,
-                    TravelerNotes     = combinedNotes,
+                    TravelerId = travelerId,
+                    TravelerUserId = userIdStr,
+                    BookingReference = bookingRef,
+                    Status = "PENDING_AGENT_REVIEW",
+                    VehicleCapacityStatus = "HELD_PENDING_CONFIRMATION",
+                    GuideAssignmentStatus = guideSlotId.HasValue ? "PENDING_GUIDE_ACCEPTANCE" : "NOT_REQUIRED",
+                    PackageId = packageIdInt,
+                    TripDurationDays = dto.TripDurationDays,
+                    PassengerCount = passengerCount,
+                    GuideSlotId = guideSlotId,
+                    VehicleSlotId = vehicleCatalog.Id,
+                    VehicleCatalogId = vehicleCatalog.Id,
+                    StartDate = dto.StartDate,
+                    PickupTime = string.IsNullOrWhiteSpace(dto.PickupTime) ? null : dto.PickupTime,
+                    TravelerNotes = combinedNotes,
                     FinalPriceQuoteUsd = dto.FinalPriceQuoteUsd.HasValue ? (decimal)dto.FinalPriceQuoteUsd.Value : (dto.TotalCalculatedQuote.HasValue ? (decimal)dto.TotalCalculatedQuote.Value : (decimal?)null),
                     FinalPriceQuoteLkr = dto.FinalPriceQuoteLkr.HasValue ? (decimal)dto.FinalPriceQuoteLkr.Value : (dto.TotalCalculatedQuote.HasValue ? (decimal)dto.TotalCalculatedQuote.Value * 300m : (decimal?)null),
-                    BookedAt          = DateTime.UtcNow
+                    BookedAt = DateTime.UtcNow
                 };
 
                 _context.Bookings.Add(booking);
@@ -775,15 +775,15 @@ namespace CeylonMate.Api.Controllers
 
                         _context.Notifications.Add(new Notification
                         {
-                            Id              = Guid.NewGuid(),
+                            Id = Guid.NewGuid(),
                             RecipientUserId = gSlot.LocalGuideUserId,
-                            RecipientRole   = "LOCAL_GUIDE",
-                            BookingId       = booking.Id,
-                            Type            = "GUIDE_REQUEST_RAISED",
-                            Title           = "New Expedition Request Received",
-                            Message         = $"You have a new Expedition Request for {booking.StartDate ?? "upcoming date"} (Booking #{bookingRef}). Please review and respond.",
-                            IsRead          = false,
-                            CreatedAt       = DateTime.UtcNow
+                            RecipientRole = "LOCAL_GUIDE",
+                            BookingId = booking.Id,
+                            Type = "GUIDE_REQUEST_RAISED",
+                            Title = "New Expedition Request Received",
+                            Message = $"You have a new Expedition Request for {booking.StartDate ?? "upcoming date"} (Booking #{bookingRef}). Please review and respond.",
+                            IsRead = false,
+                            CreatedAt = DateTime.UtcNow
                         });
                     }
                 }
@@ -816,13 +816,13 @@ namespace CeylonMate.Api.Controllers
                 // ── Capacity notification ─────────────────────────────────────
                 _context.CapacityNotifications.Add(new CapacityNotification
                 {
-                    Id          = Guid.NewGuid(),
-                    BookingId   = booking.Id,
+                    Id = Guid.NewGuid(),
+                    BookingId = booking.Id,
                     VehicleSlotId = vehicleCatalog.Id,
-                    Title       = $"New Vehicle requested for Booking #{bookingRef}",
-                    Message     = $"Vehicle auto-held for Booking #{bookingRef} ({vehicleCatalog.VehicleModel}). Rejection only required if unavailable.",
-                    IsRead      = false,
-                    CreatedAt   = DateTime.UtcNow
+                    Title = $"New Vehicle requested for Booking #{bookingRef}",
+                    Message = $"Vehicle auto-held for Booking #{bookingRef} ({vehicleCatalog.VehicleModel}). Rejection only required if unavailable.",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
                 });
 
                 await _context.SaveChangesAsync();
@@ -830,14 +830,14 @@ namespace CeylonMate.Api.Controllers
 
                 return CreatedAtAction(nameof(GetById), new { id = booking.Id.ToString() }, new
                 {
-                    id               = booking.Id,
+                    id = booking.Id,
                     bookingReference = booking.BookingReference,
-                    status           = booking.Status,
-                    guideSlotId      = booking.GuideSlotId,
-                    vehicleSlotId    = booking.VehicleSlotId,
+                    status = booking.Status,
+                    guideSlotId = booking.GuideSlotId,
+                    vehicleSlotId = booking.VehicleSlotId,
                     vehicleCatalogId = booking.VehicleCatalogId,
-                    startDate        = booking.StartDate,
-                    pickupTime       = booking.PickupTime
+                    startDate = booking.StartDate,
+                    pickupTime = booking.PickupTime
                 });
             }
             catch (Exception ex)
@@ -882,11 +882,12 @@ namespace CeylonMate.Api.Controllers
             }
 
             await _context.SaveChangesAsync();
-            return Ok(new { 
-                message = "Payment confirmed. Booking status updated to CONFIRMED and VIP vouchers locked.", 
+            return Ok(new
+            {
+                message = "Payment confirmed. Booking status updated to CONFIRMED and VIP vouchers locked.",
                 bookingReference = booking.BookingReference,
                 status = booking.Status,
-                booking 
+                booking
             });
         }
 
@@ -937,11 +938,11 @@ namespace CeylonMate.Api.Controllers
                         .Include(g => g.GuideProfile)
                         .Include(g => g.LocalGuideUser)
                         .FirstOrDefaultAsync(g => g.Id == dto.GuideSlotId.Value);
-                    
+
                     if (gSlot != null)
                     {
                         targetGuideUserId = gSlot.LocalGuideUserId;
-                        
+
                         DateTimeOffset bookingStart = gSlot.StartTimeUtc;
                         if (!string.IsNullOrWhiteSpace(booking.StartDate) && DateTime.TryParse(booking.StartDate, out var bStart))
                         {
@@ -1026,11 +1027,11 @@ namespace CeylonMate.Api.Controllers
             var booking = await _context.Bookings.FindAsync(intId);
             if (booking == null) return NotFound();
 
-            booking.Status        = updatedBooking.Status;
+            booking.Status = updatedBooking.Status;
             booking.TripRequestId = updatedBooking.TripRequestId;
-            booking.ItineraryId   = updatedBooking.ItineraryId;
-            booking.QuotationId   = updatedBooking.QuotationId;
-            booking.TravelerId    = updatedBooking.TravelerId;
+            booking.ItineraryId = updatedBooking.ItineraryId;
+            booking.QuotationId = updatedBooking.QuotationId;
+            booking.TravelerId = updatedBooking.TravelerId;
             await _context.SaveChangesAsync();
             return NoContent();
         }
@@ -1083,15 +1084,15 @@ namespace CeylonMate.Api.Controllers
             {
                 booking.GuideAssignmentStatus = "REJECTED_BY_GUIDE";
             }
-            booking.GuideResponseMessage  = dto.Message?.Trim();
-            booking.GuideRespondedAtUtc   = DateTime.UtcNow;
+            booking.GuideResponseMessage = dto.Message?.Trim();
+            booking.GuideRespondedAtUtc = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                message              = $"Expedition request {decisionUpper.ToLower()}ed successfully.",
-                bookingReference     = booking.BookingReference,
+                message = $"Expedition request {decisionUpper.ToLower()}ed successfully.",
+                bookingReference = booking.BookingReference,
                 guideAssignmentStatus = booking.GuideAssignmentStatus,
                 guideResponseMessage = booking.GuideResponseMessage
             });
@@ -1532,7 +1533,7 @@ namespace CeylonMate.Api.Controllers
                     PriceAmount = gSlot.PriceAmount,
                     Currency = gSlot.Currency
                 };
-                if (beforeSlot.EndTimeUtc >= beforeSlot.StartTimeUtc) 
+                if (beforeSlot.EndTimeUtc >= beforeSlot.StartTimeUtc)
                 {
                     _context.GuideAvailabilities.Add(beforeSlot);
                 }

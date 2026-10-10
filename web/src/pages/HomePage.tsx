@@ -39,7 +39,8 @@ export const HomePage: React.FC = () => {
       try {
         const res = await api.get('/api/journeys/signature');
         if (res.data && res.data.length > 0) {
-          setLiveJourneys(res.data);
+          const shuffled = [...res.data].sort(() => 0.5 - Math.random());
+          setLiveJourneys(shuffled.slice(0, 4));
         }
       } catch (err) {
         console.error('Failed to fetch signature journeys for homepage:', err);
@@ -475,7 +476,7 @@ export const HomePage: React.FC = () => {
 
       {/* SECTION 4: PRIVATE FLEET & MULTILINGUAL CHAUFFEURS */}
       <section className="py-20 max-w-7xl mx-auto px-4 md:px-8 space-y-12">
-        <FleetShowcaseSection layout="horizontal-cards" showTitle={true} />
+        <FleetShowcaseSection layout="horizontal-cards" showTitle={true} limit={4} randomize={true} />
 
         <div className="text-center pt-4">
           <Link to="/fleet-and-guides">

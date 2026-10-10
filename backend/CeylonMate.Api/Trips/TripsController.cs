@@ -394,7 +394,7 @@ public sealed class TripsController(TripService trips, IConfiguration? configura
                     guideUserId = prof.UserId,
                     guideName = gName,
                     bio = !string.IsNullOrWhiteSpace(prof.Bio) ? prof.Bio : "SLTDA Licensed Tourist Guide Lecturer & Cultural Ambassador with extensive islandwide field experience.",
-                    licenseNumber = !string.IsNullOrWhiteSpace(prof.LicenseNumber) ? prof.LicenseNumber : "SLTDA/CG/2026/0491",
+                    licenseNumber = !string.IsNullOrWhiteSpace(prof.LicenseNumber) ? prof.LicenseNumber : $"SLTDA/CG/2026/{(Math.Abs(prof.Id.GetHashCode()) % 9000) + 1000:D4}",
                     languages = !string.IsNullOrWhiteSpace(prof.LanguagesSpoken) ? prof.LanguagesSpoken : "English, Sinhala",
                     priceAmount = rate,
                     currency = curr,
