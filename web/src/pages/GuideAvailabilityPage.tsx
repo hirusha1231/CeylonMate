@@ -888,4 +888,3 @@ export const GuideAvailabilityPage: React.FC<GuideAvailabilityPageProps> = ({
     </motion.div>
   );
 };
-};
