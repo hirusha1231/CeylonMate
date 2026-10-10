@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bus, Calendar, Clock, Slash, RefreshCw, LockKeyhole } from 'lucide-react';
+import { Bus, Calendar, Clock, Slash, RefreshCw } from 'lucide-react';
 import { VehicleFleetCatalogItem } from './AddVehicleSlotModal';
 
 export interface TransportSlotItem {
@@ -173,15 +173,7 @@ export const TransportInventoryTable: React.FC<TransportInventoryTableProps> = (
                         </button>
                       )}
 
-                      <button
-                        onClick={() => onHold(slot)}
-                        disabled={!isAvailable || isHeld}
-                        className="p-2 text-stone-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                        title={isHeld ? 'Vehicle is already held' : !isAvailable ? 'Only available vehicles can be held' : 'Hold vehicle charter'}
-                        aria-label="Hold vehicle charter"
-                      >
-                        <LockKeyhole className="w-4 h-4" />
-                      </button>
+
                     </div>
                   </td>
                 </tr>

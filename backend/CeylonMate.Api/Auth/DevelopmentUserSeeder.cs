@@ -36,6 +36,13 @@ public sealed class DevelopmentUserSeeder(
 
         await db.SaveChangesAsync(cancellationToken);
 
+        var specificGuide = await db.Users.FirstOrDefaultAsync(u => u.Email == "local_guide@local.ceylonmate", cancellationToken);
+        if (specificGuide != null)
+        {
+            specificGuide.PasswordHash = passwordHasher.HashPassword(specificGuide, "LocalSeedPassword!123");
+            db.Users.Update(specificGuide);
+        }
+
         // Fix any guide users whose FullName is empty or still contains an email address
         var existingGuideUsers = await db.Users.Where(u => u.Role == UserRole.LOCAL_GUIDE).ToListAsync(cancellationToken);
         foreach (var gu in existingGuideUsers)

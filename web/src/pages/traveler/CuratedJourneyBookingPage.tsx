@@ -221,13 +221,14 @@ export const CuratedJourneyBookingPage: React.FC = () => {
       if (!journey) return;
       setEvaluatingAgents(true);
       try {
-        const [vRes, gRes] = await Promise.all([
+        const [vRes, gRes, slotsRes] = await Promise.all([
           api.get('/api/capacity/available-vehicles-slots', {
             params: { startDate, durationDays: tripDays, passengerCount }
           }),
           api.get('/api/capacity/guide-availabilities', {
             params: { startDate, durationDays: tripDays }
-          })
+          }),
+          api.get('/api/capacity/guides/slots')
         ]);
 
         const vList = Array.isArray(vRes.data)
@@ -240,7 +241,12 @@ export const CuratedJourneyBookingPage: React.FC = () => {
         }
 
         const gList = Array.isArray(gRes.data) ? gRes.data : [];
-        setGuides(gList.map((item: any) => ({
+        const allSlots = Array.isArray(slotsRes.data) ? slotsRes.data : [];
+        const tripStart = new Date(startDate);
+        const tripEnd = new Date(startDate);
+        tripEnd.setDate(tripEnd.getDate() + tripDays);
+
+        const mappedGuides = gList.map((item: any) => ({
           id: item.id,
           guideUserId: item.guideUserId,
           guideName: item.guideName || item.fullName || 'SLTDA Certified Guide',
@@ -253,7 +259,28 @@ export const CuratedJourneyBookingPage: React.FC = () => {
           photoUrl: item.photoUrl || item.imageUrl || '',
           imageUrl: item.imageUrl || item.photoUrl || '',
           status: item.status || 'AVAILABLE'
-        })));
+        })).filter((guide: any) => {
+          if (guide.status !== 'AVAILABLE') return false;
+          
+          const validSlot = allSlots.find((slot: any) => {
+            if (slot.localGuideUserId !== guide.guideUserId) return false;
+            if (slot.status !== 'AVAILABLE') return false;
+            
+            const slotStart = new Date(slot.startTimeUtc);
+            const slotEnd = new Date(slot.endTimeUtc);
+            
+            // Check if slot covers the entire trip period
+            return slotStart.getTime() <= tripStart.getTime() && slotEnd.getTime() >= tripEnd.getTime();
+          });
+          
+          if (validSlot) {
+            guide.slotId = validSlot.id;
+            return true;
+          }
+          
+          return false;
+        });
+        setGuides(mappedGuides);
       } catch (err) {
         console.warn("Direct database inventory fetch notice:", err);
       } finally {
@@ -271,8 +298,8 @@ export const CuratedJourneyBookingPage: React.FC = () => {
 
   const guideDailyCost = selectedGuide
     ? (selectedGuide.currency?.toUpperCase() === 'USD'
-        ? Number(selectedGuide.priceAmount || 0)
-        : Number(selectedGuide.priceAmount || 0) / 300)
+      ? Number(selectedGuide.priceAmount || 0)
+      : Number(selectedGuide.priceAmount || 0) / 300)
     : (agentTelemetry?.dynamicPricing?.guideDailyRate || 0);
 
   const dynamicVehicleTotal = vehicleDailyCost * tripDays;
@@ -314,7 +341,7 @@ export const CuratedJourneyBookingPage: React.FC = () => {
         packageSlug: journey?.slug || packageId,
         vehicleModel: pkgVehicle,
         selectedGuide: pkgGuide,
-        guideSlotId: selectedGuide?.id || null,
+        guideSlotId: (selectedGuide as any)?.slotId || selectedGuide?.id || null,
         vehicleId: selectedVehicle?.id || null,
         vehicleSlotId: selectedVehicle?.id || null,
         startDate: startDate,
@@ -421,13 +448,12 @@ export const CuratedJourneyBookingPage: React.FC = () => {
               <div
                 key={s.step}
                 onClick={() => s.step < currentStep && setCurrentStep(s.step)}
-                className={`py-2 px-3 rounded-xl text-xs font-mono font-bold text-center border transition-all cursor-pointer ${
-                  currentStep === s.step
-                    ? 'bg-[#C5A880] text-slate-950 border-[#D4AF37] shadow-lg'
-                    : currentStep > s.step
-                      ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/40'
-                      : 'bg-slate-900/60 text-stone-500 border-stone-800'
-                }`}
+                className={`py-2 px-3 rounded-xl text-xs font-mono font-bold text-center border transition-all cursor-pointer ${currentStep === s.step
+                  ? 'bg-[#C5A880] text-slate-950 border-[#D4AF37] shadow-lg'
+                  : currentStep > s.step
+                    ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/40'
+                    : 'bg-slate-900/60 text-stone-500 border-stone-800'
+                  }`}
               >
                 {s.label}
               </div>
@@ -512,11 +538,10 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                       }
                       setStartDate(val);
                     }}
-                    className={`w-full bg-slate-900 border rounded-xl px-3 py-2.5 text-stone-100 focus:border-[#C5A880] outline-none font-mono text-xs transition-colors ${
-                      startDate && startDate < new Date().toISOString().slice(0, 10)
-                        ? 'border-rose-500 focus:border-rose-500 text-rose-200'
-                        : 'border-stone-700'
-                    }`}
+                    className={`w-full bg-slate-900 border rounded-xl px-3 py-2.5 text-stone-100 focus:border-[#C5A880] outline-none font-mono text-xs transition-colors ${startDate && startDate < new Date().toISOString().slice(0, 10)
+                      ? 'border-rose-500 focus:border-rose-500 text-rose-200'
+                      : 'border-stone-700'
+                      }`}
                   />
                   {startDate && startDate < new Date().toISOString().slice(0, 10) && (
                     <p className="text-[10px] text-rose-400 font-mono mt-1 flex items-center gap-1">
@@ -615,11 +640,10 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                     <div
                       key={g.id}
                       onClick={() => setSelectedGuide(isSelected ? null : g)}
-                      className={`p-5 rounded-2xl border cursor-pointer transition-all space-y-3 ${
-                        isSelected
-                          ? 'bg-[#134E4A]/30 border-[#C5A880] text-stone-100 shadow-xl ring-2 ring-[#C5A880]/40'
-                          : 'bg-slate-900/60 border-stone-800 text-stone-300 hover:border-stone-700'
-                      }`}
+                      className={`p-5 rounded-2xl border cursor-pointer transition-all space-y-3 ${isSelected
+                        ? 'bg-[#134E4A]/30 border-[#C5A880] text-stone-100 shadow-xl ring-2 ring-[#C5A880]/40'
+                        : 'bg-slate-900/60 border-stone-800 text-stone-300 hover:border-stone-700'
+                        }`}
                     >
                       <div className="flex items-start gap-4">
                         <div className="w-16 h-16 rounded-2xl bg-slate-800 border-2 border-[#C5A880]/30 overflow-hidden shrink-0 flex items-center justify-center text-[#C5A880] shadow-lg relative">
@@ -642,7 +666,7 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-mono text-emerald-400 block font-semibold">
-                              {g.licenseNumber || 'SLTDA/CG/2026/0491'}
+                              {g.licenseNumber || `SLTDA/CG/2026/${String(Math.abs((g.id?.toString().charCodeAt(0) * 123) || 491) % 9000 + 1000).padStart(4, '0')}`}
                             </span>
                             <span className="text-[10px] font-mono text-[#D4AF37] bg-[#D4AF37]/10 px-2 py-0.5 rounded border border-[#D4AF37]/30">
                               ★ {g.rating ? g.rating.toFixed(1) : '5.0'}
@@ -717,13 +741,12 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                       <div
                         key={v.id}
                         onClick={() => !isExceeded && setSelectedVehicle(v)}
-                        className={`p-5 rounded-2xl border transition-all space-y-4 flex flex-col justify-between ${
-                          isExceeded
-                            ? 'bg-slate-900/40 border-stone-800/60 opacity-40 select-none cursor-not-allowed'
-                            : isSelected
-                              ? 'bg-[#134E4A]/30 border-[#C5A880] text-stone-100 shadow-xl ring-2 ring-[#C5A880]/40 cursor-pointer'
-                              : 'bg-slate-900/60 border-stone-800 text-stone-300 hover:border-[#C5A880]/50 hover:bg-slate-900 cursor-pointer'
-                        }`}
+                        className={`p-5 rounded-2xl border transition-all space-y-4 flex flex-col justify-between ${isExceeded
+                          ? 'bg-slate-900/40 border-stone-800/60 opacity-40 select-none cursor-not-allowed'
+                          : isSelected
+                            ? 'bg-[#134E4A]/30 border-[#C5A880] text-stone-100 shadow-xl ring-2 ring-[#C5A880]/40 cursor-pointer'
+                            : 'bg-slate-900/60 border-stone-800 text-stone-300 hover:border-[#C5A880]/50 hover:bg-slate-900 cursor-pointer'
+                          }`}
                       >
                         <div className="space-y-3">
                           <div className="flex items-start gap-4">
@@ -781,11 +804,10 @@ export const CuratedJourneyBookingPage: React.FC = () => {
                           <button
                             type="button"
                             disabled={isExceeded}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 shadow-md'
-                                : 'bg-slate-800 border border-stone-700 text-stone-200 hover:border-[#C5A880]'
-                            }`}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${isSelected
+                              ? 'bg-gradient-to-r from-[#D4AF37] to-[#C5A880] text-slate-950 shadow-md'
+                              : 'bg-slate-800 border border-stone-700 text-stone-200 hover:border-[#C5A880]'
+                              }`}
                           >
                             {isSelected ? '✓ Selected' : 'Select Vehicle'}
                           </button>

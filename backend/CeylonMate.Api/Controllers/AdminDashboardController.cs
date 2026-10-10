@@ -31,7 +31,7 @@ public sealed class AdminDashboardController(CeylonMateDbContext db) : Controlle
         // 3. Real Bookings & Concurrency Holds from DbContext
         var totalBookingsCount = await db.Bookings.CountAsync(cancellationToken);
         var confirmedBookings = await db.Bookings.CountAsync(b => b.Status == "CONFIRMED", cancellationToken);
-        
+
         var guideHolds = await db.GuideAvailabilities.CountAsync(g => g.HeldUntilUtc.HasValue && g.HeldUntilUtc.Value > DateTimeOffset.UtcNow, cancellationToken);
         var transportHolds = await db.TransportSlots.CountAsync(t => t.HeldUntilUtc.HasValue && t.HeldUntilUtc.Value > DateTimeOffset.UtcNow, cancellationToken);
         var attractionHolds = await db.AttractionSlots.CountAsync(a => a.HeldUntilUtc.HasValue && a.HeldUntilUtc.Value > DateTimeOffset.UtcNow, cancellationToken);
